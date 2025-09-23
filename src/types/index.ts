@@ -26,6 +26,8 @@ export interface Video {
   duration: number; // in seconds
   uploadedBy: string;
   uploadedAt: Date;
+  vimeoId?: string;
+  vimeoEmbedUrl?: string;
 }
 
 export interface Comment {

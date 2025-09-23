@@ -2,13 +2,16 @@ import { useState } from 'react';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Video, Eye, TrendingUp, History } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Users, Video, Eye, TrendingUp, History, Upload } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { getUsers, getVideos, getViewHistory } from '@/lib/storage';
 import AdminVideoManagement from '@/components/admin/AdminVideoManagement';
 import AdminUserManagement from '@/components/admin/AdminUserManagement';
 import AdminViewerHistory from '@/components/admin/AdminViewerHistory';
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [users] = useState(getUsers());
   const [videos] = useState(getVideos());
   const [viewHistory] = useState(getViewHistory());

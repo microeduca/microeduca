@@ -1,0 +1,505 @@
+import { useState, useRef } from 'react';
+import Layout from '@/components/Layout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { getVideos, addVideo, updateVideo, deleteVideo, getCategories } from '@/lib/storage';
+import { Video as VideoType } from '@/types';
+import { useNavigate } from 'react-router-dom';
+
+export default function AdminVideos() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [videos, setVideos] = useState(getVideos());
+  const [categories] = useState(getCategories());
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingVideo, setEditingVideo] = useState<VideoType | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [newVideo, setNewVideo] = useState({
+    title: '',
+    description: '',
+    videoUrl: '',
+    categoryId: '',
+    duration: 0,
+    thumbnail: ''
+  });
+
+  const handleAddVideo = () => {
+    if (!newVideo.title || !newVideo.videoUrl || !newVideo.categoryId) {
+      toast({
+        title: "Erro ao adicionar vídeo",
+        description: "Preencha todos os campos obrigatórios.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const video: VideoType = {
+      id: Date.now().toString(),
+      title: newVideo.title,
+      description: newVideo.description,
+      videoUrl: newVideo.videoUrl,
+      categoryId: newVideo.categoryId,
+      duration: newVideo.duration,
+      thumbnail: newVideo.thumbnail || undefined,
+      uploadedBy: 'admin',
+      uploadedAt: new Date(),
+    };
+
+    addVideo(video);
+    setVideos(getVideos());
+    setIsAddDialogOpen(false);
+    setNewVideo({
+      title: '',
+      description: '',
+      videoUrl: '',
+      categoryId: '',
+      duration: 0,
+      thumbnail: ''
+    });
+
+    toast({
+      title: "Vídeo adicionado",
+      description: "O vídeo foi adicionado com sucesso.",
+    });
+  };
+
+  const handleUpdateVideo = () => {
+    if (!editingVideo) return;
+
+    updateVideo(editingVideo);
+    setVideos(getVideos());
+    setIsEditDialogOpen(false);
+    setEditingVideo(null);
+
+    toast({
+      title: "Vídeo atualizado",
+      description: "As informações do vídeo foram atualizadas.",
+    });
+  };
+
+  const handleDeleteVideo = (videoId: string) => {
+    if (confirm('Tem certeza que deseja excluir este vídeo?')) {
+      deleteVideo(videoId);
+      setVideos(getVideos());
+      
+      toast({
+        title: "Vídeo excluído",
+        description: "O vídeo foi removido da plataforma.",
+      });
+    }
+  };
+
+  const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        if (isEdit && editingVideo) {
+          setEditingVideo({ ...editingVideo, thumbnail: base64String });
+        } else {
+          setNewVideo({ ...newVideo, thumbnail: base64String });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const getCategoryName = (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    return category?.name || 'Sem categoria';
+  };
+
+  return (
+    <Layout>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-poppins font-bold">Gerenciar Vídeos</h1>
+            <p className="text-muted-foreground">
+              Adicione e gerencie os vídeos de treinamento da plataforma
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/admin/vimeo-upload')}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Upload Vimeo
+            </Button>
+            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Vídeo
+            </Button>
+          </div>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">Total de Vídeos</CardTitle>
+                <Film className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{videos.length}</div>
+              <p className="text-xs text-muted-foreground">vídeos disponíveis</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">Categorias</CardTitle>
+                <Video className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{categories.length}</div>
+              <p className="text-xs text-muted-foreground">categorias ativas</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">Duração Total</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {Math.floor(videos.reduce((acc, v) => acc + v.duration, 0) / 60)}h
+              </div>
+              <p className="text-xs text-muted-foreground">de conteúdo</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium">Vídeos Vimeo</CardTitle>
+                <Image className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {videos.filter(v => v.vimeoId).length}
+              </div>
+              <p className="text-xs text-muted-foreground">integrados com Vimeo</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Videos Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Lista de Vídeos</CardTitle>
+            <CardDescription>
+              Todos os vídeos disponíveis na plataforma
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Título</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead>Duração</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Upload</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {videos.map(video => (
+                  <TableRow key={video.id}>
+                    <TableCell className="font-medium">{video.title}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">
+                        {getCategoryName(video.categoryId)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{formatDuration(video.duration)}</TableCell>
+                    <TableCell>
+                      {video.vimeoId ? (
+                        <Badge className="bg-primary/10 text-primary">Vimeo</Badge>
+                      ) : (
+                        <Badge variant="outline">URL</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(video.uploadedAt).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => window.open(video.vimeoEmbedUrl || video.videoUrl, '_blank')}
+                          >
+                            <Play className="mr-2 h-4 w-4" />
+                            Assistir
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditingVideo(video);
+                              setIsEditDialogOpen(true);
+                            }}
+                          >
+                            <Edit2 className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteVideo(video.id)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Add Video Dialog */}
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Adicionar Novo Vídeo</DialogTitle>
+              <DialogDescription>
+                Preencha as informações do vídeo
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="title">Título *</Label>
+                <Input
+                  id="title"
+                  value={newVideo.title}
+                  onChange={(e) => setNewVideo({ ...newVideo, title: e.target.value })}
+                  placeholder="Ex: Introdução ao Sistema"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="description">Descrição</Label>
+                <Textarea
+                  id="description"
+                  value={newVideo.description}
+                  onChange={(e) => setNewVideo({ ...newVideo, description: e.target.value })}
+                  placeholder="Descreva o conteúdo do vídeo..."
+                  rows={3}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="category">Categoria *</Label>
+                <Select
+                  value={newVideo.categoryId}
+                  onValueChange={(value) => setNewVideo({ ...newVideo, categoryId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(category => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="url">URL do Vídeo *</Label>
+                <Input
+                  id="url"
+                  type="url"
+                  value={newVideo.videoUrl}
+                  onChange={(e) => setNewVideo({ ...newVideo, videoUrl: e.target.value })}
+                  placeholder="https://exemplo.com/video.mp4"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="duration">Duração (segundos) *</Label>
+                <Input
+                  id="duration"
+                  type="number"
+                  value={newVideo.duration}
+                  onChange={(e) => setNewVideo({ ...newVideo, duration: parseInt(e.target.value) || 0 })}
+                  placeholder="120"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Thumbnail</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleThumbnailUpload(e)}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full"
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Escolher Imagem
+                  </Button>
+                </div>
+                {newVideo.thumbnail && (
+                  <img
+                    src={newVideo.thumbnail}
+                    alt="Thumbnail preview"
+                    className="mt-2 h-24 w-auto rounded-md object-cover"
+                  />
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAddVideo}>Adicionar Vídeo</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Video Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Editar Vídeo</DialogTitle>
+              <DialogDescription>
+                Atualize as informações do vídeo
+              </DialogDescription>
+            </DialogHeader>
+            {editingVideo && (
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-title">Título</Label>
+                  <Input
+                    id="edit-title"
+                    value={editingVideo.title}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, title: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-description">Descrição</Label>
+                  <Textarea
+                    id="edit-description"
+                    value={editingVideo.description}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, description: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-category">Categoria</Label>
+                  <Select
+                    value={editingVideo.categoryId}
+                    onValueChange={(value) => setEditingVideo({ ...editingVideo, categoryId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map(category => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-url">URL do Vídeo</Label>
+                  <Input
+                    id="edit-url"
+                    type="url"
+                    value={editingVideo.videoUrl}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, videoUrl: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-duration">Duração (segundos)</Label>
+                  <Input
+                    id="edit-duration"
+                    type="number"
+                    value={editingVideo.duration}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, duration: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Thumbnail</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      ref={editFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleThumbnailUpload(e, true)}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => editFileInputRef.current?.click()}
+                      className="w-full"
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Alterar Imagem
+                    </Button>
+                  </div>
+                  {editingVideo.thumbnail && (
+                    <img
+                      src={editingVideo.thumbnail}
+                      alt="Thumbnail preview"
+                      className="mt-2 h-24 w-auto rounded-md object-cover"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleUpdateVideo}>Salvar Alterações</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </Layout>
+  );
+}

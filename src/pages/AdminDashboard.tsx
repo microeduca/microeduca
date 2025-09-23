@@ -3,7 +3,7 @@ import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Users, Video, Eye, TrendingUp, History, Upload } from 'lucide-react';
+import { Users, Video, Eye, TrendingUp, History, Upload, Film } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getUsers, getVideos, getViewHistory } from '@/lib/storage';
 import AdminVideoManagement from '@/components/admin/AdminVideoManagement';
@@ -29,11 +29,17 @@ export default function AdminDashboard() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-poppins font-bold">Painel Administrativo</h1>
-          <p className="text-muted-foreground">
-            Gerencie vídeos, usuários e acompanhe o engajamento da plataforma
-          </p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-poppins font-bold">Painel Administrativo</h1>
+            <p className="text-muted-foreground">
+              Gerencie vídeos, usuários e acompanhe o engajamento da plataforma
+            </p>
+          </div>
+          <Button onClick={() => navigate('/admin/videos')} className="gap-2">
+            <Film className="h-4 w-4" />
+            Gerenciar Vídeos
+          </Button>
         </div>
 
         {/* Statistics Cards */}

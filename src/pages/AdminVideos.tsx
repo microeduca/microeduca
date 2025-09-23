@@ -10,11 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image } from 'lucide-react';
+import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getVideos, addVideo, updateVideo, deleteVideo, getCategories } from '@/lib/storage';
 import { Video as VideoType } from '@/types';
 import { useNavigate } from 'react-router-dom';
+import VimeoUpload from '@/components/admin/VimeoUpload';
 
 export default function AdminVideos() {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ export default function AdminVideos() {
   const [categories] = useState(getCategories());
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isVimeoUploadOpen, setIsVimeoUploadOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<VideoType | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
@@ -73,6 +75,15 @@ export default function AdminVideos() {
     toast({
       title: "Vídeo adicionado",
       description: "O vídeo foi adicionado com sucesso.",
+    });
+  };
+  
+  const handleVimeoUploadComplete = () => {
+    setVideos(getVideos());
+    setIsVimeoUploadOpen(false);
+    toast({
+      title: "Vídeo do Vimeo adicionado",
+      description: "O vídeo foi enviado para o Vimeo e adicionado à plataforma.",
     });
   };
 
@@ -300,100 +311,160 @@ export default function AdminVideos() {
             <DialogHeader>
               <DialogTitle>Adicionar Novo Vídeo</DialogTitle>
               <DialogDescription>
-                Preencha as informações do vídeo
+                Escolha como deseja adicionar o vídeo
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="title">Título *</Label>
-                <Input
-                  id="title"
-                  value={newVideo.title}
-                  onChange={(e) => setNewVideo({ ...newVideo, title: e.target.value })}
-                  placeholder="Ex: Introdução ao Sistema"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea
-                  id="description"
-                  value={newVideo.description}
-                  onChange={(e) => setNewVideo({ ...newVideo, description: e.target.value })}
-                  placeholder="Descreva o conteúdo do vídeo..."
-                  rows={3}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="category">Categoria *</Label>
-                <Select
-                  value={newVideo.categoryId}
-                  onValueChange={(value) => setNewVideo({ ...newVideo, categoryId: value })}
+              <div className="grid gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsAddDialogOpen(false);
+                    setIsVimeoUploadOpen(true);
+                  }}
+                  className="w-full h-24 flex flex-col gap-2"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(category => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="url">URL do Vídeo *</Label>
-                <Input
-                  id="url"
-                  type="url"
-                  value={newVideo.videoUrl}
-                  onChange={(e) => setNewVideo({ ...newVideo, videoUrl: e.target.value })}
-                  placeholder="https://exemplo.com/video.mp4"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="duration">Duração (segundos) *</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  value={newVideo.duration}
-                  onChange={(e) => setNewVideo({ ...newVideo, duration: parseInt(e.target.value) || 0 })}
-                  placeholder="120"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Thumbnail</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleThumbnailUpload(e)}
-                    className="hidden"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full"
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Escolher Imagem
-                  </Button>
+                  <Cloud className="h-8 w-8 text-primary" />
+                  <div className="text-center">
+                    <p className="font-semibold">Upload para Vimeo</p>
+                    <p className="text-xs text-muted-foreground">Faça upload direto para o Vimeo</p>
+                  </div>
+                </Button>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">ou</span>
+                  </div>
                 </div>
-                {newVideo.thumbnail && (
-                  <img
-                    src={newVideo.thumbnail}
-                    alt="Thumbnail preview"
-                    className="mt-2 h-24 w-auto rounded-md object-cover"
-                  />
-                )}
+                
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium">Adicionar URL de Vídeo</h3>
+                  <div className="grid gap-2">
+                    <Label htmlFor="title">Título *</Label>
+                    <Input
+                      id="title"
+                      value={newVideo.title}
+                      onChange={(e) => setNewVideo({ ...newVideo, title: e.target.value })}
+                      placeholder="Ex: Introdução ao Sistema"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="description">Descrição</Label>
+                    <Textarea
+                      id="description"
+                      value={newVideo.description}
+                      onChange={(e) => setNewVideo({ ...newVideo, description: e.target.value })}
+                      placeholder="Descreva o conteúdo do vídeo..."
+                      rows={3}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="category">Categoria *</Label>
+                    <Select
+                      value={newVideo.categoryId}
+                      onValueChange={(value) => setNewVideo({ ...newVideo, categoryId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map(category => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="url">URL do Vídeo *</Label>
+                    <Input
+                      id="url"
+                      type="url"
+                      value={newVideo.videoUrl}
+                      onChange={(e) => setNewVideo({ ...newVideo, videoUrl: e.target.value })}
+                      placeholder="https://exemplo.com/video.mp4"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="duration">Duração (segundos) *</Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      value={newVideo.duration}
+                      onChange={(e) => setNewVideo({ ...newVideo, duration: parseInt(e.target.value) || 0 })}
+                      placeholder="120"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Thumbnail</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleThumbnailUpload(e)}
+                        className="hidden"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full"
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        Escolher Imagem
+                      </Button>
+                    </div>
+                    {newVideo.thumbnail && (
+                      <img
+                        src={newVideo.thumbnail}
+                        alt="Thumbnail preview"
+                        className="mt-2 h-24 w-auto rounded-md object-cover"
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleAddVideo}>Adicionar Vídeo</Button>
+              <Button 
+                onClick={handleAddVideo}
+                disabled={!newVideo.title || !newVideo.videoUrl || !newVideo.categoryId}
+              >
+                Adicionar Vídeo
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Vimeo Upload Dialog */}
+        <Dialog open={isVimeoUploadOpen} onOpenChange={setIsVimeoUploadOpen}>
+          <DialogContent className="max-w-3xl h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Upload de Vídeo para o Vimeo</DialogTitle>
+              <DialogDescription>
+                Faça upload do seu vídeo diretamente para o Vimeo
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <VimeoUpload />
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsVimeoUploadOpen(false);
+                  handleVimeoUploadComplete();
+                }}
+              >
+                Fechar
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

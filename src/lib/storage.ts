@@ -121,6 +121,27 @@ export const getCategories = (): Category[] => {
   return mockCategories;
 };
 
+export const addCategory = (category: Category): void => {
+  const categories = getCategories();
+  categories.push(category);
+  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+};
+
+export const updateCategory = (updatedCategory: Category): void => {
+  const categories = getCategories();
+  const index = categories.findIndex(c => c.id === updatedCategory.id);
+  if (index >= 0) {
+    categories[index] = updatedCategory;
+    localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+  }
+};
+
+export const deleteCategory = (categoryId: string): void => {
+  const categories = getCategories();
+  const filteredCategories = categories.filter(c => c.id !== categoryId);
+  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(filteredCategories));
+};
+
 // Video Management
 export const getVideos = (): Video[] => {
   const stored = localStorage.getItem(VIDEOS_KEY);

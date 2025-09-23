@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminVideos from "./pages/AdminVideos";
+import AdminCategories from "./pages/AdminCategories";
 import UserDashboard from "./pages/UserDashboard";
 import VimeoUpload from "./components/admin/VimeoUpload";
 
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/videos" element={<AdminVideos />} />
+          <Route path="/admin/categorias" element={<AdminCategories />} />
           <Route path="/admin/vimeo-upload" element={<VimeoUpload />} />
           <Route path="/admin/vimeo-callback" element={<VimeoUpload />} />
           <Route path="/dashboard" element={<UserDashboard />} />

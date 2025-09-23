@@ -45,7 +45,7 @@ export default function Layout({ children }: LayoutProps) {
                         Vídeos
                       </button>
                       <button
-                        onClick={() => navigate('/admin/categories')}
+                        onClick={() => navigate('/admin/categorias')}
                         className="text-muted-foreground hover:text-foreground transition-colors font-inter"
                       >
                         Categorias

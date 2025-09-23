@@ -44,13 +44,13 @@ export default function Login() {
           <div className="flex justify-center mb-4">
             <BookOpen className="h-12 w-12 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-poppins">Entrar no EduStream</CardTitle>
+          <CardTitle className="text-2xl font-poppins">Portal de Treinamento</CardTitle>
           <CardDescription>
-            Use as credenciais de teste:
+            Acesso exclusivo para colaboradores
             <br />
-            Admin: admin@edustream.com
+            Credenciais de teste:
             <br />
-            User: joao@example.com
+            Admin: admin@micro.com.br | User: joao@micro.com.br
           </CardDescription>
         </CardHeader>
         <CardContent>

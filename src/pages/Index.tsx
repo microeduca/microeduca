@@ -27,11 +27,11 @@ const Index = () => {
           <div className="max-w-3xl mx-auto text-center">
             <BookOpen className="h-16 w-16 mx-auto mb-6" />
             <h1 className="text-5xl font-poppins font-bold mb-6">
-              EduStream
+              Micro - Centro Diagnóstico
             </h1>
             <p className="text-xl mb-8 opacity-95">
-              Plataforma moderna de aprendizado com vídeos educacionais 
-              organizados por categoria
+              Plataforma de Treinamento e Capacitação Profissional 
+              para nossos colaboradores
             </p>
             <div className="flex gap-4 justify-center">
               <Button 
@@ -57,7 +57,7 @@ const Index = () => {
       {/* Features Section */}
       <div className="container mx-auto px-4 py-16">
         <h2 className="text-3xl font-poppins font-bold text-center mb-12">
-          Por que escolher o EduStream?
+          Recursos da Plataforma
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -65,9 +65,9 @@ const Index = () => {
             <div className="bg-accent/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
               <PlayCircle className="h-10 w-10 text-accent" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Vídeos de Qualidade</h3>
+            <h3 className="text-xl font-semibold mb-2">Material de Treinamento</h3>
             <p className="text-muted-foreground">
-              Conteúdo educacional selecionado e organizado em categorias
+              Vídeos e materiais específicos para cada área de atuação
             </p>
           </div>
           
@@ -77,7 +77,7 @@ const Index = () => {
             </div>
             <h3 className="text-xl font-semibold mb-2">Acesso Personalizado</h3>
             <p className="text-muted-foreground">
-              Cada usuário tem acesso apenas às categorias relevantes
+              Cada colaborador acessa apenas o conteúdo de sua área
             </p>
           </div>
           
@@ -100,14 +100,14 @@ const Index = () => {
             Pronto para começar?
           </h2>
           <p className="text-xl text-muted-foreground mb-8">
-            Acesse agora e comece sua jornada de aprendizado
+            Acesse o portal de treinamento exclusivo para colaboradores
           </p>
           <Button 
             size="lg"
             onClick={() => navigate('/login')}
             className="bg-gradient-primary hover:shadow-glow"
           >
-            Acessar Plataforma
+            Acessar Portal
           </Button>
         </div>
       </div>

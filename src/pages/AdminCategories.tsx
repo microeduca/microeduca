@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,23 +11,38 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, FolderOpen, Edit2, Trash2, MoreVertical, Film, Tag } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getCategories, addCategory, updateCategory, deleteCategory, getVideos } from '@/lib/storage';
-import { Category } from '@/types';
+import { getCategories, addCategory, updateCategory, deleteCategory, getVideos } from '@/lib/supabase';
 
 export default function AdminCategories() {
   const { toast } = useToast();
-  const [categories, setCategories] = useState(getCategories());
-  const [videos] = useState(getVideos());
+  const [categories, setCategories] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingCategory, setEditingCategory] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   
   const [newCategory, setNewCategory] = useState({
     name: '',
     description: '',
   });
 
-  const handleAddCategory = () => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const [categoriesData, videosData] = await Promise.all([
+      getCategories(),
+      getVideos()
+    ]);
+    setCategories(categoriesData);
+    setVideos(videosData);
+    setLoading(false);
+  };
+
+  const handleAddCategory = async () => {
     if (!newCategory.name) {
       toast({
         title: "Erro ao adicionar categoria",
@@ -37,44 +52,61 @@ export default function AdminCategories() {
       return;
     }
 
-    const category: Category = {
-      id: Date.now().toString(),
-      name: newCategory.name,
-      description: newCategory.description,
-      createdAt: new Date(),
-    };
+    try {
+      await addCategory({
+        name: newCategory.name,
+        description: newCategory.description,
+      });
+      
+      await loadData();
+      setIsAddDialogOpen(false);
+      setNewCategory({
+        name: '',
+        description: '',
+      });
 
-    addCategory(category);
-    setCategories(getCategories());
-    setIsAddDialogOpen(false);
-    setNewCategory({
-      name: '',
-      description: '',
-    });
-
-    toast({
-      title: "Categoria adicionada",
-      description: "A categoria foi criada com sucesso.",
-    });
+      toast({
+        title: "Categoria adicionada",
+        description: "A categoria foi criada com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao adicionar categoria",
+        description: "Ocorreu um erro ao criar a categoria.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleUpdateCategory = () => {
+  const handleUpdateCategory = async () => {
     if (!editingCategory) return;
 
-    updateCategory(editingCategory);
-    setCategories(getCategories());
-    setIsEditDialogOpen(false);
-    setEditingCategory(null);
+    try {
+      await updateCategory(editingCategory.id, {
+        name: editingCategory.name,
+        description: editingCategory.description,
+      });
+      
+      await loadData();
+      setIsEditDialogOpen(false);
+      setEditingCategory(null);
 
-    toast({
-      title: "Categoria atualizada",
-      description: "As informações da categoria foram atualizadas.",
-    });
+      toast({
+        title: "Categoria atualizada",
+        description: "As informações da categoria foram atualizadas.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao atualizar categoria",
+        description: "Ocorreu um erro ao atualizar a categoria.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDeleteCategory = (categoryId: string) => {
+  const handleDeleteCategory = async (categoryId: string) => {
     // Check if category has videos
-    const categoryVideos = videos.filter(v => v.categoryId === categoryId);
+    const categoryVideos = videos.filter(v => v.category_id === categoryId);
     if (categoryVideos.length > 0) {
       toast({
         title: "Não foi possível excluir",
@@ -85,18 +117,26 @@ export default function AdminCategories() {
     }
 
     if (confirm('Tem certeza que deseja excluir esta categoria?')) {
-      deleteCategory(categoryId);
-      setCategories(getCategories());
-      
-      toast({
-        title: "Categoria excluída",
-        description: "A categoria foi removida com sucesso.",
-      });
+      try {
+        await deleteCategory(categoryId);
+        await loadData();
+        
+        toast({
+          title: "Categoria excluída",
+          description: "A categoria foi removida com sucesso.",
+        });
+      } catch (error) {
+        toast({
+          title: "Erro ao excluir categoria",
+          description: "Ocorreu um erro ao remover a categoria.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
   const getVideoCount = (categoryId: string) => {
-    return videos.filter(v => v.categoryId === categoryId).length;
+    return videos.filter(v => v.category_id === categoryId).length;
   };
 
   return (

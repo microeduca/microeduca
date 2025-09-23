@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,20 +12,20 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getVideos, addVideo, updateVideo, deleteVideo, getCategories } from '@/lib/storage';
-import { Video as VideoType } from '@/types';
+import { getVideos, addVideo, updateVideo, deleteVideo, getCategories } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import VimeoUpload from '@/components/admin/VimeoUpload';
 
 export default function AdminVideos() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [videos, setVideos] = useState(getVideos());
-  const [categories] = useState(getCategories());
+  const [videos, setVideos] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isVimeoUploadOpen, setIsVimeoUploadOpen] = useState(false);
-  const [editingVideo, setEditingVideo] = useState<VideoType | null>(null);
+  const [editingVideo, setEditingVideo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   
@@ -38,7 +38,22 @@ export default function AdminVideos() {
     thumbnail: ''
   });
 
-  const handleAddVideo = () => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const [videosData, categoriesData] = await Promise.all([
+      getVideos(),
+      getCategories()
+    ]);
+    setVideos(videosData);
+    setCategories(categoriesData);
+    setLoading(false);
+  };
+
+  const handleAddVideo = async () => {
     if (!newVideo.title || !newVideo.videoUrl || !newVideo.categoryId) {
       toast({
         title: "Erro ao adicionar vídeo",
@@ -48,38 +63,43 @@ export default function AdminVideos() {
       return;
     }
 
-    const video: VideoType = {
-      id: Date.now().toString(),
-      title: newVideo.title,
-      description: newVideo.description,
-      videoUrl: newVideo.videoUrl,
-      categoryId: newVideo.categoryId,
-      duration: newVideo.duration,
-      thumbnail: newVideo.thumbnail || undefined,
-      uploadedBy: 'admin',
-      uploadedAt: new Date(),
-    };
+    try {
+      await addVideo({
+        title: newVideo.title,
+        description: newVideo.description,
+        video_url: newVideo.videoUrl,
+        thumbnail: newVideo.thumbnail || undefined,
+        category_id: newVideo.categoryId,
+        duration: newVideo.duration,
+        uploaded_by: 'admin',
+      });
 
-    addVideo(video);
-    setVideos(getVideos());
-    setIsAddDialogOpen(false);
-    setNewVideo({
-      title: '',
-      description: '',
-      videoUrl: '',
-      categoryId: '',
-      duration: 0,
-      thumbnail: ''
-    });
+      await loadData();
+      setIsAddDialogOpen(false);
+      setNewVideo({
+        title: '',
+        description: '',
+        videoUrl: '',
+        categoryId: '',
+        duration: 0,
+        thumbnail: ''
+      });
 
-    toast({
-      title: "Vídeo adicionado",
-      description: "O vídeo foi adicionado com sucesso.",
-    });
+      toast({
+        title: "Vídeo adicionado",
+        description: "O vídeo foi adicionado com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao adicionar vídeo",
+        description: "Ocorreu um erro ao cadastrar o vídeo.",
+        variant: "destructive",
+      });
+    }
   };
   
-  const handleVimeoUploadComplete = () => {
-    setVideos(getVideos());
+  const handleVimeoUploadComplete = async () => {
+    await loadData();
     setIsVimeoUploadOpen(false);
     toast({
       title: "Vídeo do Vimeo adicionado",
@@ -87,29 +107,53 @@ export default function AdminVideos() {
     });
   };
 
-  const handleUpdateVideo = () => {
+  const handleUpdateVideo = async () => {
     if (!editingVideo) return;
 
-    updateVideo(editingVideo);
-    setVideos(getVideos());
-    setIsEditDialogOpen(false);
-    setEditingVideo(null);
+    try {
+      await updateVideo(editingVideo.id, {
+        title: editingVideo.title,
+        description: editingVideo.description,
+        video_url: editingVideo.video_url || editingVideo.videoUrl,
+        thumbnail: editingVideo.thumbnail,
+        category_id: editingVideo.category_id || editingVideo.categoryId,
+        duration: editingVideo.duration,
+      });
+      
+      await loadData();
+      setIsEditDialogOpen(false);
+      setEditingVideo(null);
 
-    toast({
-      title: "Vídeo atualizado",
-      description: "As informações do vídeo foram atualizadas.",
-    });
+      toast({
+        title: "Vídeo atualizado",
+        description: "As informações do vídeo foram atualizadas.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao atualizar vídeo",
+        description: "Ocorreu um erro ao atualizar o vídeo.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDeleteVideo = (videoId: string) => {
+  const handleDeleteVideo = async (videoId: string) => {
     if (confirm('Tem certeza que deseja excluir este vídeo?')) {
-      deleteVideo(videoId);
-      setVideos(getVideos());
-      
-      toast({
-        title: "Vídeo excluído",
-        description: "O vídeo foi removido da plataforma.",
-      });
+      try {
+        await deleteVideo(videoId);
+        await loadData();
+        
+        toast({
+          title: "Vídeo excluído",
+          description: "O vídeo foi removido da plataforma.",
+        });
+      } catch (error) {
+        toast({
+          title: "Erro ao excluir vídeo",
+          description: "Ocorreu um erro ao remover o vídeo.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -218,7 +262,7 @@ export default function AdminVideos() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {videos.filter(v => v.vimeoId).length}
+                {videos.filter(v => v.vimeo_id).length}
               </div>
               <p className="text-xs text-muted-foreground">integrados com Vimeo</p>
             </CardContent>
@@ -251,19 +295,19 @@ export default function AdminVideos() {
                     <TableCell className="font-medium">{video.title}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">
-                        {getCategoryName(video.categoryId)}
+                        {getCategoryName(video.category_id)}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatDuration(video.duration)}</TableCell>
                     <TableCell>
-                      {video.vimeoId ? (
+                      {video.vimeo_id ? (
                         <Badge className="bg-primary/10 text-primary">Vimeo</Badge>
                       ) : (
                         <Badge variant="outline">URL</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(video.uploadedAt).toLocaleDateString('pt-BR')}
+                      {new Date(video.uploaded_at || video.created_at).toLocaleDateString('pt-BR')}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -274,7 +318,7 @@ export default function AdminVideos() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={() => window.open(video.vimeoEmbedUrl || video.videoUrl, '_blank')}
+                            onClick={() => window.open(video.vimeo_embed_url || video.video_url, '_blank')}
                           >
                             <Play className="mr-2 h-4 w-4" />
                             Assistir

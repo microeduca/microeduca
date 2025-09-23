@@ -76,10 +76,10 @@ export const tokenNeedsRefresh = (): boolean => {
   return Date.now() > (expiryTime - bufferTime);
 };
 
-// Get Supabase URL from environment or window location
+// Get Supabase URL (Edge Functions base)
 export const getSupabaseUrl = (): string => {
-  // In production, this would be your Supabase project URL
-  return window.location.origin;
+  // Use the actual Supabase project URL for Edge Functions
+  return "https://exnfttsyfhtkgpuewgnk.supabase.co";
 };
 
 // Generate state parameter for OAuth

@@ -4,4 +4,4 @@ project_id = "exnfttsyfhtkgpuewgnk"
 verify_jwt = false
 
 [functions.vimeo-upload]
-verify_jwt = true
+verify_jwt = false

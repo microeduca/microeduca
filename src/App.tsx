@@ -14,6 +14,7 @@ import UserDashboard from "./pages/UserDashboard";
 import VideoPlayer from "./pages/VideoPlayer";
 import AdminUsers from "./pages/AdminUsers";
 import VimeoUpload from "./components/admin/VimeoUpload";
+import History from "./pages/History";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/dashboard" element={<UserDashboard />} />
           <Route path="/meus-cursos" element={<MeusCursos />} />
           <Route path="/video/:videoId" element={<VideoPlayer />} />
+          <Route path="/history" element={<History />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

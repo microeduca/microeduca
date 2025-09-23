@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminVideos from "./pages/AdminVideos";
 import AdminCategories from "./pages/AdminCategories";
+import MeusCursos from "./pages/MeusCursos";
 import UserDashboard from "./pages/UserDashboard";
 import VideoPlayer from "./pages/VideoPlayer";
 import AdminUsers from "./pages/AdminUsers";
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/admin/vimeo-upload" element={<VimeoUpload />} />
           <Route path="/admin/vimeo-callback" element={<VimeoUpload />} />
           <Route path="/dashboard" element={<UserDashboard />} />
+          <Route path="/meus-cursos" element={<MeusCursos />} />
           <Route path="/video/:videoId" element={<VideoPlayer />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

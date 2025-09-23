@@ -60,10 +60,16 @@ export default function Layout({ children }: LayoutProps) {
                   ) : (
                     <>
                       <button
-                        onClick={() => navigate('/dashboard')}
+                        onClick={() => navigate('/meus-cursos')}
                         className="text-muted-foreground hover:text-foreground transition-colors font-inter"
                       >
                         Meus Cursos
+                      </button>
+                      <button
+                        onClick={() => navigate('/dashboard')}
+                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
+                      >
+                        Todos os Vídeos
                       </button>
                       <button
                         onClick={() => navigate('/history')}

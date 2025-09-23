@@ -9,9 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Users, UserCheck, Shield, Edit2, Trash2, MoreVertical, UserX, Mail } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Plus, Users, UserCheck, Shield, Edit2, Trash2, MoreVertical, UserX, Mail, FolderOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getUsers, addUser, updateUser, deleteUser } from '@/lib/storage';
+import { getUsers, addUser, updateUser, deleteUser, getCategories } from '@/lib/storage';
 import { User } from '@/types';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -19,6 +21,7 @@ export default function AdminUsers() {
   const { toast } = useToast();
   const currentUser = getCurrentUser();
   const [users, setUsers] = useState(getUsers());
+  const [categories] = useState(getCategories());
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -28,6 +31,7 @@ export default function AdminUsers() {
     email: '',
     password: '',
     role: 'user' as 'admin' | 'user',
+    assignedCategories: [] as string[],
   });
 
   const handleAddUser = () => {
@@ -45,7 +49,7 @@ export default function AdminUsers() {
       name: newUser.name,
       email: newUser.email,
       role: newUser.role,
-      assignedCategories: [],
+      assignedCategories: newUser.assignedCategories,
       createdAt: new Date(),
       isActive: true,
     };
@@ -58,6 +62,7 @@ export default function AdminUsers() {
       email: '',
       password: '',
       role: 'user',
+      assignedCategories: [],
     });
 
     toast({
@@ -197,6 +202,7 @@ export default function AdminUsers() {
                   <TableHead>Nome</TableHead>
                   <TableHead>E-mail</TableHead>
                   <TableHead>Perfil</TableHead>
+                  <TableHead>Categorias</TableHead>
                   <TableHead>Cadastro</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -230,6 +236,28 @@ export default function AdminUsers() {
                           Usuário
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {user.assignedCategories && user.assignedCategories.length > 0 ? (
+                          user.assignedCategories.slice(0, 2).map(catId => {
+                            const category = categories.find(c => c.id === catId);
+                            return category ? (
+                              <Badge key={catId} variant="outline" className="text-xs">
+                                <FolderOpen className="h-3 w-3 mr-1" />
+                                {category.name}
+                              </Badge>
+                            ) : null;
+                          })
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Nenhuma</span>
+                        )}
+                        {user.assignedCategories && user.assignedCategories.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{user.assignedCategories.length - 2}
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(user.createdAt).toLocaleDateString('pt-BR')}
@@ -278,7 +306,7 @@ export default function AdminUsers() {
 
         {/* Add User Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[525px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Adicionar Novo Usuário</DialogTitle>
               <DialogDescription>
@@ -330,6 +358,55 @@ export default function AdminUsers() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid gap-2">
+                <Label>Categorias de Acesso</Label>
+                <div className="text-sm text-muted-foreground mb-2">
+                  Selecione as categorias que o usuário terá acesso
+                </div>
+                <ScrollArea className="h-[200px] w-full border rounded-md p-4">
+                  <div className="space-y-3">
+                    {categories.map(category => (
+                      <div key={category.id} className="flex items-start space-x-2">
+                        <Checkbox
+                          id={`new-cat-${category.id}`}
+                          checked={newUser.assignedCategories.includes(category.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setNewUser({
+                                ...newUser,
+                                assignedCategories: [...newUser.assignedCategories, category.id]
+                              });
+                            } else {
+                              setNewUser({
+                                ...newUser,
+                                assignedCategories: newUser.assignedCategories.filter(id => id !== category.id)
+                              });
+                            }
+                          }}
+                        />
+                        <div className="grid gap-1 leading-none">
+                          <label
+                            htmlFor={`new-cat-${category.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {category.name}
+                          </label>
+                          {category.description && (
+                            <p className="text-xs text-muted-foreground">
+                              {category.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {categories.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Nenhuma categoria cadastrada
+                      </p>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
@@ -342,7 +419,7 @@ export default function AdminUsers() {
 
         {/* Edit User Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[525px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Usuário</DialogTitle>
               <DialogDescription>
@@ -390,6 +467,56 @@ export default function AdminUsers() {
                       <SelectItem value="admin">Administrador</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Categorias de Acesso</Label>
+                  <div className="text-sm text-muted-foreground mb-2">
+                    Selecione as categorias que o usuário terá acesso
+                  </div>
+                  <ScrollArea className="h-[200px] w-full border rounded-md p-4">
+                    <div className="space-y-3">
+                      {categories.map(category => (
+                        <div key={category.id} className="flex items-start space-x-2">
+                          <Checkbox
+                            id={`edit-cat-${category.id}`}
+                            checked={editingUser.assignedCategories?.includes(category.id) || false}
+                            onCheckedChange={(checked) => {
+                              const currentCategories = editingUser.assignedCategories || [];
+                              if (checked) {
+                                setEditingUser({
+                                  ...editingUser,
+                                  assignedCategories: [...currentCategories, category.id]
+                                });
+                              } else {
+                                setEditingUser({
+                                  ...editingUser,
+                                  assignedCategories: currentCategories.filter(id => id !== category.id)
+                                });
+                              }
+                            }}
+                          />
+                          <div className="grid gap-1 leading-none">
+                            <label
+                              htmlFor={`edit-cat-${category.id}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                            >
+                              {category.name}
+                            </label>
+                            {category.description && (
+                              <p className="text-xs text-muted-foreground">
+                                {category.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {categories.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          Nenhuma categoria cadastrada
+                        </p>
+                      )}
+                    </div>
+                  </ScrollArea>
                 </div>
               </div>
             )}

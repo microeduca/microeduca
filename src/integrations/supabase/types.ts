@@ -14,7 +14,260 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          thumbnail: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          thumbnail?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          thumbnail?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string | null
+          video_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string | null
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          assigned_categories: string[] | null
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean | null
+          name: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_categories?: string[] | null
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_categories?: string[] | null
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      video_progress: {
+        Row: {
+          completed: boolean
+          created_at: string
+          duration: number
+          id: string
+          time_watched: number
+          updated_at: string
+          user_id: string | null
+          video_id: string | null
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          duration?: number
+          id?: string
+          time_watched?: number
+          updated_at?: string
+          user_id?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          duration?: number
+          id?: string
+          time_watched?: number
+          updated_at?: string
+          user_id?: string | null
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "video_progress_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          description: string | null
+          duration: number
+          id: string
+          thumbnail: string | null
+          title: string
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string | null
+          video_url: string | null
+          vimeo_embed_url: string | null
+          vimeo_id: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          duration?: number
+          id?: string
+          thumbnail?: string | null
+          title: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          video_url?: string | null
+          vimeo_embed_url?: string | null
+          vimeo_id?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          duration?: number
+          id?: string
+          thumbnail?: string | null
+          title?: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          video_url?: string | null
+          vimeo_embed_url?: string | null
+          vimeo_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      view_history: {
+        Row: {
+          completed: boolean
+          created_at: string
+          id: string
+          last_watched_at: string
+          updated_at: string
+          user_id: string | null
+          video_id: string | null
+          watched_duration: number
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          last_watched_at?: string
+          updated_at?: string
+          user_id?: string | null
+          video_id?: string | null
+          watched_duration?: number
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          last_watched_at?: string
+          updated_at?: string
+          user_id?: string | null
+          video_id?: string | null
+          watched_duration?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "view_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "view_history_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        'inter': ['Inter', 'sans-serif'],
+        'poppins': ['Poppins', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,6 +61,23 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+      },
+      backgroundImage: {
+        'gradient-primary': 'var(--gradient-primary)',
+        'gradient-secondary': 'var(--gradient-secondary)',
+        'gradient-subtle': 'var(--gradient-subtle)',
+      },
+      boxShadow: {
+        'sm': 'var(--shadow-sm)',
+        'md': 'var(--shadow-md)',
+        'lg': 'var(--shadow-lg)',
+        'xl': 'var(--shadow-xl)',
+        'glow': 'var(--shadow-glow)',
+      },
+      transitionDuration: {
+        'fast': 'var(--transition-fast)',
+        'base': 'var(--transition-base)',
+        'slow': 'var(--transition-slow)',
       },
       borderRadius: {
         lg: "var(--radius)",

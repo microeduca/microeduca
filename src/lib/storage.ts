@@ -1,12 +1,12 @@
 import { Comment, VideoProgress, ViewHistory, User, Category, Video } from '@/types';
 import { mockUsers, mockCategories, mockVideos, mockViewHistory } from '@/lib/mockData';
 
-const COMMENTS_KEY = 'edustream_comments';
-const PROGRESS_KEY = 'edustream_progress';
-const HISTORY_KEY = 'edustream_history';
-const USERS_KEY = 'edustream_users';
-const CATEGORIES_KEY = 'edustream_categories';
-const VIDEOS_KEY = 'edustream_videos';
+const COMMENTS_KEY = 'microeduca_comments';
+const PROGRESS_KEY = 'microeduca_progress';
+const HISTORY_KEY = 'microeduca_history';
+const USERS_KEY = 'microeduca_users';
+const CATEGORIES_KEY = 'microeduca_categories';
+const VIDEOS_KEY = 'microeduca_videos';
 
 // Comments Management
 export const getComments = (videoId: string): Comment[] => {

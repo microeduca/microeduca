@@ -1,7 +1,7 @@
 import { User } from '@/types';
 import { mockUsers } from './mockData';
 
-const AUTH_KEY = 'edustream_auth';
+const AUTH_KEY = 'microeduca_auth';
 
 export const login = (email: string, password: string): User | null => {
   // Mock authentication - in production, this would be a real API call

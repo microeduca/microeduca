@@ -33,6 +33,7 @@ import {
   addComment 
 } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
+import VimeoPlayer from '@/components/VimeoPlayer';
 
 export default function VideoPlayer() {
   const { videoId } = useParams();
@@ -52,6 +53,7 @@ export default function VideoPlayer() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [progress, setProgress] = useState(0);
+  const [viewRegistered, setViewRegistered] = useState(false);
 
   const category = categories.find(c => c.id === video?.categoryId);
   const relatedVideos = videos.filter(v => v.categoryId === video?.categoryId && v.id !== video?.id);
@@ -62,15 +64,27 @@ export default function VideoPlayer() {
       return;
     }
 
-    // Registrar visualização
-    addToHistory({
-      userId: user.id,
-      videoId: video.id,
-      watchedDuration: 0,
-      completed: false,
-      lastWatchedAt: new Date(),
-    });
-  }, [video, user, navigate]);
+    // Registrar visualização após 3 segundos de exibição
+    const viewTimer = setTimeout(() => {
+      if (!viewRegistered) {
+        addToHistory({
+          userId: user.id,
+          videoId: video.id,
+          watchedDuration: 0,
+          completed: false,
+          lastWatchedAt: new Date(),
+        });
+        setViewRegistered(true);
+        
+        toast({
+          title: "Visualização registrada",
+          description: "Sua visualização foi contabilizada.",
+        });
+      }
+    }, 3000);
+
+    return () => clearTimeout(viewTimer);
+  }, [video, user, navigate, viewRegistered, toast]);
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -117,6 +131,39 @@ export default function VideoPlayer() {
       videoElement.removeEventListener('ended', handleEnded);
     };
   }, [user, video, toast]);
+
+  // Salvar progresso periodicamente para vídeos Vimeo
+  useEffect(() => {
+    if (!video?.vimeoId && !video?.vimeoEmbedUrl) return;
+    
+    const progressInterval = setInterval(() => {
+      // Para vídeos Vimeo, salvar progresso estimado
+      if (user && video) {
+        const estimatedProgress = Math.min(progress + 1, 100);
+        setProgress(estimatedProgress);
+        
+        const estimatedWatchTime = Math.floor((estimatedProgress / 100) * video.duration);
+        
+        addToHistory({
+          userId: user.id,
+          videoId: video.id,
+          watchedDuration: estimatedWatchTime,
+          completed: estimatedProgress >= 95,
+          lastWatchedAt: new Date(),
+        });
+
+        if (estimatedProgress >= 95 && !viewRegistered) {
+          toast({
+            title: "Vídeo concluído!",
+            description: "Parabéns por completar este vídeo.",
+          });
+          setViewRegistered(true);
+        }
+      }
+    }, 10000); // Atualizar a cada 10 segundos
+
+    return () => clearInterval(progressInterval);
+  }, [video, user, progress, viewRegistered, toast]);
 
   const saveProgress = () => {
     if (!video || !user || !videoRef.current) return;
@@ -243,12 +290,63 @@ export default function VideoPlayer() {
             {/* Video Player */}
             <Card className="overflow-hidden">
               <div className="relative bg-black aspect-video">
-                {video.vimeoEmbedUrl ? (
-                  <iframe
-                    src={video.vimeoEmbedUrl}
+                {video.vimeoEmbedUrl || video.vimeoId ? (
+                  <VimeoPlayer
+                    vimeoId={video.vimeoId}
+                    vimeoEmbedUrl={video.vimeoEmbedUrl}
+                    title={video.title}
+                    onProgress={(progressPercent, duration) => {
+                      setProgress(progressPercent);
+                      setDuration(duration);
+                      
+                      // Salvar progresso
+                      const watchedDuration = Math.floor((progressPercent / 100) * duration);
+                      if (user && video) {
+                        saveVideoProgress({
+                          videoId: video.id,
+                          currentTime: watchedDuration,
+                          duration: duration,
+                          completed: progressPercent >= 95,
+                        });
+                        
+                        addToHistory({
+                          userId: user.id,
+                          videoId: video.id,
+                          watchedDuration,
+                          completed: progressPercent >= 95,
+                          lastWatchedAt: new Date(),
+                        });
+                      }
+                    }}
+                    onComplete={() => {
+                      if (user && video) {
+                        addToHistory({
+                          userId: user.id,
+                          videoId: video.id,
+                          watchedDuration: video.duration,
+                          completed: true,
+                          lastWatchedAt: new Date(),
+                        });
+                        
+                        toast({
+                          title: "Vídeo concluído!",
+                          description: "Parabéns por completar este vídeo.",
+                        });
+                      }
+                    }}
+                    onPlay={() => {
+                      if (!viewRegistered && user && video) {
+                        addToHistory({
+                          userId: user.id,
+                          videoId: video.id,
+                          watchedDuration: 0,
+                          completed: false,
+                          lastWatchedAt: new Date(),
+                        });
+                        setViewRegistered(true);
+                      }
+                    }}
                     className="w-full h-full"
-                    allow="autoplay; fullscreen; picture-in-picture"
-                    allowFullScreen
                   />
                 ) : (
                   <>

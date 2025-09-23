@@ -5,6 +5,7 @@ export interface User {
   role: 'admin' | 'user';
   assignedCategories: string[];
   createdAt: Date;
+  isActive?: boolean;
 }
 
 export interface Category {

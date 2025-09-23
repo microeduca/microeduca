@@ -1,1 +1,7 @@
 project_id = "exnfttsyfhtkgpuewgnk"
+
+[functions.vimeo-auth]
+verify_jwt = false
+
+[functions.vimeo-upload]
+verify_jwt = true

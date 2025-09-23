@@ -106,6 +106,12 @@ export const updateUser = (updatedUser: User): void => {
   }
 };
 
+export const deleteUser = (userId: string): void => {
+  const users = getUsers();
+  const filteredUsers = users.filter(u => u.id !== userId);
+  localStorage.setItem(USERS_KEY, JSON.stringify(filteredUsers));
+};
+
 // Category Management
 export const getCategories = (): Category[] => {
   const stored = localStorage.getItem(CATEGORIES_KEY);

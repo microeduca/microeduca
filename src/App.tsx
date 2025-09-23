@@ -10,6 +10,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminVideos from "./pages/AdminVideos";
 import AdminCategories from "./pages/AdminCategories";
 import UserDashboard from "./pages/UserDashboard";
+import AdminUsers from "./pages/AdminUsers";
 import VimeoUpload from "./components/admin/VimeoUpload";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/videos" element={<AdminVideos />} />
           <Route path="/admin/categorias" element={<AdminCategories />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/vimeo-upload" element={<VimeoUpload />} />
           <Route path="/admin/vimeo-callback" element={<VimeoUpload />} />
           <Route path="/dashboard" element={<UserDashboard />} />

@@ -480,7 +480,7 @@ app.post('/api/video-progress', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`API server listening on http://localhost:${PORT}`);
+  console.log(`API server listening on port ${PORT}`);
 });
 
 

@@ -9,8 +9,7 @@ const { Pool } = pkg;
 
 const PORT = process.env.PORT || 8787;
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:iPisgVqCjjDYXTPPrhJUvDJvDBqzKcZQ@metro.proxy.rlwy.net:19989/railway';
-const VIMEO_CLIENT_ID = process.env.VIMEO_CLIENT_ID || '';
-const VIMEO_CLIENT_SECRET = process.env.VIMEO_CLIENT_SECRET || '';
+// Vimeo: ler do ambiente; os endpoints abaixo obtêm os valores por requisição
 
 const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
@@ -19,6 +18,16 @@ app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+// Diagnóstico seguro (pode remover após validar em produção)
+app.get('/api/vimeo-config', (req, res) => {
+  const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+  res.json({
+    hasClientId: Boolean(process.env.VIMEO_CLIENT_ID && String(process.env.VIMEO_CLIENT_ID).trim()),
+    hasClientSecret: Boolean(process.env.VIMEO_CLIENT_SECRET && String(process.env.VIMEO_CLIENT_SECRET).trim()),
+    redirectUri: `${origin}/admin/vimeo-callback`
+  });
+});
 
 // Simple auth endpoints (email + password)
 app.post('/api/login', async (req, res) => {
@@ -250,6 +259,8 @@ app.post('/api/vimeo-auth', async (req, res) => {
   try {
     const { action, code, state, refreshToken } = req.body || {};
     const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+    const VIMEO_CLIENT_ID = String(process.env.VIMEO_CLIENT_ID || '').trim();
+    const VIMEO_CLIENT_SECRET = String(process.env.VIMEO_CLIENT_SECRET || '').trim();
     if (!VIMEO_CLIENT_ID || !VIMEO_CLIENT_SECRET) {
       return res.status(500).json({ error: 'VIMEO_CLIENT_ID e/ou VIMEO_CLIENT_SECRET não configurados no ambiente' });
     }
@@ -308,6 +319,8 @@ app.post('/api/vimeo-upload', async (req, res) => {
   try {
     const { accessToken, title, description, privacy } = req.body || {};
     const fileSize = req.headers['x-file-size'] || '0';
+    const VIMEO_CLIENT_ID = String(process.env.VIMEO_CLIENT_ID || '').trim();
+    const VIMEO_CLIENT_SECRET = String(process.env.VIMEO_CLIENT_SECRET || '').trim();
     const createResponse = await fetch('https://api.vimeo.com/me/videos', {
       method: 'POST',
       headers: {

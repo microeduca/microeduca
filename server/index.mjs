@@ -14,6 +14,8 @@ const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:iPisgVqC
 const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
 const app = express();
+// Necessário em proxies (Railway) para que req.protocol reflita "https"
+app.set('trust proxy', true);
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 

@@ -121,7 +121,14 @@ export default function VimeoUpload() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get auth URL');
+        // Tentar obter mensagem detalhada do servidor
+        const text = await response.text();
+        try {
+          const data = JSON.parse(text);
+          throw new Error(data.error || 'Failed to get auth URL');
+        } catch {
+          throw new Error(text || 'Failed to get auth URL');
+        }
       }
 
       const { authUrl } = await response.json();
@@ -131,7 +138,7 @@ export default function VimeoUpload() {
       setIsAuthenticating(false);
       toast({
         title: 'Erro',
-        description: 'Falha ao iniciar autenticação com Vimeo.',
+        description: (error as Error)?.message || 'Falha ao iniciar autenticação com Vimeo.',
         variant: 'destructive'
       });
     }

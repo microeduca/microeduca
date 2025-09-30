@@ -251,7 +251,7 @@ app.post('/api/vimeo-auth', async (req, res) => {
     const { action, code, state, refreshToken } = req.body || {};
     const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
     if (!VIMEO_CLIENT_ID || !VIMEO_CLIENT_SECRET) {
-      return res.status(500).json({ error: 'Vimeo credentials not configured' });
+      return res.status(500).json({ error: 'VIMEO_CLIENT_ID e/ou VIMEO_CLIENT_SECRET não configurados no ambiente' });
     }
 
     if (action === 'getAuthUrl') {
@@ -299,6 +299,7 @@ app.post('/api/vimeo-auth', async (req, res) => {
 
     return res.status(400).json({ error: 'Invalid action' });
   } catch (e) {
+    console.error('vimeo-auth error:', e);
     res.status(500).json({ error: e.message });
   }
 });

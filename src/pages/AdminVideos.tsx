@@ -212,6 +212,11 @@ export default function AdminVideos() {
     return category?.name || 'Sem categoria';
   };
 
+  const getVimeoThumbFallback = (v: any): string | null => {
+    const id = v?.vimeoId || v?.vimeo_id || (v?.video_url || v?.videoUrl)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
+    return id ? `https://vumbnail.com/${id}.jpg` : null;
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -347,7 +352,7 @@ export default function AdminVideos() {
               </TableHeader>
               <TableBody>
                 {videos
-                  .filter(v => (filterCategory && filterCategory !== 'all' ? (v.category_id || v.categoryId) === filterCategory : true))
+                  .filter(v => (filterCategory && filterCategory !== 'all' ? (v.categoryId || v.category_id) === filterCategory : true))
                   .filter(v => (search ? (v.title || '').toLowerCase().includes(search.toLowerCase()) : true))
                   .map(video => (
                   <TableRow key={video.id}>
@@ -355,26 +360,30 @@ export default function AdminVideos() {
                       {video.thumbnail ? (
                         <img src={video.thumbnail} alt={video.title} className="h-10 w-16 object-cover rounded" />
                       ) : (
-                        <div className="h-10 w-16 bg-muted rounded" />
+                        getVimeoThumbFallback(video) ? (
+                          <img src={getVimeoThumbFallback(video) as string} alt={video.title} className="h-10 w-16 object-cover rounded" />
+                        ) : (
+                          <div className="h-10 w-16 bg-muted rounded" />
+                        )
                       )}
                     </TableCell>
                     <TableCell className="font-medium">{video.title}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">
-                        {getCategoryName(video.category_id || video.categoryId)}
+                        {getCategoryName(video.categoryId || video.category_id)}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatDuration(video.duration)}</TableCell>
                     <TableCell>{viewsMap[video.id] || 0}</TableCell>
                     <TableCell>
-                      {video.vimeo_id ? (
+                      {video.vimeoId ? (
                         <Badge className="bg-primary/10 text-primary">Vimeo</Badge>
                       ) : (
                         <Badge variant="outline">URL</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {safeFormatDate(video.uploaded_at || video.created_at)}
+                      {safeFormatDate(video.uploadedAt || video.created_at)}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>

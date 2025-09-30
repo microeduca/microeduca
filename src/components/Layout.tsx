@@ -125,7 +125,7 @@ export default function Layout({ children }: LayoutProps) {
       <footer className="bg-secondary/50 border-t border-border mt-16">
         <div className="container mx-auto px-4 py-8">
           <div className="text-center text-sm text-muted-foreground font-inter">
-            © 2024 MicroEduca. Todos os direitos reservados.
+            © {new Date().getFullYear()} MicroEduca. Todos os direitos reservados.
           </div>
         </div>
       </footer>

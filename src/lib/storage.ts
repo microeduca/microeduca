@@ -15,14 +15,14 @@ const mapVideo = (row: any): Video => ({
   id: row.id,
   title: row.title,
   description: row.description || '',
-  videoUrl: row.video_url || '',
-  thumbnail: row.thumbnail || undefined,
-  categoryId: row.category_id,
+  videoUrl: row.video_url || row.videoUrl || '',
+  thumbnail: row.thumbnail || row.thumb || undefined,
+  categoryId: row.category_id || row.categoryId,
   duration: row.duration || 0,
-  uploadedBy: row.uploaded_by || 'admin',
-  uploadedAt: row.uploaded_at ? new Date(row.uploaded_at) : new Date(),
-  vimeoId: row.vimeo_id || undefined,
-  vimeoEmbedUrl: row.vimeo_embed_url || undefined,
+  uploadedBy: row.uploaded_by || row.uploadedBy || 'admin',
+  uploadedAt: row.uploaded_at ? new Date(row.uploaded_at) : (row.uploadedAt ? new Date(row.uploadedAt) : new Date()),
+  vimeoId: row.vimeo_id || row.vimeoId || undefined,
+  vimeoEmbedUrl: row.vimeo_embed_url || row.vimeoEmbedUrl || undefined,
 });
 
 const toDbVideo = (v: Video) => ({

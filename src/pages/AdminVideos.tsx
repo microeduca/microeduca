@@ -16,22 +16,46 @@ import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHi
 import { useNavigate } from 'react-router-dom';
 import VimeoUpload from '@/components/admin/VimeoUpload';
 
+// Tipos locais para remover any e contemplar snake/camel case vindos do backend
+interface CategoryRow {
+  id: string;
+  name: string;
+}
+
+interface AdminVideoRow {
+  id: string;
+  title: string;
+  description?: string;
+  video_url?: string;
+  videoUrl?: string;
+  thumbnail?: string;
+  category_id?: string;
+  categoryId?: string;
+  duration: number;
+  vimeo_id?: string;
+  vimeoId?: string;
+  vimeo_embed_url?: string;
+  vimeoEmbedUrl?: string;
+  uploadedAt?: string | Date;
+  created_at?: string | Date;
+}
+
 export default function AdminVideos() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [videos, setVideos] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [videos, setVideos] = useState<AdminVideoRow[]>([]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isVimeoUploadOpen, setIsVimeoUploadOpen] = useState(false);
-  const [editingVideo, setEditingVideo] = useState<any>(null);
+  const [editingVideo, setEditingVideo] = useState<AdminVideoRow | null>(null);
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [viewsMap, setViewsMap] = useState<Record<string, number>>({});
-  const [previewVideo, setPreviewVideo] = useState<any | null>(null);
+  const [previewVideo, setPreviewVideo] = useState<AdminVideoRow | null>(null);
   
   const [newVideo, setNewVideo] = useState({
     title: '',
@@ -190,16 +214,16 @@ export default function AdminVideos() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const safeFormatDate = (value: any) => {
+  const safeFormatDate = (value: Date | string | number | null | undefined) => {
     if (!value) return '-';
     const d = new Date(value);
     if (isNaN(d.getTime())) return '-';
     return d.toLocaleDateString('pt-BR');
   };
 
-  const computeVimeoEmbed = (video: any): string | null => {
+  const computeVimeoEmbed = (video: AdminVideoRow | null): string | null => {
     if (!video) return null;
-    if (video.vimeo_embed_url) return String(video.vimeo_embed_url);
+    if (video.vimeo_embed_url || video.vimeoEmbedUrl) return String(video.vimeo_embed_url || video.vimeoEmbedUrl);
     if (video.vimeo_id) return `https://player.vimeo.com/video/${video.vimeo_id}`;
     const url: string | undefined = video.video_url || video.videoUrl;
     const match = url?.match(/vimeo\.com\/(?:video\/)?(\d+)/);
@@ -212,7 +236,7 @@ export default function AdminVideos() {
     return category?.name || 'Sem categoria';
   };
 
-  const getVimeoThumbFallback = (v: any): string | null => {
+  const getVimeoThumbFallback = (v: AdminVideoRow): string | null => {
     const id = v?.vimeoId || v?.vimeo_id || (v?.video_url || v?.videoUrl)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
     return id ? `https://vumbnail.com/${id}.jpg` : null;
   };

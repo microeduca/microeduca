@@ -186,6 +186,24 @@ export const getViewHistory = async (userId?: string): Promise<ViewHistory[]> =>
   }));
 };
 
+export const getRecentViews = async (limit = 10) => {
+  const rows = await api.getRecentViews(limit);
+  return rows.map((r: any) => ({
+    id: r.id,
+    userId: r.user_id,
+    userName: r.user_name,
+    videoId: r.video_id,
+    videoTitle: r.video_title,
+    videoThumbnail: r.video_thumbnail,
+    videoVimeoId: r.video_vimeo_id,
+    videoUrl: r.video_url,
+    videoCategoryId: r.video_category_id,
+    watchedDuration: r.watched_duration || 0,
+    completed: !!r.completed,
+    lastWatchedAt: r.last_watched_at ? new Date(r.last_watched_at) : new Date(),
+  }));
+};
+
 export const addToHistory = async (history: Omit<ViewHistory, 'id'>): Promise<ViewHistory> => {
   const row = await api.addToHistory({
     user_id: history.userId,

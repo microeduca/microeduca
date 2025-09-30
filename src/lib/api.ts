@@ -47,6 +47,7 @@ export const api = {
 
   // View history
   getViewHistory: (userId?: string) => request(`/view-history${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`, { method: 'GET' }),
+  getRecentViews: (limit = 10) => request(`/view-history/recent?limit=${encodeURIComponent(String(limit))}`, { method: 'GET' }),
   addToHistory: (payload: any) => request('/view-history', { method: 'POST', body: JSON.stringify(payload) }),
 
   // Comments

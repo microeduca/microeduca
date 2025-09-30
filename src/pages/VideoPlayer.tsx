@@ -74,9 +74,18 @@ export default function VideoPlayer() {
       }
       // Carregar progresso salvo para retomar do ponto
       const vp = await getVideoProgressApi(videoId || '');
-      if (vp && vp.currentTime > 0) {
-        setCurrentTime(vp.currentTime);
-        setProgress(vp.duration ? (vp.currentTime / vp.duration) * 100 : 0);
+      if (vp) {
+        if (vp.completed) {
+          setIsCompleted(true);
+          setMaxProgress(100);
+          setProgress(100);
+          if (vp.currentTime > 0) setCurrentTime(vp.currentTime);
+        } else if (vp.currentTime > 0 && vp.duration > 0) {
+          const initial = Math.min(100, Math.max(0, (vp.currentTime / vp.duration) * 100));
+          setMaxProgress(initial);
+          setProgress(initial);
+          setCurrentTime(vp.currentTime);
+        }
       }
       setComments(await getComments(videoId || ''));
       setIsLoading(false);
@@ -96,6 +105,8 @@ export default function VideoPlayer() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [progress, setProgress] = useState(0);
+  const [maxProgress, setMaxProgress] = useState(0);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [viewRegistered, setViewRegistered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -143,7 +154,10 @@ export default function VideoPlayer() {
 
     const handleTimeUpdate = () => {
       setCurrentTime(videoElement.currentTime);
-      setProgress((videoElement.currentTime / (videoElement.duration || duration || 1)) * 100);
+      const computed = (videoElement.currentTime / (videoElement.duration || duration || 1)) * 100;
+      const clamped = Math.min(100, Math.max(0, computed));
+      setMaxProgress((prev) => Math.max(prev, clamped, isCompleted ? 100 : 0));
+      setProgress((prev) => Math.max(prev, clamped, isCompleted ? 100 : 0));
       // Salvar progresso a cada 5 segundos sem regredir
       if (Math.floor(videoElement.currentTime) % 5 === 0) {
         saveProgress();
@@ -158,7 +172,10 @@ export default function VideoPlayer() {
         if (vp && vp.currentTime > 0) {
           videoElement.currentTime = Math.max(0, Math.min(videoElement.duration - 1, vp.currentTime));
           setCurrentTime(videoElement.currentTime);
-          setProgress((videoElement.currentTime / (videoElement.duration || 1)) * 100);
+          const computedLoaded = (videoElement.currentTime / (videoElement.duration || 1)) * 100;
+          const clampedLoaded = Math.min(100, Math.max(0, computedLoaded));
+          setMaxProgress((prev) => Math.max(prev, clampedLoaded, isCompleted ? 100 : 0));
+          setProgress((prev) => Math.max(prev, clampedLoaded, isCompleted ? 100 : 0));
         }
       } catch {}
     };
@@ -166,6 +183,9 @@ export default function VideoPlayer() {
     const handleEnded = () => {
       setIsPlaying(false);
       if (user && video) {
+        setIsCompleted(true);
+        setMaxProgress(100);
+        setProgress(100);
         addToHistory({
           userId: user.id,
           videoId: video.id,
@@ -189,7 +209,7 @@ export default function VideoPlayer() {
       videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
       videoElement.removeEventListener('ended', handleEnded);
     };
-  }, [user, video, toast, videoId, duration]);
+  }, [user, video, toast, videoId, duration, isCompleted]);
 
   // Salvar progresso periodicamente para vídeos Vimeo
   useEffect(() => {
@@ -377,30 +397,33 @@ export default function VideoPlayer() {
                     title={video.title}
                     startAtSeconds={currentTime}
                     onProgress={(progressPercent, duration) => {
-                      setProgress(progressPercent);
+                      const clamped = Math.min(100, Math.max(0, progressPercent));
+                      setMaxProgress((prev) => Math.max(prev, clamped, isCompleted ? 100 : 0));
+                      setProgress((prev) => Math.max(prev, clamped, isCompleted ? 100 : 0));
                       setDuration(duration);
-                      
                       // Salvar progresso
-                      const watchedDuration = Math.floor((progressPercent / 100) * duration);
+                      const watchedDuration = Math.floor((Math.max(clamped, isCompleted ? 100 : 0) / 100) * duration);
                       if (user && video) {
                         saveVideoProgress({
                           videoId: video.id,
                           currentTime: watchedDuration,
                           duration: duration,
-                          completed: progressPercent >= 95,
+                          completed: isCompleted || clamped >= 95,
                         });
-                        
                         addToHistory({
                           userId: user.id,
                           videoId: video.id,
                           watchedDuration,
-                          completed: progressPercent >= 95,
+                          completed: isCompleted || clamped >= 95,
                           lastWatchedAt: new Date(),
                         });
                       }
                     }}
                     onComplete={() => {
                       if (user && video) {
+                        setIsCompleted(true);
+                        setMaxProgress(100);
+                        setProgress(100);
                         addToHistory({
                           userId: user.id,
                           videoId: video.id,
@@ -408,7 +431,6 @@ export default function VideoPlayer() {
                           completed: true,
                           lastWatchedAt: new Date(),
                         });
-                        
                         toast({
                           title: "Vídeo concluído!",
                           description: "Parabéns por completar este vídeo.",

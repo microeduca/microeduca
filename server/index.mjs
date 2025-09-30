@@ -379,6 +379,52 @@ app.post('/api/vimeo-upload', async (req, res) => {
   }
 });
 
+// Webhook do Vimeo para atualizações de vídeo (pictures, duration, status)
+app.post('/api/vimeo-webhook', async (req, res) => {
+  try {
+    const body = req.body || {};
+    // Eventos comuns: video.transcoded, video.updated
+    const videoUri = body?.data?.uri || body?.video?.uri || '';
+    const videoId = videoUri.split('/').pop();
+    if (!videoId) return res.status(200).json({ ok: true });
+
+    // Buscar dados atuais do vídeo no Vimeo (pictures, duration, embed)
+    const accessToken = String(process.env.VIMEO_WEBHOOK_ACCESS_TOKEN || '').trim();
+    if (!accessToken) return res.status(200).json({ ok: true });
+
+    const resp = await fetch(`https://api.vimeo.com/videos/${encodeURIComponent(videoId)}?fields=duration,pictures.sizes,player_embed_url`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.vimeo.*+json;version=3.4'
+      }
+    });
+    if (!resp.ok) return res.status(200).json({ ok: true });
+    const data = await resp.json();
+    const sizes = data?.pictures?.sizes || [];
+    const best = Array.isArray(sizes) && sizes.length > 0
+      ? sizes.filter(s => s?.link).sort((a, b) => (b.width || 0) - (a.width || 0))[0]
+      : null;
+    const thumbnail = best?.link || null;
+    const duration = Number(data?.duration || 0) || 0;
+    const embedUrl = data?.player_embed_url || null;
+
+    // Atualizar no banco
+    const fields = [];
+    const values = [];
+    let idx = 1;
+    if (thumbnail) { fields.push(`thumbnail = $${idx++}`); values.push(thumbnail); }
+    if (duration >= 0) { fields.push(`duration = $${idx++}`); values.push(duration); }
+    if (embedUrl) { fields.push(`vimeo_embed_url = $${idx++}`); values.push(embedUrl); }
+    if (fields.length > 0) {
+      values.push(videoId);
+      await pool.query(`UPDATE public.videos SET ${fields.join(', ')}, updated_at = now() WHERE vimeo_id = $${idx}`, values);
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(200).json({ ok: true });
+  }
+});
+
 // Recupera o melhor thumbnail atual de um vídeo no Vimeo
 app.get('/api/vimeo-thumbnail/:videoId', async (req, res) => {
   try {
@@ -429,6 +475,31 @@ app.get('/api/view-history', async (req, res) => {
     }
     sql += ' ORDER BY last_watched_at DESC';
     const { rows } = await pool.query(sql, params);
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// View History - recent with joins
+app.get('/api/view-history/recent', async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 10));
+    const { rows } = await pool.query(
+      `SELECT vh.*, 
+              p.name    AS user_name,
+              v.title   AS video_title,
+              v.thumbnail AS video_thumbnail,
+              v.vimeo_id AS video_vimeo_id,
+              v.video_url AS video_url,
+              v.category_id AS video_category_id
+       FROM public.view_history vh
+       LEFT JOIN public.profiles p ON p.id = vh.user_id
+       LEFT JOIN public.videos v   ON v.id = vh.video_id
+       ORDER BY vh.last_watched_at DESC
+       LIMIT $1`,
+      [limit]
+    );
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });

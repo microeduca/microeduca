@@ -77,9 +77,9 @@ export const tokenNeedsRefresh = (): boolean => {
 };
 
 // Get Supabase URL (Edge Functions base)
-export const getSupabaseUrl = (): string => {
-  // Use the actual Supabase project URL for Edge Functions
-  return "https://exnfttsyfhtkgpuewgnk.supabase.co";
+export const getBackendUrl = (): string => {
+  const api = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8787/api';
+  return api;
 };
 
 // Generate state parameter for OAuth

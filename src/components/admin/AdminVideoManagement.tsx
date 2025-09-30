@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,12 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { Video, Category } from '@/types';
-import { getVideos, getCategories, addVideo, updateVideo, deleteVideo } from '@/lib/storage';
+import { getVideos, getCategories, addVideo, updateVideo, deleteVideo } from '@/lib/supabase';
 import { Plus, Edit, Trash2, Play, Upload, Clock } from 'lucide-react';
 
 export default function AdminVideoManagement() {
-  const [videos, setVideos] = useState<Video[]>(getVideos());
-  const [categories] = useState<Category[]>(getCategories());
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [newVideo, setNewVideo] = useState<Partial<Video>>({
     title: '',
@@ -29,7 +29,15 @@ export default function AdminVideoManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleAddVideo = () => {
+  useEffect(() => {
+    (async () => {
+      const [v, c] = await Promise.all([getVideos(), getCategories()]);
+      setVideos(v);
+      setCategories(c);
+    })();
+  }, []);
+
+  const handleAddVideo = async () => {
     if (!newVideo.title || !newVideo.categoryId || !newVideo.videoUrl) {
       toast({
         title: 'Erro',
@@ -51,8 +59,8 @@ export default function AdminVideoManagement() {
       uploadedAt: new Date(),
     };
 
-    addVideo(video);
-    setVideos(getVideos());
+    await addVideo(video);
+    setVideos(await getVideos());
     setNewVideo({
       title: '',
       description: '',
@@ -69,11 +77,11 @@ export default function AdminVideoManagement() {
     });
   };
 
-  const handleUpdateVideo = () => {
+  const handleUpdateVideo = async () => {
     if (!editingVideo) return;
 
-    updateVideo(editingVideo);
-    setVideos(getVideos());
+    await updateVideo(editingVideo);
+    setVideos(await getVideos());
     setIsEditDialogOpen(false);
     setEditingVideo(null);
     
@@ -83,10 +91,10 @@ export default function AdminVideoManagement() {
     });
   };
 
-  const handleDeleteVideo = (videoId: string) => {
+  const handleDeleteVideo = async (videoId: string) => {
     if (window.confirm('Tem certeza que deseja excluir este vídeo?')) {
-      deleteVideo(videoId);
-      setVideos(getVideos());
+      await deleteVideo(videoId);
+      setVideos(await getVideos());
       
       toast({
         title: 'Sucesso',

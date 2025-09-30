@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,9 +12,22 @@ import AdminViewerHistory from '@/components/admin/AdminViewerHistory';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [users] = useState(getUsers());
-  const [videos] = useState(getVideos());
-  const [viewHistory] = useState(getViewHistory());
+  const [users, setUsers] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [viewHistory, setViewHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const [u, v, vh] = await Promise.all([
+        getUsers(),
+        getVideos(),
+        getViewHistory(),
+      ]);
+      setUsers(u);
+      setVideos(v);
+      setViewHistory(vh);
+    })();
+  }, []);
 
   const stats = {
     totalUsers: users.filter(u => u.role !== 'admin').length,

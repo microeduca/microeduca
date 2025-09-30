@@ -1,17 +1,21 @@
 import { User } from '@/types';
-import { mockUsers } from './mockData';
 
 const AUTH_KEY = 'microeduca_auth';
 
 export const login = (email: string, password: string): User | null => {
-  // Mock authentication - in production, this would be a real API call
-  const user = mockUsers.find(u => u.email === email);
-  
-  if (user) {
-    localStorage.setItem(AUTH_KEY, JSON.stringify(user));
-    return user;
-  }
-  
+  // Chamada para API do Railway
+  const API = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8787/api';
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `${API}/login`, false);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  try {
+    xhr.send(JSON.stringify({ email, password }));
+    if (xhr.status >= 200 && xhr.status < 300) {
+      const user = JSON.parse(xhr.responseText) as User;
+      localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+      return user;
+    }
+  } catch {}
   return null;
 };
 

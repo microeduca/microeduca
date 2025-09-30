@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Play, Clock, CheckCircle, BookOpen, TrendingUp, Grid, List, Search } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
-import { getCategories, getVideos, getViewHistory, getVideoProgress } from '@/lib/storage';
+import { getCategories, getVideos, getViewHistory } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 
@@ -16,9 +16,22 @@ export default function UserDashboard() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [categories] = useState(getCategories());
-  const [videos] = useState(getVideos());
-  const [viewHistory] = useState(getViewHistory(user?.id));
+  const [categories, setCategories] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [viewHistory, setViewHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const [c, v, vh] = await Promise.all([
+        getCategories(),
+        getVideos(),
+        getViewHistory(user?.id),
+      ]);
+      setCategories(c);
+      setVideos(v);
+      setViewHistory(vh);
+    })();
+  }, [user?.id]);
   
   // Filtrar vídeos com base na busca
   const filteredVideos = videos.filter(video => 
@@ -165,6 +178,7 @@ export default function UserDashboard() {
                       <Button 
                         size="icon" 
                         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary/90 hover:bg-primary"
+                        onClick={() => handleVideoClick(video.id)}
                       >
                         <Play className="h-5 w-5" />
                       </Button>
@@ -220,9 +234,8 @@ export default function UserDashboard() {
             }>
               {filteredVideos.map(video => {
                 const history = viewHistory.find(h => h.videoId === video.id);
-                const progress = history ? getVideoProgress(video.id) : null;
-                const progressPercentage = progress 
-                  ? (progress.currentTime / video.duration) * 100 
+                const progressPercentage = history 
+                  ? (history.watchedDuration / video.duration) * 100 
                   : 0;
 
                 return viewMode === 'grid' ? (
@@ -250,7 +263,8 @@ export default function UserDashboard() {
                       )}
                       <Button 
                         size="icon" 
-                        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary/90 hover:bg-primary opacity-0 hover:opacity-100 transition-opacity"
+                        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary/90 hover:bg-primary opacity-100"
+                        onClick={(e) => { e.stopPropagation(); handleVideoClick(video.id); }}
                       >
                         <Play className="h-5 w-5" />
                       </Button>
@@ -381,6 +395,7 @@ export default function UserDashboard() {
                             <Button 
                               size="icon" 
                               className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary/90 hover:bg-primary opacity-0 hover:opacity-100 transition-opacity"
+                              onClick={() => handleVideoClick(video.id)}
                             >
                               <Play className="h-5 w-5" />
                             </Button>
@@ -430,6 +445,7 @@ export default function UserDashboard() {
                       <Button 
                         size="icon" 
                         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary/90 hover:bg-primary"
+                        onClick={() => handleVideoClick(video.id)}
                       >
                         <Play className="h-5 w-5" />
                       </Button>

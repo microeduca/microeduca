@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -10,9 +10,22 @@ import { Progress } from '@/components/ui/progress';
 
 export default function AdminViewerHistory() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewHistory] = useState<ViewHistory[]>(getViewHistory());
-  const [users] = useState<User[]>(getUsers());
-  const [videos] = useState<Video[]>(getVideos());
+  const [viewHistory, setViewHistory] = useState<ViewHistory[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const [vh, u, v] = await Promise.all([
+        getViewHistory(),
+        getUsers(),
+        getVideos(),
+      ]);
+      setViewHistory(vh);
+      setUsers(u);
+      setVideos(v);
+    })();
+  }, []);
 
   const getUserName = (userId: string) => {
     const user = users.find(u => u.id === userId);
@@ -43,6 +56,13 @@ export default function AdminViewerHistory() {
   const calculateProgress = (watchedDuration: number, totalDuration: number) => {
     if (totalDuration === 0) return 0;
     return Math.min(100, Math.round((watchedDuration / totalDuration) * 100));
+  };
+
+  const safeFormatDateTime = (value: any) => {
+    if (!value) return '-';
+    const d = value instanceof Date ? value : new Date(value);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleString('pt-BR');
   };
 
   const filteredHistory = useMemo(() => {
@@ -243,7 +263,7 @@ export default function AdminViewerHistory() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {new Date(history.lastWatchedAt).toLocaleString('pt-BR')}
+                      {safeFormatDateTime(history.lastWatchedAt)}
                     </TableCell>
                   </TableRow>
                 );

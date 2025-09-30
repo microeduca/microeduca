@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,8 +14,8 @@ import { getUsers, getCategories, addUser, updateUser } from '@/lib/storage';
 import { Plus, Edit, UserCheck, UserX, Users } from 'lucide-react';
 
 export default function AdminUserManagement() {
-  const [users, setUsers] = useState<User[]>(getUsers());
-  const [categories] = useState<Category[]>(getCategories());
+  const [users, setUsers] = useState<User[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [newUser, setNewUser] = useState<Partial<User>>({
     name: '',
@@ -27,7 +27,15 @@ export default function AdminUserManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
-  const handleAddUser = () => {
+  useEffect(() => {
+    (async () => {
+      const [u, c] = await Promise.all([getUsers(), getCategories()]);
+      setUsers(u);
+      setCategories(c);
+    })();
+  }, []);
+
+  const handleAddUser = async () => {
     if (!newUser.name || !newUser.email || !selectedCategory) {
       toast({
         title: 'Erro',
@@ -47,8 +55,8 @@ export default function AdminUserManagement() {
       isActive: true,
     };
 
-    addUser(user);
-    setUsers(getUsers());
+    await addUser(user);
+    setUsers(await getUsers());
     setNewUser({
       name: '',
       email: '',
@@ -64,11 +72,11 @@ export default function AdminUserManagement() {
     });
   };
 
-  const handleUpdateUser = () => {
+  const handleUpdateUser = async () => {
     if (!editingUser) return;
 
-    updateUser(editingUser);
-    setUsers(getUsers());
+    await updateUser(editingUser);
+    setUsers(await getUsers());
     setIsEditDialogOpen(false);
     setEditingUser(null);
     

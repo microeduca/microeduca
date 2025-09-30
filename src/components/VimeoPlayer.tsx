@@ -11,7 +11,9 @@ interface VimeoPlayerProps {
   onProgress?: (progress: number, duration: number) => void;
   onComplete?: () => void;
   onPlay?: () => void;
+  startAtSeconds?: number; // novo: posição inicial
   className?: string;
+  withOverlay?: boolean; // opcional: mostrar controles customizados (desligado por padrão)
 }
 
 export default function VimeoPlayer({
@@ -21,15 +23,27 @@ export default function VimeoPlayer({
   onProgress,
   onComplete,
   onPlay,
-  className = ''
+  startAtSeconds,
+  className = '',
+  withOverlay = false
 }: VimeoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
+  const onProgressRef = useRef<typeof onProgress>();
+  const onCompleteRef = useRef<typeof onComplete>();
+  const onPlayRef = useRef<typeof onPlay>();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [showControls, setShowControls] = useState(true);
+
+  // Keep latest callbacks in refs to avoid re-creating the player
+  useEffect(() => {
+    onProgressRef.current = onProgress;
+    onCompleteRef.current = onComplete;
+    onPlayRef.current = onPlay;
+  }, [onProgress, onComplete, onPlay]);
 
   useEffect(() => {
     if (!containerRef.current || (!vimeoId && !vimeoEmbedUrl)) return;
@@ -60,7 +74,7 @@ export default function VimeoPlayer({
 
     player.on('play', () => {
       setIsPlaying(true);
-      onPlay?.();
+      onPlayRef.current?.();
     });
 
     player.on('pause', () => {
@@ -70,25 +84,30 @@ export default function VimeoPlayer({
     player.on('timeupdate', (data) => {
       setCurrentTime(data.seconds);
       const progressPercent = (data.seconds / data.duration) * 100;
-      onProgress?.(progressPercent, data.duration);
+      onProgressRef.current?.(progressPercent, data.duration);
     });
 
-    player.on('loaded', () => {
-      player.getDuration().then(d => {
-        setDuration(d);
-      });
+    player.on('loaded', async () => {
+      const d = await player.getDuration();
+      setDuration(d);
+      // Buscar retomar posição se fornecida
+      if (typeof startAtSeconds === 'number' && startAtSeconds > 0) {
+        try {
+          await player.setCurrentTime(Math.min(d - 1, Math.max(0, startAtSeconds)));
+        } catch {}
+      }
     });
 
     player.on('ended', () => {
       setIsPlaying(false);
-      onComplete?.();
+      onCompleteRef.current?.();
     });
 
     return () => {
       player.destroy();
       playerRef.current = null;
     };
-  }, [vimeoId, vimeoEmbedUrl, title, onProgress, onComplete, onPlay]);
+  }, [vimeoId, vimeoEmbedUrl, title]);
 
   const handlePlayPause = async () => {
     if (!playerRef.current) return;
@@ -146,77 +165,79 @@ export default function VimeoPlayer({
         style={{ paddingBottom: '56.25%' }}
       />
       
-      {/* Custom Controls Overlay */}
-      <div 
-        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 ${
-          showControls ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        {/* Progress Bar */}
-        <div className="w-full h-1 bg-white/30 rounded-full cursor-pointer mb-3">
-          <div 
-            className="h-full bg-primary rounded-full transition-all"
-            style={{ width: `${(currentTime / duration) * 100}%` }}
-          />
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-white hover:bg-white/20"
-              onClick={handlePlayPause}
-            >
-              {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            </Button>
-            
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-white hover:bg-white/20"
-              onClick={handleSkipBack}
-            >
-              <SkipBack className="h-4 w-4" />
-            </Button>
-            
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-white hover:bg-white/20"
-              onClick={handleSkipForward}
-            >
-              <SkipForward className="h-4 w-4" />
-            </Button>
-            
-            <span className="text-white text-sm">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
+      {/* Custom Controls Overlay (desligado por padrão para evitar conflito com os controles nativos do Vimeo) */}
+      {withOverlay && (
+        <div 
+          className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 transition-opacity duration-300 pointer-events-none ${
+            showControls ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          {/* Progress Bar */}
+          <div className="w-full h-1 bg-white/30 rounded-full cursor-pointer mb-3 pointer-events-auto">
+            <div 
+              className="h-full bg-primary rounded-full transition-all"
+              style={{ width: `${(currentTime / duration) * 100}%` }}
+            />
           </div>
           
-          <div className="flex items-center gap-2">
-            <Volume2 className="h-4 w-4 text-white" />
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              value={volume}
-              onChange={handleVolumeChange}
-              className="w-20"
-            />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-white hover:bg-white/20 pointer-events-auto"
+                onClick={handlePlayPause}
+              >
+                {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+              </Button>
+              
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-white hover:bg-white/20 pointer-events-auto"
+                onClick={handleSkipBack}
+              >
+                <SkipBack className="h-4 w-4" />
+              </Button>
+              
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-white hover:bg-white/20 pointer-events-auto"
+                onClick={handleSkipForward}
+              >
+                <SkipForward className="h-4 w-4" />
+              </Button>
+              
+              <span className="text-white text-sm">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </span>
+            </div>
             
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-white hover:bg-white/20"
-              onClick={handleFullscreen}
-            >
-              <Maximize className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Volume2 className="h-4 w-4 text-white" />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={volume}
+                onChange={handleVolumeChange}
+                className="w-20 pointer-events-auto"
+              />
+              
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-white hover:bg-white/20 pointer-events-auto"
+                onClick={handleFullscreen}
+              >
+                <Maximize className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

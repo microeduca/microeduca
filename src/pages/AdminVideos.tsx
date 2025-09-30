@@ -10,9 +10,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud } from 'lucide-react';
+import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getVideos, addVideo, updateVideo, deleteVideo, getCategories } from '@/lib/supabase';
+import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHistory } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import VimeoUpload from '@/components/admin/VimeoUpload';
 
@@ -28,6 +28,10 @@ export default function AdminVideos() {
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [viewsMap, setViewsMap] = useState<Record<string, number>>({});
+  const [previewVideo, setPreviewVideo] = useState<any | null>(null);
   
   const [newVideo, setNewVideo] = useState({
     title: '',
@@ -44,12 +48,19 @@ export default function AdminVideos() {
 
   const loadData = async () => {
     setLoading(true);
-    const [videosData, categoriesData] = await Promise.all([
+    const [videosData, categoriesData, viewHistory] = await Promise.all([
       getVideos(),
-      getCategories()
+      getCategories(),
+      getViewHistory(),
     ]);
     setVideos(videosData);
     setCategories(categoriesData);
+    // construir mapa de views por videoId
+    const temp: Record<string, number> = {};
+    for (const vh of viewHistory) {
+      temp[vh.videoId] = (temp[vh.videoId] || 0) + 1;
+    }
+    setViewsMap(temp);
     setLoading(false);
   };
 
@@ -179,6 +190,23 @@ export default function AdminVideos() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  const safeFormatDate = (value: any) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('pt-BR');
+  };
+
+  const computeVimeoEmbed = (video: any): string | null => {
+    if (!video) return null;
+    if (video.vimeo_embed_url) return String(video.vimeo_embed_url);
+    if (video.vimeo_id) return `https://player.vimeo.com/video/${video.vimeo_id}`;
+    const url: string | undefined = video.video_url || video.videoUrl;
+    const match = url?.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+    if (match?.[1]) return `https://player.vimeo.com/video/${match[1]}`;
+    return null;
+  };
+
   const getCategoryName = (categoryId: string) => {
     const category = categories.find(c => c.id === categoryId);
     return category?.name || 'Sem categoria';
@@ -207,6 +235,32 @@ export default function AdminVideos() {
               <Plus className="h-4 w-4" />
               Novo Vídeo
             </Button>
+          </div>
+        </div>
+
+        {/* Filtros e Busca */}
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative md:w-1/2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por título..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="md:w-1/3">
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filtrar por categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -281,17 +335,29 @@ export default function AdminVideos() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Thumb</TableHead>
                   <TableHead>Título</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead>Duração</TableHead>
-                  <TableHead>Tipo</TableHead>
+                  <TableHead>Views</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Upload</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {videos.map(video => (
+                {videos
+                  .filter(v => (filterCategory && filterCategory !== 'all' ? v.category_id === filterCategory : true))
+                  .filter(v => (search ? (v.title || '').toLowerCase().includes(search.toLowerCase()) : true))
+                  .map(video => (
                   <TableRow key={video.id}>
+                    <TableCell>
+                      {video.thumbnail ? (
+                        <img src={video.thumbnail} alt={video.title} className="h-10 w-16 object-cover rounded" />
+                      ) : (
+                        <div className="h-10 w-16 bg-muted rounded" />
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{video.title}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">
@@ -299,6 +365,7 @@ export default function AdminVideos() {
                       </Badge>
                     </TableCell>
                     <TableCell>{formatDuration(video.duration)}</TableCell>
+                    <TableCell>{viewsMap[video.id] || 0}</TableCell>
                     <TableCell>
                       {video.vimeo_id ? (
                         <Badge className="bg-primary/10 text-primary">Vimeo</Badge>
@@ -307,7 +374,7 @@ export default function AdminVideos() {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(video.uploaded_at || video.created_at).toLocaleDateString('pt-BR')}
+                      {safeFormatDate(video.uploaded_at || video.created_at)}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -318,10 +385,10 @@ export default function AdminVideos() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={() => window.open(video.vimeo_embed_url || video.video_url, '_blank')}
+                            onClick={() => setPreviewVideo(video)}
                           >
                             <Play className="mr-2 h-4 w-4" />
-                            Assistir
+                            Pré-visualizar
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
@@ -611,6 +678,38 @@ export default function AdminVideos() {
                 Cancelar
               </Button>
               <Button onClick={handleUpdateVideo}>Salvar Alterações</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Preview Dialog */}
+        <Dialog open={!!previewVideo} onOpenChange={(open) => !open && setPreviewVideo(null)}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Pré-visualização: {previewVideo?.title}</DialogTitle>
+              <DialogDescription>
+                Incorporação do player do Vimeo
+              </DialogDescription>
+            </DialogHeader>
+            <div className="relative aspect-video bg-black rounded-md overflow-hidden">
+              {computeVimeoEmbed(previewVideo) ? (
+                <iframe
+                  src={computeVimeoEmbed(previewVideo) as string}
+                  className="absolute inset-0 w-full h-full"
+                  frameBorder="0"
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowFullScreen
+                  title={previewVideo.title}
+                />
+              ) : (
+                <div className="flex items-center justify-center text-muted-foreground h-full">
+                  Sem embed do Vimeo
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPreviewVideo(null)}>Fechar</Button>
+              <Button onClick={() => navigate(`/video/${previewVideo?.id}`)}>Abrir página do vídeo</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

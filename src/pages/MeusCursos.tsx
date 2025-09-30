@@ -24,9 +24,21 @@ import { Category, Video as VideoType } from '@/types';
 export default function MeusCursos() {
   const navigate = useNavigate();
   const user = getCurrentUser();
-  const [categories] = useState(getCategories());
-  const [videos] = useState(getVideos());
-  const [viewHistory] = useState(getViewHistory(user?.id));
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [videos, setVideos] = useState<VideoType[]>([]);
+  const [viewHistory, setViewHistory] = useState<any[]>([]);
+  useEffect(() => {
+    (async () => {
+      const [c, v, vh] = await Promise.all([
+        getCategories(),
+        getVideos(),
+        getViewHistory(user?.id),
+      ]);
+      setCategories(c);
+      setVideos(v);
+      setViewHistory(vh);
+    })();
+  }, [user?.id]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Redirecionar se não estiver logado

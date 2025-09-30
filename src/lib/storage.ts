@@ -1,238 +1,204 @@
 import { Comment, VideoProgress, ViewHistory, User, Category, Video } from '@/types';
-import { mockUsers, mockCategories, mockVideos, mockViewHistory } from '@/lib/mockData';
+import { api } from '@/lib/api';
+import { getCurrentUser } from '@/lib/auth';
 
-const COMMENTS_KEY = 'microeduca_comments';
-const PROGRESS_KEY = 'microeduca_progress';
-const HISTORY_KEY = 'microeduca_history';
-const USERS_KEY = 'microeduca_users';
-const CATEGORIES_KEY = 'microeduca_categories';
-const VIDEOS_KEY = 'microeduca_videos';
+// Helpers de conversão DB -> UI
+const mapCategory = (row: any): Category => ({
+  id: row.id,
+  name: row.name,
+  description: row.description || '',
+  thumbnail: row.thumbnail || undefined,
+  createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+});
 
-// Comments Management
-export const getComments = (videoId: string): Comment[] => {
-  const stored = localStorage.getItem(COMMENTS_KEY);
-  if (stored) {
-    try {
-      const allComments = JSON.parse(stored) as Comment[];
-      return allComments.filter(c => c.videoId === videoId);
-    } catch {
-      return [];
-    }
-  }
-  return [];
-};
+const mapVideo = (row: any): Video => ({
+  id: row.id,
+  title: row.title,
+  description: row.description || '',
+  videoUrl: row.video_url || '',
+  thumbnail: row.thumbnail || undefined,
+  categoryId: row.category_id,
+  duration: row.duration || 0,
+  uploadedBy: row.uploaded_by || 'admin',
+  uploadedAt: row.uploaded_at ? new Date(row.uploaded_at) : new Date(),
+  vimeoId: row.vimeo_id || undefined,
+  vimeoEmbedUrl: row.vimeo_embed_url || undefined,
+});
 
-export const addComment = (comment: Omit<Comment, 'id' | 'createdAt'>): Comment => {
-  const stored = localStorage.getItem(COMMENTS_KEY);
-  let comments: Comment[] = [];
-  
-  if (stored) {
-    try {
-      comments = JSON.parse(stored);
-    } catch {
-      comments = [];
-    }
-  }
-  
-  const newComment: Comment = {
-    ...comment,
-    id: `com-${Date.now()}`,
-    createdAt: new Date(),
-  };
-  
-  comments.push(newComment);
-  localStorage.setItem(COMMENTS_KEY, JSON.stringify(comments));
-  
-  return newComment;
-};
+const toDbVideo = (v: Video) => ({
+  title: v.title,
+  description: v.description,
+  video_url: v.videoUrl,
+  thumbnail: v.thumbnail,
+  category_id: v.categoryId,
+  duration: v.duration,
+  uploaded_by: v.uploadedBy,
+  vimeo_id: v.vimeoId,
+  vimeo_embed_url: v.vimeoEmbedUrl,
+});
 
-// Video Progress Management
-export const getVideoProgress = (videoId: string): VideoProgress | null => {
-  const stored = localStorage.getItem(PROGRESS_KEY);
-  if (stored) {
-    try {
-      const allProgress = JSON.parse(stored) as Record<string, VideoProgress>;
-      return allProgress[videoId] || null;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-};
+const mapUser = (row: any): User => ({
+  id: row.id,
+  name: row.name,
+  email: row.email,
+  role: row.role,
+  assignedCategories: row.assigned_categories || [],
+  createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+  isActive: row.is_active,
+});
 
-export const saveVideoProgress = (progress: VideoProgress) => {
-  const stored = localStorage.getItem(PROGRESS_KEY);
-  let allProgress: Record<string, VideoProgress> = {};
-  
-  if (stored) {
-    try {
-      allProgress = JSON.parse(stored);
-    } catch {
-      allProgress = {};
-    }
-  }
-  
-  allProgress[progress.videoId] = progress;
-  localStorage.setItem(PROGRESS_KEY, JSON.stringify(allProgress));
-};
-
-// User Management
-export const getUsers = (): User[] => {
-  const stored = localStorage.getItem(USERS_KEY);
-  if (stored) {
-    try {
-      return JSON.parse(stored) as User[];
-    } catch {
-      localStorage.setItem(USERS_KEY, JSON.stringify(mockUsers));
-      return mockUsers;
-    }
-  }
-  localStorage.setItem(USERS_KEY, JSON.stringify(mockUsers));
-  return mockUsers;
-};
-
-export const addUser = (user: User): void => {
-  const users = getUsers();
-  users.push(user);
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-};
-
-export const updateUser = (updatedUser: User): void => {
-  const users = getUsers();
-  const index = users.findIndex(u => u.id === updatedUser.id);
-  if (index >= 0) {
-    users[index] = updatedUser;
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  }
-};
-
-export const deleteUser = (userId: string): void => {
-  const users = getUsers();
-  const filteredUsers = users.filter(u => u.id !== userId);
-  localStorage.setItem(USERS_KEY, JSON.stringify(filteredUsers));
-};
-
-// Category Management
-export const getCategories = (): Category[] => {
-  const stored = localStorage.getItem(CATEGORIES_KEY);
-  if (stored) {
-    try {
-      return JSON.parse(stored) as Category[];
-    } catch {
-      localStorage.setItem(CATEGORIES_KEY, JSON.stringify(mockCategories));
-      return mockCategories;
-    }
-  }
-  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(mockCategories));
-  return mockCategories;
-};
-
-export const addCategory = (category: Category): void => {
-  const categories = getCategories();
-  categories.push(category);
-  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
-};
-
-export const updateCategory = (updatedCategory: Category): void => {
-  const categories = getCategories();
-  const index = categories.findIndex(c => c.id === updatedCategory.id);
-  if (index >= 0) {
-    categories[index] = updatedCategory;
-    localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
-  }
-};
-
-export const deleteCategory = (categoryId: string): void => {
-  const categories = getCategories();
-  const filteredCategories = categories.filter(c => c.id !== categoryId);
-  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(filteredCategories));
-};
-
-// Video Management
-export const getVideos = (): Video[] => {
-  const stored = localStorage.getItem(VIDEOS_KEY);
-  if (stored) {
-    try {
-      return JSON.parse(stored) as Video[];
-    } catch {
-      localStorage.setItem(VIDEOS_KEY, JSON.stringify(mockVideos));
-      return mockVideos;
-    }
-  }
-  localStorage.setItem(VIDEOS_KEY, JSON.stringify(mockVideos));
-  return mockVideos;
-};
-
-export const addVideo = (video: Video): void => {
-  const videos = getVideos();
-  videos.push(video);
-  localStorage.setItem(VIDEOS_KEY, JSON.stringify(videos));
-};
-
-export const updateVideo = (updatedVideo: Video): void => {
-  const videos = getVideos();
-  const index = videos.findIndex(v => v.id === updatedVideo.id);
-  if (index >= 0) {
-    videos[index] = updatedVideo;
-    localStorage.setItem(VIDEOS_KEY, JSON.stringify(videos));
-  }
-};
-
-export const deleteVideo = (videoId: string): void => {
-  const videos = getVideos();
-  const filteredVideos = videos.filter(v => v.id !== videoId);
-  localStorage.setItem(VIDEOS_KEY, JSON.stringify(filteredVideos));
-};
-
-// View History Management - Modified to work with or without userId
-export const getViewHistory = (userId?: string): ViewHistory[] => {
-  const stored = localStorage.getItem(HISTORY_KEY);
-  if (stored) {
-    try {
-      const allHistory = JSON.parse(stored) as ViewHistory[];
-      return userId ? allHistory.filter(h => h.userId === userId) : allHistory;
-    } catch {
-      // Initialize with mock data if parsing fails
-      const initialHistory = mockViewHistory || [];
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(initialHistory));
-      return userId ? initialHistory.filter(h => h.userId === userId) : initialHistory;
-    }
-  }
-  // Initialize with mock data if no stored data
-  const initialHistory = mockViewHistory || [];
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(initialHistory));
-  return userId ? initialHistory.filter(h => h.userId === userId) : initialHistory;
-};
-
-export const addToHistory = (history: Omit<ViewHistory, 'id'>): ViewHistory => {
-  const stored = localStorage.getItem(HISTORY_KEY);
-  let allHistory: ViewHistory[] = [];
-  
-  if (stored) {
-    try {
-      allHistory = JSON.parse(stored);
-    } catch {
-      allHistory = [];
-    }
-  }
-  
-  // Check if entry already exists
-  const existingIndex = allHistory.findIndex(
-    h => h.userId === history.userId && h.videoId === history.videoId
+// Comments
+export const getComments = (videoId: string): Promise<Comment[]> =>
+  api.getComments(videoId).then((rows: any[]) =>
+    rows.map((r) => ({
+      id: r.id,
+      videoId: r.video_id,
+      userId: r.user_id,
+      userName: r.user_name || '',
+      content: r.content,
+      createdAt: r.created_at ? new Date(r.created_at) : new Date(),
+    }))
   );
-  
-  const newHistory: ViewHistory = {
-    ...history,
-    id: existingIndex >= 0 ? allHistory[existingIndex].id : `hist-${Date.now()}`,
+
+export const addComment = async (comment: Omit<Comment, 'id' | 'createdAt'>): Promise<Comment> => {
+  const row = await api.addComment({
+    video_id: comment.videoId,
+    user_id: comment.userId,
+    content: comment.content,
+  });
+  return {
+    id: row.id,
+    videoId: row.video_id,
+    userId: row.user_id,
+    userName: row.user_name || '',
+    content: row.content,
+    createdAt: row.created_at ? new Date(row.created_at) : new Date(),
   };
-  
-  if (existingIndex >= 0) {
-    allHistory[existingIndex] = newHistory;
-  } else {
-    allHistory.push(newHistory);
-  }
-  
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(allHistory));
-  
-  return newHistory;
+};
+
+export const deleteComment = async (id: string): Promise<void> => {
+  await api.deleteComment(id);
+};
+
+// Video Progress
+export const getVideoProgress = async (videoId: string): Promise<VideoProgress | null> => {
+  const user = getCurrentUser();
+  if (!user) return null;
+  const row = await api.getVideoProgress(user.id, videoId);
+  if (!row) return null;
+  return {
+    videoId: row.video_id,
+    currentTime: Math.max(0, row.time_watched || 0),
+    duration: Math.max(row.time_watched || 0, row.duration || 0),
+    completed: !!row.completed,
+  };
+};
+
+export const saveVideoProgress = async (progress: VideoProgress) => {
+  const user = getCurrentUser();
+  if (!user) return;
+  await api.saveVideoProgress({
+    user_id: user.id,
+    video_id: progress.videoId,
+    time_watched: Math.floor(Math.max(0, progress.currentTime)),
+    duration: Math.floor(Math.max(0, progress.duration, progress.currentTime)),
+    completed: !!progress.completed,
+  });
+};
+
+// Users (Profiles)
+export const getUsers = async (): Promise<User[]> => {
+  const rows = await api.getProfiles();
+  return rows.map(mapUser);
+};
+
+export const addUser = async (user: User, password?: string): Promise<void> => {
+  await api.addProfile({
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    assigned_categories: user.assignedCategories,
+    is_active: user.isActive !== false,
+    password: password || undefined,
+  });
+};
+
+export const updateUser = async (updatedUser: User): Promise<void> => {
+  await api.updateProfile(updatedUser.id, {
+    email: updatedUser.email,
+    name: updatedUser.name,
+    role: updatedUser.role,
+    assigned_categories: updatedUser.assignedCategories,
+    is_active: updatedUser.isActive !== false,
+  });
+};
+
+export const deleteUser = async (_userId: string): Promise<void> => {
+  await api.deleteProfile(_userId);
+};
+
+// Categories
+export const getCategories = async (): Promise<Category[]> => {
+  const rows = await api.getCategories();
+  return rows.map(mapCategory);
+};
+
+export const addCategory = async (category: Category): Promise<void> => {
+  await api.addCategory({ name: category.name, description: category.description, thumbnail: category.thumbnail });
+};
+
+export const updateCategory = async (updatedCategory: Category): Promise<void> => {
+  await api.updateCategory(updatedCategory.id, { name: updatedCategory.name, description: updatedCategory.description, thumbnail: updatedCategory.thumbnail });
+};
+
+export const deleteCategory = async (categoryId: string): Promise<void> => {
+  await api.deleteCategory(categoryId);
+};
+
+// Videos
+export const getVideos = async (): Promise<Video[]> => {
+  const rows = await api.getVideos();
+  return rows.map(mapVideo);
+};
+
+export const addVideo = async (video: Video): Promise<void> => {
+  await api.addVideo(toDbVideo(video));
+};
+
+export const updateVideo = async (updatedVideo: Video): Promise<void> => {
+  await api.updateVideo(updatedVideo.id, toDbVideo(updatedVideo));
+};
+
+export const deleteVideo = async (videoId: string): Promise<void> => {
+  await api.deleteVideo(videoId);
+};
+
+// View History
+export const getViewHistory = async (userId?: string): Promise<ViewHistory[]> => {
+  const rows = await api.getViewHistory(userId);
+  return rows.map((r: any) => ({
+    id: r.id,
+    userId: r.user_id,
+    videoId: r.video_id,
+    watchedDuration: r.watched_duration || 0,
+    completed: !!r.completed,
+    lastWatchedAt: r.last_watched_at ? new Date(r.last_watched_at) : new Date(),
+  }));
+};
+
+export const addToHistory = async (history: Omit<ViewHistory, 'id'>): Promise<ViewHistory> => {
+  const row = await api.addToHistory({
+    user_id: history.userId,
+    video_id: history.videoId,
+    watched_duration: history.watchedDuration,
+    completed: history.completed,
+  });
+  return {
+    id: row.id,
+    userId: row.user_id,
+    videoId: row.video_id,
+    watchedDuration: row.watched_duration || 0,
+    completed: !!row.completed,
+    lastWatchedAt: row.last_watched_at ? new Date(row.last_watched_at) : new Date(),
+  };
 };

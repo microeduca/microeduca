@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,10 +32,19 @@ import {
   saveVideoProgress, 
   addToHistory, 
   getComments, 
-  addComment 
+  addComment, 
+  deleteComment,
+  updateVideo,
+  getVideoProgress as getVideoProgressApi
 } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
 import VimeoPlayer from '@/components/VimeoPlayer';
+
+function extractVimeoId(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  const match = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  return match?.[1];
+}
 
 export default function VideoPlayer() {
   const { videoId } = useParams();
@@ -42,11 +53,43 @@ export default function VideoPlayer() {
   const user = getCurrentUser();
   const videoRef = useRef<HTMLVideoElement>(null);
   
-  const [video] = useState(() => getVideos().find(v => v.id === videoId));
-  const [categories] = useState(getCategories());
-  const [videos] = useState(getVideos());
-  const [comments, setComments] = useState(getComments(videoId || ''));
+  const [video, setVideo] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [comments, setComments] = useState<any[]>([]);
+  useEffect(() => {
+    (async () => {
+      setIsLoading(true);
+      const [vList, cList] = await Promise.all([getVideos(), getCategories()]);
+      setVideos(vList);
+      setCategories(cList);
+      const v = vList.find(v => v.id === videoId);
+      setVideo(v || null);
+      if (v) {
+        setEditTitle(v.title || '');
+        setEditDescription(v.description || '');
+        setEditCategoryId(v.categoryId || '');
+        setEditThumbnail(v.thumbnail);
+      }
+      // Carregar progresso salvo para retomar do ponto
+      const vp = await getVideoProgressApi(videoId || '');
+      if (vp && vp.currentTime > 0) {
+        setCurrentTime(vp.currentTime);
+        setProgress(vp.duration ? (vp.currentTime / vp.duration) * 100 : 0);
+      }
+      setComments(await getComments(videoId || ''));
+      setIsLoading(false);
+    })();
+  }, [videoId]);
   const [newComment, setNewComment] = useState('');
+  const getInitials = (name?: string) => {
+    const base = (name || '').trim();
+    if (!base) return '?';
+    const parts = base.split(' ').filter(Boolean);
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  };
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -54,15 +97,23 @@ export default function VideoPlayer() {
   const [volume, setVolume] = useState(1);
   const [progress, setProgress] = useState(0);
   const [viewRegistered, setViewRegistered] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('');
+  const [editThumbnail, setEditThumbnail] = useState<string | undefined>(undefined);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
 
   const category = categories.find(c => c.id === video?.categoryId);
   const relatedVideos = videos.filter(v => v.categoryId === video?.categoryId && v.id !== video?.id);
+  const vimeoIdFromUrl = extractVimeoId(video?.videoUrl);
 
   useEffect(() => {
-    if (!video || !user) {
-      navigate('/dashboard');
+    if (!user) {
+      navigate('/login');
       return;
     }
+    if (!video) return;
 
     // Registrar visualização após 3 segundos de exibição
     const viewTimer = setTimeout(() => {
@@ -92,16 +143,24 @@ export default function VideoPlayer() {
 
     const handleTimeUpdate = () => {
       setCurrentTime(videoElement.currentTime);
-      setProgress((videoElement.currentTime / videoElement.duration) * 100);
-      
-      // Salvar progresso a cada 5 segundos
+      setProgress((videoElement.currentTime / (videoElement.duration || duration || 1)) * 100);
+      // Salvar progresso a cada 5 segundos sem regredir
       if (Math.floor(videoElement.currentTime) % 5 === 0) {
         saveProgress();
       }
     };
 
-    const handleLoadedMetadata = () => {
+    const handleLoadedMetadata = async () => {
       setDuration(videoElement.duration);
+      // Retomar posição salva se houver
+      try {
+        const vp = await getVideoProgressApi(videoId || '');
+        if (vp && vp.currentTime > 0) {
+          videoElement.currentTime = Math.max(0, Math.min(videoElement.duration - 1, vp.currentTime));
+          setCurrentTime(videoElement.currentTime);
+          setProgress((videoElement.currentTime / (videoElement.duration || 1)) * 100);
+        }
+      } catch {}
     };
 
     const handleEnded = () => {
@@ -130,7 +189,7 @@ export default function VideoPlayer() {
       videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
       videoElement.removeEventListener('ended', handleEnded);
     };
-  }, [user, video, toast]);
+  }, [user, video, toast, videoId, duration]);
 
   // Salvar progresso periodicamente para vídeos Vimeo
   useEffect(() => {
@@ -228,23 +287,30 @@ export default function VideoPlayer() {
     }
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!newComment.trim() || !user) return;
-    
-    const comment = addComment({
-      videoId: videoId || '',
-      userId: user.id,
-      userName: user.name,
-      content: newComment,
-    });
-    
-    setComments([...comments, comment]);
-    setNewComment('');
-    
-    toast({
-      title: "Comentário adicionado",
-      description: "Seu comentário foi publicado com sucesso.",
-    });
+    try {
+      const created = await addComment({
+        videoId: videoId || '',
+        userId: user.id,
+        userName: user.name,
+        content: newComment,
+      });
+      // Garantir userName no estado local
+      const withName = { ...created, userName: user.name } as any;
+      setComments([...comments, withName]);
+      setNewComment('');
+      toast({
+        title: "Comentário adicionado",
+        description: "Seu comentário foi publicado com sucesso.",
+      });
+    } catch (e) {
+      toast({
+        title: 'Erro ao comentar',
+        description: 'Não foi possível publicar seu comentário.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -252,6 +318,20 @@ export default function VideoPlayer() {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-8">
+          <Card className="text-center py-12">
+            <CardContent>
+              <p className="text-muted-foreground">Carregando vídeo...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    );
+  }
 
   if (!video) {
     return (
@@ -290,11 +370,12 @@ export default function VideoPlayer() {
             {/* Video Player */}
             <Card className="overflow-hidden">
               <div className="relative bg-black aspect-video">
-                {video.vimeoEmbedUrl || video.vimeoId ? (
+                {(video.vimeoEmbedUrl || video.vimeoId || vimeoIdFromUrl) ? (
                   <VimeoPlayer
-                    vimeoId={video.vimeoId}
+                    vimeoId={video.vimeoId || vimeoIdFromUrl}
                     vimeoEmbedUrl={video.vimeoEmbedUrl}
                     title={video.title}
+                    startAtSeconds={currentTime}
                     onProgress={(progressPercent, duration) => {
                       setProgress(progressPercent);
                       setDuration(duration);
@@ -436,13 +517,93 @@ export default function VideoPlayer() {
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-2xl">{video.title}</CardTitle>
-                    <CardDescription className="mt-2">
-                      {video.description}
-                    </CardDescription>
+                  <div className="flex-1 pr-4">
+                    {isEditing && user?.role === 'admin' ? (
+                      <div className="space-y-2">
+                        <Input
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          placeholder="Título do vídeo"
+                        />
+                        <Textarea
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          rows={3}
+                          placeholder="Descrição do vídeo"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <CardTitle className="text-2xl">{video.title}</CardTitle>
+                        <CardDescription className="mt-2">
+                          {video.description}
+                        </CardDescription>
+                      </>
+                    )}
                   </div>
-                  <Badge>{category?.name}</Badge>
+                  <div className="flex items-center gap-2">
+                    {isEditing && user?.role === 'admin' ? (
+                      <div className="min-w-[220px]">
+                        <Select value={editCategoryId} onValueChange={setEditCategoryId}>
+                          <SelectTrigger className="w-[220px]">
+                            <SelectValue placeholder="Categoria" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <Badge>{category?.name}</Badge>
+                    )}
+                    {user?.role === 'admin' && (
+                      isEditing ? (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={async () => {
+                              if (!video) return;
+                              try {
+                                await updateVideo({
+                                  ...video,
+                                  title: editTitle,
+                                  description: editDescription,
+                                  categoryId: editCategoryId || video.categoryId,
+                                  thumbnail: editThumbnail,
+                                } as any);
+                                setVideo({ ...video, title: editTitle, description: editDescription, categoryId: editCategoryId || video.categoryId, thumbnail: editThumbnail });
+                                setIsEditing(false);
+                                toast({ title: 'Vídeo atualizado' });
+                              } catch (e) {
+                                toast({ title: 'Erro ao salvar', variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            Salvar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditTitle(video.title || '');
+                              setEditDescription(video.description || '');
+                              setEditCategoryId(video.categoryId || '');
+                              setEditThumbnail(video.thumbnail);
+                              setIsEditing(false);
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                        </>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                          Editar
+                        </Button>
+                      )
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -454,6 +615,28 @@ export default function VideoPlayer() {
                   <span>
                     Enviado em {new Date(video.uploadedAt).toLocaleDateString('pt-BR')}
                   </span>
+                  {user?.role === 'admin' && isEditing && (
+                    <div className="ml-auto flex items-center gap-3">
+                      <input
+                        ref={thumbInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setEditThumbnail(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                      <Button size="sm" variant="outline" onClick={() => thumbInputRef.current?.click()}>
+                        Alterar thumbnail
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -501,15 +684,32 @@ export default function VideoPlayer() {
                       <div key={comment.id} className="flex gap-3">
                         <Avatar>
                           <AvatarFallback>
-                            {comment.userName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                            {getInitials((comment as any).userName)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold">{comment.userName}</span>
+                            <span className="font-semibold">{(comment as any).userName || 'Usuário'}</span>
                             <span className="text-xs text-muted-foreground">
                               {new Date(comment.createdAt).toLocaleDateString('pt-BR')}
                             </span>
+                            {/* Admin delete */}
+                            {user?.role === 'admin' && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await deleteComment(comment.id);
+                                    setComments((prev) => prev.filter((c) => c.id !== comment.id));
+                                    toast({ title: 'Comentário removido' });
+                                  } catch (e) {
+                                    toast({ title: 'Erro ao excluir comentário', variant: 'destructive' });
+                                  }
+                                }}
+                                className="ml-2 text-xs text-destructive hover:underline"
+                              >
+                                excluir
+                              </button>
+                            )}
                           </div>
                           <p className="text-sm mt-1">{comment.content}</p>
                         </div>

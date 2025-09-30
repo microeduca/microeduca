@@ -10,18 +10,19 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, Video, AlertCircle, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
-import { getCategories, addVideo } from '@/lib/storage';
+import { getCategories } from '@/lib/storage';
 import { 
   storeVimeoToken, 
   getVimeoToken, 
   clearVimeoTokens, 
   generateState,
   uploadToVimeo,
-  getSupabaseUrl,
+  getBackendUrl,
   tokenNeedsRefresh,
   getVimeoRefreshToken
 } from '@/lib/vimeo';
 import { getCurrentUser } from '@/lib/auth';
+import { api } from '@/lib/api';
 
 export default function VimeoUpload() {
   const navigate = useNavigate();
@@ -72,7 +73,7 @@ export default function VimeoUpload() {
     }
 
     try {
-      const response = await fetch(`${getSupabaseUrl()}/functions/v1/vimeo-auth`, {
+      const response = await fetch(`${getBackendUrl()}/vimeo-auth`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,7 +109,7 @@ export default function VimeoUpload() {
     localStorage.setItem('vimeo_oauth_state', state);
     
     try {
-      const response = await fetch(`${getSupabaseUrl()}/functions/v1/vimeo-auth`, {
+      const response = await fetch(`${getBackendUrl()}/vimeo-auth`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -152,7 +153,7 @@ export default function VimeoUpload() {
     setIsAuthenticating(true);
 
     try {
-      const response = await fetch(`${getSupabaseUrl()}/functions/v1/vimeo-auth`, {
+      const response = await fetch(`${getBackendUrl()}/vimeo-auth`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -231,7 +232,7 @@ export default function VimeoUpload() {
 
     try {
       // Step 1: Create video on Vimeo and get upload URL
-      const response = await fetch(`${getSupabaseUrl()}/functions/v1/vimeo-upload`, {
+      const response = await fetch(`${getBackendUrl()}/vimeo-upload`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -262,23 +263,19 @@ export default function VimeoUpload() {
         setUploadProgress(percentage);
       });
 
-      // Step 3: Save video data locally
+      // Step 3: Save video in Railway
       const currentUser = getCurrentUser();
-      const newVideo = {
-        id: `vid-${Date.now()}`,
+      await api.addVideo({
         title,
         description,
-        videoUrl: `https://vimeo.com/${videoId}`,
-        thumbnail: '', // Vimeo will generate this
-        categoryId,
-        duration: 0, // Will be updated from Vimeo
-        uploadedBy: currentUser?.id || 'admin',
-        uploadedAt: new Date(),
-        vimeoId: videoId,
-        vimeoEmbedUrl: embedUrl
-      };
-
-      addVideo(newVideo);
+        video_url: `https://vimeo.com/${videoId}`,
+        thumbnail: '',
+        category_id: categoryId,
+        duration: 0,
+        uploaded_by: currentUser?.id || 'admin',
+        vimeo_id: videoId,
+        vimeo_embed_url: embedUrl,
+      });
       
       setUploadedVideoId(videoId);
       setUploadedEmbedUrl(embedUrl);

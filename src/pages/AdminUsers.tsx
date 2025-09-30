@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,8 +20,15 @@ import { getCurrentUser } from '@/lib/auth';
 export default function AdminUsers() {
   const { toast } = useToast();
   const currentUser = getCurrentUser();
-  const [users, setUsers] = useState(getUsers());
-  const [categories] = useState(getCategories());
+  const [users, setUsers] = useState<User[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  useEffect(() => {
+    (async () => {
+      const [u, c] = await Promise.all([getUsers(), getCategories()]);
+      setUsers(u);
+      setCategories(c);
+    })();
+  }, []);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -34,7 +41,7 @@ export default function AdminUsers() {
     assignedCategories: [] as string[],
   });
 
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (!newUser.name || !newUser.email || !newUser.password) {
       toast({
         title: "Erro ao adicionar usuário",
@@ -54,8 +61,8 @@ export default function AdminUsers() {
       isActive: true,
     };
 
-    addUser(user);
-    setUsers(getUsers());
+    await addUser(user, newUser.password);
+    setUsers(await getUsers());
     setIsAddDialogOpen(false);
     setNewUser({
       name: '',
@@ -71,11 +78,11 @@ export default function AdminUsers() {
     });
   };
 
-  const handleUpdateUser = () => {
+  const handleUpdateUser = async () => {
     if (!editingUser) return;
 
-    updateUser(editingUser);
-    setUsers(getUsers());
+    await updateUser(editingUser);
+    setUsers(await getUsers());
     setIsEditDialogOpen(false);
     setEditingUser(null);
 
@@ -85,7 +92,7 @@ export default function AdminUsers() {
     });
   };
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     // Prevent deleting current user
     if (userId === currentUser?.id) {
       toast({
@@ -97,8 +104,8 @@ export default function AdminUsers() {
     }
 
     if (confirm('Tem certeza que deseja excluir este usuário?')) {
-      deleteUser(userId);
-      setUsers(getUsers());
+      await deleteUser(userId);
+      setUsers(await getUsers());
       
       toast({
         title: "Usuário excluído",

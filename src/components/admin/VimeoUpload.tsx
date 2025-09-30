@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, Video, AlertCircle, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { getCategories } from '@/lib/storage';
+import type { Category } from '@/types';
 import { 
   storeVimeoToken, 
   getVimeoToken, 
@@ -35,7 +36,7 @@ export default function VimeoUpload() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [categories, setCategories] = useState(getCategories());
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null);
@@ -52,6 +53,14 @@ export default function VimeoUpload() {
         setIsAuthenticated(true);
       }
     }
+  }, []);
+
+  // Carregar categorias
+  useEffect(() => {
+    (async () => {
+      const cats = await getCategories();
+      setCategories(cats);
+    })();
   }, []);
 
   // Handle OAuth callback

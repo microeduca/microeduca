@@ -347,7 +347,7 @@ export default function AdminVideos() {
               </TableHeader>
               <TableBody>
                 {videos
-                  .filter(v => (filterCategory && filterCategory !== 'all' ? v.category_id === filterCategory : true))
+                  .filter(v => (filterCategory && filterCategory !== 'all' ? (v.category_id || v.categoryId) === filterCategory : true))
                   .filter(v => (search ? (v.title || '').toLowerCase().includes(search.toLowerCase()) : true))
                   .map(video => (
                   <TableRow key={video.id}>
@@ -361,7 +361,7 @@ export default function AdminVideos() {
                     <TableCell className="font-medium">{video.title}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">
-                        {getCategoryName(video.category_id)}
+                        {getCategoryName(video.category_id || video.categoryId)}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatDuration(video.duration)}</TableCell>

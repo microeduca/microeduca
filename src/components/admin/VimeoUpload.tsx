@@ -260,7 +260,7 @@ export default function VimeoUpload() {
           description,
           privacy: {
             view: 'unlisted',
-            embed: 'whitelist',
+            embed: 'public',
             download: false,
             add: false,
             comments: 'nobody'
@@ -279,13 +279,27 @@ export default function VimeoUpload() {
         setUploadProgress(percentage);
       });
 
-      // Step 3: Save video in Railway
+      // Step 3: Fetch best thumbnail from Vimeo
+      let thumbnailUrl = '';
+      try {
+        const thumbResp = await fetch(`${getBackendUrl()}/vimeo-thumbnail/${videoId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (thumbResp.ok) {
+          const { thumbnail } = await thumbResp.json();
+          if (thumbnail) thumbnailUrl = thumbnail;
+        }
+      } catch {}
+
+      // Step 4: Save video in Railway
       const currentUser = getCurrentUser();
       await api.addVideo({
         title,
         description,
         video_url: `https://vimeo.com/${videoId}`,
-        thumbnail: '',
+        thumbnail: thumbnailUrl,
         category_id: categoryId,
         duration: 0,
         uploaded_by: currentUser?.id || 'admin',

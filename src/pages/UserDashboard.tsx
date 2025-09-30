@@ -290,7 +290,7 @@ export default function UserDashboard() {
                           {formatDuration(video.duration)}
                         </span>
                         <Badge variant="secondary" className="text-xs">
-                          {categories.find(c => c.id === video.categoryId)?.name}
+                          {categories.find(c => c.id === (video.categoryId || video.category_id))?.name || 'Sem categoria'}
                         </Badge>
                       </div>
                     </CardContent>
@@ -355,7 +355,7 @@ export default function UserDashboard() {
           {/* Categories Tab */}
           <TabsContent value="categories" className="space-y-6">
             {categories.map(category => {
-              const categoryVideos = filteredVideos.filter(v => v.categoryId === category.id);
+              const categoryVideos = filteredVideos.filter(v => (v.categoryId || v.category_id) === category.id);
               
               if (categoryVideos.length === 0) return null;
               

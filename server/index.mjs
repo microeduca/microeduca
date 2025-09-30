@@ -323,6 +323,15 @@ app.post('/api/vimeo-upload', async (req, res) => {
     const fileSize = req.headers['x-file-size'] || '0';
     const VIMEO_CLIENT_ID = String(process.env.VIMEO_CLIENT_ID || '').trim();
     const VIMEO_CLIENT_SECRET = String(process.env.VIMEO_CLIENT_SECRET || '').trim();
+    // Enforce privacy default: hidden on Vimeo (unlisted) and embeddable anywhere
+    const safePrivacy = {
+      view: (privacy && privacy.view) || 'unlisted',
+      embed: 'public',
+      download: false,
+      add: false,
+      comments: 'nobody',
+    };
+
     const createResponse = await fetch('https://api.vimeo.com/me/videos', {
       method: 'POST',
       headers: {
@@ -334,13 +343,7 @@ app.post('/api/vimeo-upload', async (req, res) => {
         upload: { approach: 'tus', size: fileSize },
         name: title,
         description,
-        privacy: privacy || {
-          view: 'unlisted',
-          embed: 'whitelist',
-          download: false,
-          add: false,
-          comments: 'nobody'
-        }
+        privacy: safePrivacy
       })
     });
     if (!createResponse.ok) {
@@ -355,6 +358,44 @@ app.post('/api/vimeo-upload', async (req, res) => {
       embedUrl: `https://player.vimeo.com/video/${videoId}`,
       videoData
     });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Recupera o melhor thumbnail atual de um vídeo no Vimeo
+app.get('/api/vimeo-thumbnail/:videoId', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const authHeader = req.headers['authorization'] || '';
+    const tokenFromHeader = authHeader.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length)
+      : null;
+    const accessToken = tokenFromHeader || String(req.query.accessToken || '');
+    if (!accessToken) {
+      return res.status(400).json({ error: 'Missing access token' });
+    }
+
+    const resp = await fetch(`https://api.vimeo.com/videos/${encodeURIComponent(videoId)}?fields=pictures.sizes`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.vimeo.*+json;version=3.4'
+      }
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      return res.status(400).json({ error: `Failed to fetch video: ${text}` });
+    }
+    const data = await resp.json();
+    const sizes = data?.pictures?.sizes || [];
+    if (!Array.isArray(sizes) || sizes.length === 0) {
+      return res.json({ thumbnail: null });
+    }
+    // Escolher a maior resolução disponível
+    const best = sizes
+      .filter(s => s?.link)
+      .sort((a, b) => (b.width || 0) - (a.width || 0))[0];
+    return res.json({ thumbnail: best?.link || null });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

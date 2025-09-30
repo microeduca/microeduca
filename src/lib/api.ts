@@ -18,7 +18,12 @@ async function request(path: string, options: RequestInit = {}) {
     throw new Error(text || `Request failed: ${res.status}`);
   }
   const contentType = res.headers.get('content-type') || '';
-  return contentType.includes('application/json') ? res.json() : res.text();
+  const data = contentType.includes('application/json') ? await res.json() : await res.text();
+  // Salvaguarda: garantir array quando a chamada espera lista
+  if (options.method === 'GET' && Array.isArray(data) === false && /\/categories$|\/videos$|\/profiles$|\/comments$|\/view-history/.test(path)) {
+    return [];
+  }
+  return data;
 }
 
 export const api = {

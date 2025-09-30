@@ -78,7 +78,7 @@ export const tokenNeedsRefresh = (): boolean => {
 
 // Get Supabase URL (Edge Functions base)
 export const getBackendUrl = (): string => {
-  const api = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8787/api';
+  const api = (import.meta as any).env?.VITE_API_URL || 'https://microeduca.up.railway.app/api';
   return api;
 };
 

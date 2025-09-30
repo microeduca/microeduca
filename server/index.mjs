@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import pkg from 'pg';
 import bcrypt from 'bcryptjs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const { Pool } = pkg;
 
@@ -184,6 +186,19 @@ app.get('/api/profiles', async (_req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// --- Static frontend (serve React build) ---
+// Em produção (Railway), servimos o build do Vite a partir de /dist
+// As rotas que começam com /api continuam sendo tratadas acima
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const distPath = path.join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+// 404 JSON para rotas /api desconhecidas
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
+// Qualquer outra rota serve o index.html (SPA)
+app.get(/^\/(?!api).*/, (_req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 app.post('/api/profiles', async (req, res) => {

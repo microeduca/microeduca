@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { Video, Category } from '@/types';
-import { getVideos, getCategories, addVideo, updateVideo, deleteVideo } from '@/lib/supabase';
+import { getVideos, getCategories, addVideo, updateVideo, deleteVideo } from '@/lib/storage';
 import { Plus, Edit, Trash2, Play, Upload, Clock } from 'lucide-react';
 
 export default function AdminVideoManagement() {
@@ -129,9 +129,23 @@ export default function AdminVideoManagement() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const getCategoryName = (categoryId: string) => {
+  const getCategoryName = (categoryId: string | undefined | null) => {
+    if (!categoryId) return 'Sem categoria';
     const category = categories.find(c => c.id === categoryId);
     return category?.name || 'Sem categoria';
+  };
+
+  const resolveCategoryId = (v: Partial<Video> & Record<string, unknown>): string | undefined => {
+    return (v as any).categoryId || (v as any).category_id || (v as any)?.category?.id;
+  };
+
+  const getVimeoThumbFallback = (v: Partial<Video> & Record<string, unknown>): string | null => {
+    const videoId = (v as any).vimeoId || (v as any).vimeo_id || ((v as any).video_url || (v as any).videoUrl)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
+    return videoId ? `https://vumbnail.com/${videoId}.jpg` : null;
+  };
+
+  const getThumb = (v: Partial<Video> & Record<string, unknown>): string => {
+    return (v as any).thumbnail || getVimeoThumbFallback(v) || '/placeholder.svg';
   };
 
   return (
@@ -271,14 +285,14 @@ export default function AdminVideoManagement() {
                 <TableRow key={video.id}>
                   <TableCell>
                     <img
-                      src={video.thumbnail}
+                      src={getThumb(video)}
                       alt={video.title}
                       className="h-12 w-20 object-cover rounded"
                     />
                   </TableCell>
                   <TableCell className="font-medium">{video.title}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{getCategoryName(video.categoryId)}</Badge>
+                    <Badge variant="secondary">{getCategoryName(resolveCategoryId(video))}</Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-muted-foreground">

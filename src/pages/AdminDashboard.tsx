@@ -19,8 +19,8 @@ export default function AdminDashboard() {
   const [videos, setVideos] = useState<any[]>([]);
   const [viewHistory, setViewHistory] = useState<any[]>([]);
   const [recentViews, setRecentViews] = useState<any[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -64,10 +64,10 @@ export default function AdminDashboard() {
 
   const sourceHistory = (recentViews && recentViews.length > 0) ? recentViews : viewHistory;
   const filteredHistory = sourceHistory.filter((vh) => {
-    const userOk = !selectedUserId || vh.userId === selectedUserId;
+    const userOk = selectedUserId === 'all' || vh.userId === selectedUserId;
     const video = videos.find(v => v.id === vh.videoId);
     const catId = vh.videoCategoryId || video?.categoryId || video?.category_id;
-    const catOk = !selectedCategoryId || catId === selectedCategoryId;
+    const catOk = selectedCategoryId === 'all' || catId === selectedCategoryId;
     return userOk && catOk;
   });
   const sortedHistory = [...filteredHistory].sort((a, b) => {
@@ -170,7 +170,7 @@ export default function AdminDashboard() {
                       <SelectValue placeholder="Filtrar por usuário" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos os usuários</SelectItem>
+                      <SelectItem value="all">Todos os usuários</SelectItem>
                       {users.map(u => (
                         <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                       ))}
@@ -183,7 +183,7 @@ export default function AdminDashboard() {
                       <SelectValue placeholder="Filtrar por categoria" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todas as categorias</SelectItem>
+                      <SelectItem value="all">Todas as categorias</SelectItem>
                       {Array.from(new Set(videos.map(v => v.categoryId).filter(Boolean))).map((cid: any) => (
                         <SelectItem key={cid} value={cid}>
                           {cid}

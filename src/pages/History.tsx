@@ -29,13 +29,22 @@ export default function History() {
       return;
     }
 
-    // Load user history
-    const userHistory = getViewHistory(currentUser.id);
-    setHistory(userHistory);
-    
-    // Load videos and categories
-    setVideos(getVideos());
-    setCategories(getCategories());
+    (async () => {
+      try {
+        const [userHistory, videosList, categoriesList] = await Promise.all([
+          getViewHistory(currentUser.id),
+          getVideos(),
+          getCategories(),
+        ]);
+        setHistory(userHistory);
+        setVideos(videosList);
+        setCategories(categoriesList);
+      } catch (_e) {
+        setHistory([]);
+        setVideos([]);
+        setCategories([]);
+      }
+    })();
   }, [currentUser, navigate]);
 
   const getVideo = (videoId: string) => {

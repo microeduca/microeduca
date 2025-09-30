@@ -352,10 +352,26 @@ app.post('/api/vimeo-upload', async (req, res) => {
     }
     const videoData = await createResponse.json();
     const videoId = videoData.uri.split('/').pop();
+
+    // Tentar obter a URL de embed oficial do Vimeo (inclui h= quando necessário para vídeos unlisted)
+    let embedUrl = `https://player.vimeo.com/video/${videoId}`;
+    try {
+      const detailsResp = await fetch(`https://api.vimeo.com/videos/${encodeURIComponent(videoId)}?fields=player_embed_url,privacy,link`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.vimeo.*+json;version=3.4'
+        }
+      });
+      if (detailsResp.ok) {
+        const details = await detailsResp.json();
+        if (details?.player_embed_url) embedUrl = details.player_embed_url;
+      }
+    } catch {}
+
     return res.json({
       uploadLink: videoData.upload.upload_link,
       videoId,
-      embedUrl: `https://player.vimeo.com/video/${videoId}`,
+      embedUrl,
       videoData
     });
   } catch (e) {

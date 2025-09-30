@@ -49,11 +49,19 @@ export default function VimeoPlayer({
     if (!containerRef.current || (!vimeoId && !vimeoEmbedUrl)) return;
 
     const videoId = vimeoId || vimeoEmbedUrl?.match(/video\/(\d+)/)?.[1];
-    if (!videoId) return;
+    if (!videoId && !vimeoEmbedUrl) return;
+
+    // Montar URL de embed priorizando a URL fornecida pelo Vimeo (contém h= para unlisted)
+    const baseUrl = vimeoEmbedUrl || `https://player.vimeo.com/video/${videoId}`;
+    const url = new URL(baseUrl);
+    url.searchParams.set('badge', '0');
+    url.searchParams.set('autopause', '0');
+    url.searchParams.set('app_id', '58479');
+    // manter quaisquer outros params existentes como h=
 
     // Criar iframe manualmente
     const iframe = document.createElement('iframe');
-    iframe.src = `https://player.vimeo.com/video/${videoId}?badge=0&autopause=0&player_id=0&app_id=58479`;
+    iframe.src = url.toString();
     iframe.width = '100%';
     iframe.height = '100%';
     iframe.frameBorder = '0';

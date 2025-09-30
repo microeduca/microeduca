@@ -1,23 +1,30 @@
-# MicroEduca
+# Microteste
 
-Aplicação React + Vite para gestão e reprodução de conteúdos de treinamento com integração Vimeo e backend Node/Express + PostgreSQL (Railway).
+## API e Frontend (Railway)
 
-## Desenvolvimento
+- Ambiente alvo: `https://microeduca.up.railway.app`
+- O frontend usa por padrão a API do Railway.
+  - Em produção: `window.location.origin + /api` (se o frontend estiver servido pelo mesmo domínio) ou `VITE_API_URL` se definido.
+  - Em desenvolvimento (localhost): usa `https://microeduca.up.railway.app/api` por padrão.
+- Para apontar para outra API, defina `VITE_API_URL` no ambiente de build:
 
-Requisitos: Node.js e npm
-
-```sh
-npm i
-npm run dev
-# Em outro terminal
-npm run api
+```bash
+# Exemplo
+VITE_API_URL=https://seu-dominio/api bun run build
 ```
 
-## Tecnologias
+## Execução local
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-- Express + pg
+- Backend (API):
+```bash
+npm run api
+```
+- Frontend:
+```bash
+bun dev
+```
+
+## Gerenciador de pacotes
+
+- Projeto padronizado com Bun (`packageManager: bun@1.2.23`).
+- Não usar `npm install`; use `bun install`.

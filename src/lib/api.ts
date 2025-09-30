@@ -1,4 +1,12 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787/api';
+// Detecta ambiente automaticamente: usa VITE_API_URL se definido; caso contrário,
+// em dev aponta para localhost e em prod usa a origem atual do navegador.
+export const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined'
+    ? (window.location.hostname === 'localhost'
+        ? 'https://microeduca.up.railway.app/api'
+        : `${window.location.origin}/api`)
+    : 'https://microeduca.up.railway.app/api');
 
 async function request(path: string, options: RequestInit = {}) {
   const res = await fetch(`${API_URL}${path}`, {

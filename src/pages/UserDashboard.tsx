@@ -33,15 +33,24 @@ export default function UserDashboard() {
     })();
   }, [user?.id]);
   
+  // Restringir conteúdo às categorias do usuário (exceto admin)
+  const allowedCategoryIds = user?.role === 'admin' ? null : new Set<string>(user?.assignedCategories || []);
+  const visibleVideos = allowedCategoryIds
+    ? videos.filter(v => allowedCategoryIds.has((v.categoryId || v.category_id) as string))
+    : videos;
+  const visibleCategories = allowedCategoryIds
+    ? categories.filter(c => allowedCategoryIds.has(c.id))
+    : categories;
+
   // Filtrar vídeos com base na busca
-  const filteredVideos = videos.filter(video => 
+  const filteredVideos = visibleVideos.filter(video => 
     video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     video.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Calcular estatísticas do usuário
   const stats = {
-    totalVideos: videos.length,
+    totalVideos: visibleVideos.length,
     watchedVideos: viewHistory.filter(h => h.completed).length,
     inProgress: viewHistory.filter(h => !h.completed).length,
     totalWatchTime: viewHistory.reduce((acc, h) => acc + h.watchedDuration, 0),
@@ -51,17 +60,19 @@ export default function UserDashboard() {
   const recentVideos = viewHistory
     .sort((a, b) => new Date(b.lastWatchedAt).getTime() - new Date(a.lastWatchedAt).getTime())
     .slice(0, 6)
-    .map(h => videos.find(v => v.id === h.videoId))
+    .map(h => visibleVideos.find(v => v.id === h.videoId))
     .filter(Boolean);
 
   // Vídeos em progresso
   const inProgressVideos = viewHistory
-    .filter(h => !h.completed && h.watchedDuration > 0)
-    .map(h => ({
-      video: videos.find(v => v.id === h.videoId),
-      progress: (h.watchedDuration / (videos.find(v => v.id === h.videoId)?.duration || 1)) * 100
-    }))
-    .filter(item => item.video);
+    .map(h => {
+      const vid = visibleVideos.find(v => v.id === h.videoId);
+      const total = vid?.duration || 0;
+      const raw = total > 0 ? (h.watchedDuration / total) * 100 : (h.completed ? 100 : 0);
+      const clamped = Math.max(0, Math.min(100, raw));
+      return { video: vid, progress: clamped, completed: !!h.completed };
+    })
+    .filter(item => item.video && !item.completed && item.progress < 100);
 
   const handleVideoClick = (videoId: string) => {
     navigate(`/video/${videoId}`);
@@ -234,9 +245,11 @@ export default function UserDashboard() {
             }>
               {filteredVideos.map(video => {
                 const history = viewHistory.find(h => h.videoId === video.id);
-                const progressPercentage = history 
-                  ? (history.watchedDuration / video.duration) * 100 
-                  : 0;
+                const progressPercentage = history ? (() => {
+                  const total = Number(video.duration) || 0;
+                  const raw = total > 0 ? (history.watchedDuration / total) * 100 : (history.completed ? 100 : 0);
+                  return Math.max(0, Math.min(100, raw));
+                })() : 0;
 
                 return viewMode === 'grid' ? (
                   <Card 
@@ -354,7 +367,7 @@ export default function UserDashboard() {
 
           {/* Categories Tab */}
           <TabsContent value="categories" className="space-y-6">
-            {categories.map(category => {
+            {visibleCategories.map(category => {
               const categoryVideos = filteredVideos.filter(v => (v.categoryId || v.category_id) === category.id);
               
               if (categoryVideos.length === 0) return null;

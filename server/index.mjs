@@ -167,11 +167,15 @@ app.post('/api/videos', async (req, res) => {
       video_url,
       thumbnail,
       category_id,
+      category_ids,
       duration,
       uploaded_by,
       vimeo_id,
       vimeo_embed_url,
     } = req.body || {};
+
+    // ensure optional array column exists
+    try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
 
     const { rows } = await pool.query(
       `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url)
@@ -179,7 +183,12 @@ app.post('/api/videos', async (req, res) => {
        RETURNING *`,
       [title, description, video_url, thumbnail, category_id, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url]
     );
-    res.status(201).json(rows[0]);
+    const inserted = rows[0];
+    if (Array.isArray(category_ids) && category_ids.length > 0) {
+      await pool.query('UPDATE public.videos SET category_ids = $1, updated_at = now() WHERE id = $2', [category_ids, inserted.id]);
+    }
+    const { rows: after } = await pool.query('SELECT * FROM public.videos WHERE id = $1', [inserted.id]);
+    res.status(201).json(after[0] || inserted);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -188,14 +197,22 @@ app.post('/api/videos', async (req, res) => {
 app.put('/api/videos/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const fields = ['title','description','video_url','thumbnail','category_id','duration','vimeo_id','vimeo_embed_url'];
+    // ensure optional array column exists
+    try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
+
+    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','duration','vimeo_id','vimeo_embed_url'];
     const updates = [];
     const values = [];
     let idx = 1;
     for (const f of fields) {
       if (req.body[f] !== undefined) {
-        updates.push(`"${f}" = $${idx++}`);
-        values.push(req.body[f]);
+        if (f === 'category_ids') {
+          updates.push(`"${f}" = $${idx++}::uuid[]`);
+          values.push(req.body[f]);
+        } else {
+          updates.push(`"${f}" = $${idx++}`);
+          values.push(req.body[f]);
+        }
       }
     }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
@@ -349,6 +366,22 @@ app.post('/api/vimeo-auth', async (req, res) => {
   }
 });
 
+// Endpoint to check token status (expiry) for admin UI
+app.get('/api/vimeo-token/status', async (_req, res) => {
+  try {
+    const saved = await getSetting('vimeo_token');
+    if (!saved) return res.json({ hasToken: false, expiresInDays: null, needsRefresh: true });
+    const expiresAtSec = saved.created_at ? (new Date(saved.created_at).getTime() / 1000) + (saved.expires_in || 0) : null;
+    const nowSec = Date.now() / 1000;
+    const remainingSec = expiresAtSec ? Math.max(0, Math.floor(expiresAtSec - nowSec)) : null;
+    const expiresInDays = remainingSec != null ? Math.round(remainingSec / 86400) : null;
+    const needsRefresh = remainingSec != null ? remainingSec < 7 * 86400 : true;
+    res.json({ hasToken: true, expiresInDays, needsRefresh });
+  } catch (e) {
+    res.json({ hasToken: false, expiresInDays: null, needsRefresh: true });
+  }
+});
+
 app.post('/api/vimeo-upload', async (req, res) => {
   try {
     const { accessToken, title, description, privacy } = req.body || {};
@@ -472,7 +505,7 @@ app.get('/api/vimeo-thumbnail/:videoId', async (req, res) => {
     if (!accessToken) accessToken = await getSharedVimeoAccessToken();
     if (!accessToken) return res.status(400).json({ error: 'Missing access token' });
 
-    const resp = await fetch(`https://api.vimeo.com/videos/${encodeURIComponent(videoId)}?fields=pictures.sizes`, {
+    const resp = await fetch(`https://api.vimeo.com/videos/${encodeURIComponent(videoId)}?fields=duration,pictures.sizes`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/vnd.vimeo.*+json;version=3.4'
@@ -485,13 +518,13 @@ app.get('/api/vimeo-thumbnail/:videoId', async (req, res) => {
     const data = await resp.json();
     const sizes = data?.pictures?.sizes || [];
     if (!Array.isArray(sizes) || sizes.length === 0) {
-      return res.json({ thumbnail: null });
+      return res.json({ thumbnail: null, duration: Number(data?.duration || 0) || 0 });
     }
     // Escolher a maior resolução disponível
     const best = sizes
       .filter(s => s?.link)
       .sort((a, b) => (b.width || 0) - (a.width || 0))[0];
-    return res.json({ thumbnail: best?.link || null });
+    return res.json({ thumbnail: best?.link || null, duration: Number(data?.duration || 0) || 0 });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

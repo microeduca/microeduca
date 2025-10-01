@@ -12,16 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Upload, Video, AlertCircle, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { getCategories } from '@/lib/storage';
 import type { Category } from '@/types';
-import { 
-  storeVimeoToken, 
-  getVimeoToken, 
-  clearVimeoTokens, 
-  generateState,
-  uploadToVimeo,
-  getBackendUrl,
-  tokenNeedsRefresh,
-  getVimeoRefreshToken
-} from '@/lib/vimeo';
+import { uploadToVimeo, getBackendUrl } from '@/lib/vimeo';
 import { getCurrentUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 
@@ -30,8 +21,7 @@ export default function VimeoUpload() {
   const location = useLocation();
   const { toast } = useToast();
   
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [hasServerToken, setHasServerToken] = useState<boolean | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -42,17 +32,19 @@ export default function VimeoUpload() {
   const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null);
   const [uploadedEmbedUrl, setUploadedEmbedUrl] = useState<string | null>(null);
 
-  // Check for existing authentication
+  // Verificar se o backend possui token permanente configurado
   useEffect(() => {
-    const token = getVimeoToken();
-    if (token) {
-      // Check if token needs refresh
-      if (tokenNeedsRefresh()) {
-        refreshToken();
-      } else {
-        setIsAuthenticated(true);
+    let canceled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${getBackendUrl()}/vimeo-token/status`);
+        const data = await res.json();
+        if (!canceled) setHasServerToken(!!data?.hasToken);
+      } catch {
+        if (!canceled) setHasServerToken(false);
       }
-    }
+    })();
+    return () => { canceled = true; };
   }, []);
 
   // Carregar categorias
@@ -63,100 +55,22 @@ export default function VimeoUpload() {
     })();
   }, []);
 
-  // Handle OAuth callback
+  // Handle OAuth callback (mantido apenas para compatibilidade; ignora com token permanente)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const code = params.get('code');
     const state = params.get('state');
-    
     if (code && state) {
-      exchangeCodeForToken(code, state);
+      // não faz nada, usamos token do servidor
+      navigate('/admin/vimeo-upload', { replace: true });
     }
-  }, [location]);
+  }, [location, navigate]);
 
-  const refreshToken = async () => {
-    const refreshToken = getVimeoRefreshToken();
-    if (!refreshToken) {
-      setIsAuthenticated(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(`${getBackendUrl()}/vimeo-auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'refreshToken',
-          refreshToken
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Token refresh failed');
-      }
-
-      const tokenData = await response.json();
-      storeVimeoToken(tokenData);
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.error('Token refresh error:', error);
-      clearVimeoTokens();
-      setIsAuthenticated(false);
-      toast({
-        title: 'Erro na autenticação',
-        description: 'Por favor, faça login novamente no Vimeo.',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  const initiateOAuth = async () => {
-    setIsAuthenticating(true);
-    const state = generateState();
-    localStorage.setItem('vimeo_oauth_state', state);
-    
-    try {
-      const response = await fetch(`${getBackendUrl()}/vimeo-auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'getAuthUrl',
-          state
-        })
-      });
-
-      if (!response.ok) {
-        // Tentar obter mensagem detalhada do servidor
-        const text = await response.text();
-        try {
-          const data = JSON.parse(text);
-          throw new Error(data.error || 'Failed to get auth URL');
-        } catch {
-          throw new Error(text || 'Failed to get auth URL');
-        }
-      }
-
-      const { authUrl } = await response.json();
-      window.location.href = authUrl;
-    } catch (error) {
-      console.error('OAuth initiation error:', error);
-      setIsAuthenticating(false);
-      toast({
-        title: 'Erro',
-        description: (error as Error)?.message || 'Falha ao iniciar autenticação com Vimeo.',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  const exchangeCodeForToken = async (code: string, state: string) => {
+  // Mantido apenas para compatibilidade de rota; não usado com token permanente
+  const exchangeCodeForToken = async (_code: string, _state: string) => {
     const savedState = localStorage.getItem('vimeo_oauth_state');
     
-    if (state !== savedState) {
+    if (_state !== savedState) {
       toast({
         title: 'Erro de segurança',
         description: 'Estado OAuth inválido.',
@@ -166,7 +80,7 @@ export default function VimeoUpload() {
     }
     
     localStorage.removeItem('vimeo_oauth_state');
-    setIsAuthenticating(true);
+    // fluxo OAuth desativado (usamos token do servidor)
 
     try {
       const response = await fetch(`${getBackendUrl()}/vimeo-auth`, {
@@ -176,8 +90,8 @@ export default function VimeoUpload() {
         },
         body: JSON.stringify({
           action: 'exchangeToken',
-          code,
-          state
+          code: _code,
+          state: _state
         })
       });
 
@@ -185,9 +99,7 @@ export default function VimeoUpload() {
         throw new Error('Token exchange failed');
       }
 
-      const tokenData = await response.json();
-      storeVimeoToken(tokenData);
-      setIsAuthenticated(true);
+      await response.json();
       
       // Clear URL params
       navigate('/admin/vimeo-upload', { replace: true });
@@ -203,9 +115,7 @@ export default function VimeoUpload() {
         description: 'Falha na autenticação com Vimeo.',
         variant: 'destructive'
       });
-    } finally {
-      setIsAuthenticating(false);
-    }
+    } finally { /* noop */ }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -233,16 +143,6 @@ export default function VimeoUpload() {
       return;
     }
 
-    const token = getVimeoToken();
-    if (!token) {
-      toast({
-        title: 'Não autenticado',
-        description: 'Por favor, faça login no Vimeo primeiro.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -255,7 +155,7 @@ export default function VimeoUpload() {
           'x-file-size': file.size.toString()
         },
         body: JSON.stringify({
-          accessToken: token,
+          // sem accessToken: backend usa token permanente do servidor
           title,
           description,
           privacy: {
@@ -279,19 +179,19 @@ export default function VimeoUpload() {
         setUploadProgress(percentage);
       });
 
-      // Step 3: Fetch best thumbnail from Vimeo
+      // Step 3: Fetch best thumbnail and duration from Vimeo
       let thumbnailUrl = '';
+      let durationSec = 0;
       try {
-        const thumbResp = await fetch(`${getBackendUrl()}/vimeo-thumbnail/${videoId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const thumbResp = await fetch(`${getBackendUrl()}/vimeo-thumbnail/${videoId}`);
         if (thumbResp.ok) {
-          const { thumbnail } = await thumbResp.json();
+          const { thumbnail, duration } = await thumbResp.json();
           if (thumbnail) thumbnailUrl = thumbnail;
+          if (typeof duration === 'number') durationSec = duration;
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Falha ao obter thumbnail/duração do Vimeo');
+      }
 
       // Step 4: Save video in Railway
       const currentUser = getCurrentUser();
@@ -301,7 +201,7 @@ export default function VimeoUpload() {
         video_url: `https://vimeo.com/${videoId}`,
         thumbnail: thumbnailUrl,
         category_id: categoryId,
-        duration: 0,
+        duration: durationSec || 0,
         uploaded_by: currentUser?.id || 'admin',
         vimeo_id: videoId,
         vimeo_embed_url: embedUrl,
@@ -333,16 +233,7 @@ export default function VimeoUpload() {
     }
   };
 
-  const handleLogout = () => {
-    clearVimeoTokens();
-    setIsAuthenticated(false);
-    setUploadedVideoId(null);
-    setUploadedEmbedUrl(null);
-    toast({
-      title: 'Desconectado',
-      description: 'Você foi desconectado do Vimeo.',
-    });
-  };
+  const handleLogout = () => { /* usando token do servidor, sem logout */ };
 
   return (
     <div className="space-y-6">
@@ -354,49 +245,15 @@ export default function VimeoUpload() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Authentication Status */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-2">
-              {isAuthenticated ? (
-                <>
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span className="text-sm font-medium">Conectado ao Vimeo</span>
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="h-5 w-5 text-yellow-500" />
-                  <span className="text-sm font-medium">Não conectado ao Vimeo</span>
-                </>
-              )}
+          {/* Server Token Status */}
+          {hasServerToken === false && (
+            <div className="p-4 border rounded-lg text-sm text-yellow-800 bg-yellow-50">
+              Token do Vimeo não configurado no servidor. Adicione a variável VIMEO_ACCESS_TOKEN no Railway.
             </div>
-            
-            {isAuthenticated ? (
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                Desconectar
-              </Button>
-            ) : (
-              <Button 
-                onClick={initiateOAuth} 
-                disabled={isAuthenticating}
-                size="sm"
-              >
-                {isAuthenticating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Conectando...
-                  </>
-                ) : (
-                  <>
-                    <Video className="mr-2 h-4 w-4" />
-                    Conectar ao Vimeo
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
+          )}
 
           {/* Upload Form */}
-          {isAuthenticated && !uploadedVideoId && (
+          {hasServerToken && !uploadedVideoId && (
             <div className="space-y-4">
               <div>
                 <Label htmlFor="video-file">Arquivo de Vídeo *</Label>

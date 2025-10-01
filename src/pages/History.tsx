@@ -115,8 +115,8 @@ export default function History() {
         case "progress":
           const videoA = getVideo(a.videoId);
           const videoB = getVideo(b.videoId);
-          const progressA = videoA ? (a.watchedDuration / videoA.duration) * 100 : 0;
-          const progressB = videoB ? (b.watchedDuration / videoB.duration) * 100 : 0;
+          const progressA = videoA && videoA.duration > 0 ? (a.watchedDuration / videoA.duration) * 100 : (a.completed ? 100 : 0);
+          const progressB = videoB && videoB.duration > 0 ? (b.watchedDuration / videoB.duration) * 100 : (b.completed ? 100 : 0);
           return progressB - progressA;
         default:
           return 0;
@@ -131,15 +131,22 @@ export default function History() {
     const totalWatched = history.length;
     const completedVideos = history.filter(h => h.completed).length;
     const totalWatchTime = history.reduce((acc, h) => acc + h.watchedDuration, 0);
-    const averageCompletion = history.length > 0
-      ? history.reduce((acc, h) => {
-          const video = getVideo(h.videoId);
-          if (video) {
-            return acc + (h.watchedDuration / video.duration) * 100;
-          }
-          return acc;
-        }, 0) / history.length
-      : 0;
+
+    let sumPercent = 0;
+    let count = 0;
+    for (const h of history) {
+      const video = getVideo(h.videoId);
+      if (video && video.duration > 0) {
+        sumPercent += (h.watchedDuration / video.duration) * 100;
+        count += 1;
+      } else {
+        // Se não temos duração, usar completed como 100%, senão 0%
+        sumPercent += h.completed ? 100 : 0;
+        count += 1;
+      }
+    }
+    const avg = count > 0 ? sumPercent / count : 0;
+    const averageCompletion = Number.isFinite(avg) ? avg : 0;
 
     return {
       totalWatched,
@@ -307,9 +314,9 @@ export default function History() {
             filteredAndSortedHistory.map((item) => {
               const video = getVideo(item.videoId);
               const category = video ? getCategory(video.categoryId) : null;
-              const progressPercentage = video 
+              const progressPercentage = video && video.duration > 0
                 ? Math.min((item.watchedDuration / video.duration) * 100, 100)
-                : 0;
+                : (item.completed ? 100 : 0);
 
               if (!video) return null;
 

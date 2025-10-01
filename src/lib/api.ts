@@ -44,6 +44,8 @@ export const api = {
   // Vimeo
   vimeoAuth: (payload: any) => request('/vimeo-auth', { method: 'POST', body: JSON.stringify(payload) }),
   vimeoCreateUpload: (payload: any, fileSize: number) => request('/vimeo-upload', { method: 'POST', headers: { 'x-file-size': String(fileSize) }, body: JSON.stringify(payload) }),
+  vimeoDelete: (videoId: string) => request(`/vimeo/${encodeURIComponent(videoId)}`, { method: 'DELETE' }),
+  getVimeoTokenStatus: () => request('/vimeo-token', { method: 'GET' }),
 
   // View history
   getViewHistory: (userId?: string) => request(`/view-history${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`, { method: 'GET' }),

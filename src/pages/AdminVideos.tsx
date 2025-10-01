@@ -433,7 +433,18 @@ export default function AdminVideos() {
                             Editar
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => handleDeleteVideo(video.id)}
+                            onClick={async () => {
+                              const alsoVimeo = window.confirm('Apagar também no Vimeo?');
+                              const vId: string | undefined = (video as AdminVideoRow).vimeo_id || (video as AdminVideoRow).vimeoId;
+                              if (alsoVimeo && vId) {
+                                try {
+                                  await fetch(`${location.origin}/api/vimeo/${encodeURIComponent(vId)}`, { method: 'DELETE' });
+                                } catch (e) {
+                                  console.error('Falha ao apagar no Vimeo', e);
+                                }
+                              }
+                              handleDeleteVideo(video.id);
+                            }}
                             className="text-destructive"
                           >
                             <Trash2 className="mr-2 h-4 w-4" />

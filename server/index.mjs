@@ -21,6 +21,36 @@ app.use(express.json({ limit: '20mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
+// Settings helpers to persist shared Vimeo OAuth token (for all admins)
+async function ensureSettingsTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS public.settings (
+    key text PRIMARY KEY,
+    value jsonb,
+    updated_at timestamptz DEFAULT now()
+  )`);
+}
+
+async function setSetting(key, value) {
+  await ensureSettingsTable();
+  await pool.query(
+    `INSERT INTO public.settings (key, value) VALUES ($1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+    [key, value]
+  );
+}
+
+async function getSetting(key) {
+  await ensureSettingsTable();
+  const { rows } = await pool.query('SELECT value FROM public.settings WHERE key = $1 LIMIT 1', [key]);
+  return rows[0]?.value || null;
+}
+
+async function getSharedVimeoAccessToken() {
+  const saved = await getSetting('vimeo_token');
+  const token = saved?.access_token || process.env.VIMEO_ACCESS_TOKEN || null;
+  return token;
+}
+
 // Diagnóstico seguro (pode remover após validar em produção)
 app.get('/api/vimeo-config', (req, res) => {
   const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
@@ -289,6 +319,7 @@ app.post('/api/vimeo-auth', async (req, res) => {
         return res.status(400).json({ error: `Token exchange failed: ${text}` });
       }
       const tokenData = await tokenResponse.json();
+      try { await setSetting('vimeo_token', tokenData); } catch {}
       return res.json(tokenData);
     }
 
@@ -307,6 +338,7 @@ app.post('/api/vimeo-auth', async (req, res) => {
         return res.status(400).json({ error: `Token refresh failed: ${text}` });
       }
       const tokenData = await tokenResponse.json();
+      try { await setSetting('vimeo_token', tokenData); } catch {}
       return res.json(tokenData);
     }
 
@@ -332,10 +364,13 @@ app.post('/api/vimeo-upload', async (req, res) => {
       comments: 'nobody',
     };
 
+    const token = accessToken || await getSharedVimeoAccessToken();
+    if (!token) return res.status(401).json({ error: 'Vimeo token not configured' });
+
     const createResponse = await fetch('https://api.vimeo.com/me/videos', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         'Accept': 'application/vnd.vimeo.*+json;version=3.4'
       },
@@ -358,7 +393,7 @@ app.post('/api/vimeo-upload', async (req, res) => {
     try {
       const detailsResp = await fetch(`https://api.vimeo.com/videos/${encodeURIComponent(videoId)}?fields=player_embed_url,privacy,link`, {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${token}`,
           'Accept': 'application/vnd.vimeo.*+json;version=3.4'
         }
       });
@@ -433,10 +468,9 @@ app.get('/api/vimeo-thumbnail/:videoId', async (req, res) => {
     const tokenFromHeader = authHeader.startsWith('Bearer ')
       ? authHeader.slice('Bearer '.length)
       : null;
-    const accessToken = tokenFromHeader || String(req.query.accessToken || '');
-    if (!accessToken) {
-      return res.status(400).json({ error: 'Missing access token' });
-    }
+    let accessToken = tokenFromHeader || String(req.query.accessToken || '');
+    if (!accessToken) accessToken = await getSharedVimeoAccessToken();
+    if (!accessToken) return res.status(400).json({ error: 'Missing access token' });
 
     const resp = await fetch(`https://api.vimeo.com/videos/${encodeURIComponent(videoId)}?fields=pictures.sizes`, {
       headers: {
@@ -587,6 +621,37 @@ app.get('/api/video-progress', async (req, res) => {
     res.json(rows[0] || null);
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete video on Vimeo using shared token
+app.delete('/api/vimeo/:videoId', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const token = await getSharedVimeoAccessToken();
+    if (!token) return res.status(401).json({ error: 'Vimeo token not configured' });
+    const resp = await fetch(`https://api.vimeo.com/videos/${encodeURIComponent(videoId)}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.vimeo.*+json;version=3.4'
+      }
+    });
+    if (resp.status === 204 || resp.status === 404) return res.status(204).end();
+    const text = await resp.text();
+    return res.status(400).json({ error: `Failed to delete: ${text}` });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Check token presence for admins
+app.get('/api/vimeo-token', async (_req, res) => {
+  try {
+    const token = await getSharedVimeoAccessToken();
+    res.json({ hasToken: !!token });
+  } catch (e) {
+    res.json({ hasToken: false });
   }
 });
 

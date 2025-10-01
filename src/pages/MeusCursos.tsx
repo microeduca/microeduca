@@ -59,26 +59,33 @@ export default function MeusCursos() {
     return (user?.assignedCategories || []).some((cid) => ids.includes(cid));
   });
 
-  // Calcular estatísticas por categoria
+  // Calcular estatísticas por categoria (percentual por tempo assistido)
   const getCategoryStats = (categoryId: string) => {
     const categoryVideos = videos.filter(v => {
       const ids = (v as any).category_ids || [v.categoryId].filter(Boolean);
       return ids.includes(categoryId);
     });
-    const watchedVideos = viewHistory.filter(h => 
-      categoryVideos.some(v => v.id === h.videoId) && h.completed
-    );
-    const inProgressVideos = viewHistory.filter(h => 
-      categoryVideos.some(v => v.id === h.videoId) && !h.completed && h.watchedDuration > 0
-    );
+
+    const videoIdSet = new Set(categoryVideos.map(v => v.id));
+    const watchedEntries = viewHistory.filter(h => videoIdSet.has(h.videoId));
+
+    const totalDuration = categoryVideos.reduce((acc, v) => acc + Math.max(0, Number(v.duration) || 0), 0);
+    const watchedSum = watchedEntries.reduce((acc, h) => {
+      const v = categoryVideos.find(v => v.id === h.videoId);
+      const vd = Math.max(0, Number(v?.duration) || 0);
+      const wd = Math.max(0, Number(h.watchedDuration) || 0);
+      return acc + Math.min(vd, wd);
+    }, 0);
+
+    const completed = watchedEntries.filter(h => h.completed).length;
+    const inProgress = watchedEntries.filter(h => !h.completed && (h.watchedDuration || 0) > 0).length;
+    const percentage = totalDuration > 0 ? Math.round(Math.min(100, (watchedSum / totalDuration) * 100)) : 0;
 
     return {
       totalVideos: categoryVideos.length,
-      completed: watchedVideos.length,
-      inProgress: inProgressVideos.length,
-      percentage: categoryVideos.length > 0 
-        ? Math.round((watchedVideos.length / categoryVideos.length) * 100)
-        : 0
+      completed,
+      inProgress,
+      percentage,
     };
   };
 

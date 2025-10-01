@@ -108,7 +108,7 @@ export default function Layout({ children }: LayoutProps) {
               ) : (
                 <Button
                   onClick={() => navigate('/login')}
-                  className="bg-gradient-primary hover:shadow-glow transition-all duration-base"
+                  className="bg-gradient-primary text-primary-foreground hover:shadow-glow transition-all duration-base"
                 >
                   Entrar
                 </Button>
@@ -119,7 +119,7 @@ export default function Layout({ children }: LayoutProps) {
       </header>
       
       <main className="flex-1">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 md:pt-8">
           {children}
         </div>
       </main>

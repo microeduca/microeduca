@@ -45,7 +45,7 @@ const Index = () => {
                 size="lg"
                 variant="outline"
                 onClick={() => navigate('/login')}
-                className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary"
+                className="border-primary-foreground text-primary-foreground bg-transparent hover:bg-primary-foreground hover:text-primary"
               >
                 Fazer Login
               </Button>

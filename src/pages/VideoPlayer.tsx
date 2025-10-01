@@ -390,14 +390,6 @@ export default function VideoPlayer() {
             {/* Video Player */}
             <Card className="overflow-hidden">
               <div className="relative bg-black aspect-video">
-                {/* Overlay para retomar */}
-                {currentTime > 0 && !isPlaying && (
-                  <div className="absolute inset-0 flex items-center justify-center z-10">
-                    <Button onClick={() => setIsPlaying(true)} className="bg-primary/90">
-                      Retomar de {Math.floor(currentTime / 60)}m
-                    </Button>
-                  </div>
-                )}
                 {(video.vimeoEmbedUrl || video.vimeoId || vimeoIdFromUrl) ? (
                   <VimeoPlayer
                     vimeoId={video.vimeoId || vimeoIdFromUrl}

@@ -55,7 +55,7 @@ export default function MeusCursos() {
 
   // Filtrar vídeos das categorias do usuário
   const userVideos = videos.filter(video => {
-    const ids = (video as any).category_ids || [video.categoryId].filter(Boolean);
+    const ids = (video as any).categoryIds || (video as any).category_ids || [video.categoryId].filter(Boolean);
     return (user?.assignedCategories || []).some((cid) => ids.includes(cid));
   });
 
@@ -257,7 +257,7 @@ export default function MeusCursos() {
                 {userCategories.map(category => {
                   const stats = getCategoryStats(category.id);
                   const categoryVideos = videos.filter(v => {
-                    const ids = (v as any).category_ids || [v.categoryId].filter(Boolean);
+                    const ids = (v as any).categoryIds || (v as any).category_ids || [v.categoryId].filter(Boolean);
                     return ids.includes(category.id);
                   });
                   
@@ -334,7 +334,7 @@ export default function MeusCursos() {
               {userCategories.map(category => {
                 const stats = getCategoryStats(category.id);
                 const categoryVideos = videos.filter(v => {
-                  const ids = (v as any).category_ids || [v.categoryId].filter(Boolean);
+                  const ids = (v as any).categoryIds || (v as any).category_ids || [v.categoryId].filter(Boolean);
                   return ids.includes(category.id);
                 });
                 

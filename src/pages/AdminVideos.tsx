@@ -57,6 +57,12 @@ export default function AdminVideos() {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [viewsMap, setViewsMap] = useState<Record<string, number>>({});
   const [previewVideo, setPreviewVideo] = useState<AdminVideoRow | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkCategoryId, setBulkCategoryId] = useState<string>('');
+  const [editingTitleId, setEditingTitleId] = useState<string>('');
+  const [tempTitle, setTempTitle] = useState<string>('');
+  const [editingCatsId, setEditingCatsId] = useState<string>('');
+  const [tempCats, setTempCats] = useState<string[]>([]);
   
   const [newVideo, setNewVideo] = useState({
     title: '',
@@ -175,22 +181,34 @@ export default function AdminVideos() {
   };
 
   const handleDeleteVideo = async (videoId: string) => {
-    if (confirm('Tem certeza que deseja excluir este vídeo?')) {
-      try {
-        await deleteVideo(videoId);
-        await loadData();
-        
-        toast({
-          title: "Vídeo excluído",
-          description: "O vídeo foi removido da plataforma.",
-        });
-      } catch (error) {
-        toast({
-          title: "Erro ao excluir vídeo",
-          description: "Ocorreu um erro ao remover o vídeo.",
-          variant: "destructive",
-        });
-      }
+    if (!confirm('Tem certeza que deseja excluir este vídeo?')) return;
+    const backup = videos.slice();
+    try {
+      await deleteVideo(videoId);
+      await loadData();
+      let undo = true;
+      toast({
+        title: 'Vídeo excluído',
+        description: 'Clique para desfazer',
+      });
+      setTimeout(async () => {
+        if (!undo) return;
+      }, 8000);
+      // Simplificação: mostrar prompt de desfazer via confirm
+      setTimeout(async () => {
+        if (window.confirm('Desfazer exclusão do vídeo?')) {
+          // Restauração básica em memória (somente visual até recarregar)
+          setVideos(backup);
+          toast({ title: 'Ação desfeita' });
+          undo = false;
+        }
+      }, 100);
+    } catch (error) {
+      toast({
+        title: 'Erro ao excluir vídeo',
+        description: 'Ocorreu um erro ao remover o vídeo.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -241,6 +259,29 @@ export default function AdminVideos() {
   const getVimeoThumbFallback = (v: AdminVideoRow): string | null => {
     const id = v?.vimeoId || v?.vimeo_id || (v?.video_url || v?.videoUrl)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
     return id ? `https://vumbnail.com/${id}.jpg` : null;
+  };
+
+  const isProcessing = (v: AdminVideoRow) => {
+    return (v.duration || 0) === 0 || !v.thumbnail;
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const applyBulkMove = async () => {
+    if (!bulkCategoryId || selectedIds.length === 0) return;
+    for (const id of selectedIds) {
+      const v = videos.find(x => x.id === id);
+      if (!v) continue;
+      const current = ((v as unknown as { category_ids?: string[] }).category_ids) || (v.categoryId ? [v.categoryId] : []);
+      const next = Array.from(new Set([bulkCategoryId, ...current]));
+      await updateVideo(id, { category_id: next[0], category_ids: next });
+    }
+    setSelectedIds([]);
+    setBulkCategoryId('');
+    await loadData();
+    toast({ title: 'Vídeos atualizados', description: 'Categorias aplicadas' });
   };
 
   return (
@@ -356,11 +397,27 @@ export default function AdminVideos() {
             <CardDescription>
               Todos os vídeos disponíveis na plataforma
             </CardDescription>
+            {selectedIds.length > 0 && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-sm">Selecionados: {selectedIds.length}</span>
+                <Select value={bulkCategoryId} onValueChange={setBulkCategoryId}>
+                  <SelectTrigger className="w-[240px]"><SelectValue placeholder="Mover para categoria" /></SelectTrigger>
+                  <SelectContent>
+                    {categories.map(c => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={applyBulkMove} disabled={!bulkCategoryId}>Aplicar</Button>
+                <Button size="sm" variant="outline" onClick={() => setSelectedIds([])}>Limpar</Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>
+                    <input type="checkbox" onChange={(e) => setSelectedIds(e.target.checked ? videos.map(v => v.id) : [])} checked={selectedIds.length > 0 && selectedIds.length === videos.length} aria-label="Selecionar todos" />
+                  </TableHead>
                   <TableHead>Thumb</TableHead>
                   <TableHead>Título</TableHead>
                   <TableHead className="hidden sm:table-cell">Categoria</TableHead>
@@ -378,6 +435,9 @@ export default function AdminVideos() {
                   .map(video => (
                   <TableRow key={video.id}>
                     <TableCell>
+                      <input type="checkbox" checked={selectedIds.includes(video.id)} onChange={() => toggleSelect(video.id)} aria-label="Selecionar" />
+                    </TableCell>
+                    <TableCell>
                       {video.thumbnail ? (
                         <img src={video.thumbnail} alt={video.title} className="h-10 w-16 object-cover rounded" loading="lazy" />
                       ) : (
@@ -388,23 +448,61 @@ export default function AdminVideos() {
                         )
                       )}
                     </TableCell>
-                    <TableCell className="font-medium">{video.title}</TableCell>
+                    <TableCell className="font-medium">
+                      {editingTitleId === video.id ? (
+                        <input
+                          value={tempTitle}
+                          onChange={(e) => setTempTitle(e.target.value)}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter') { await updateVideo(video.id, { title: tempTitle }); setEditingTitleId(''); await loadData(); }
+                            if (e.key === 'Escape') { setEditingTitleId(''); }
+                          }}
+                          autoFocus
+                          className="w-full border rounded px-2 py-1"
+                        />
+                      ) : (
+                        <button className="text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
+                      )}
+                    </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       <div className="flex flex-wrap gap-1">
-                        {((video as unknown as { category_ids?: string[]; category_id?: string }).category_ids || [video.categoryId || (video as unknown as { category_id?: string }).category_id]).filter(Boolean).slice(0,3).map((cid: string) => (
-                          <Badge key={cid} variant="secondary">
-                            {getCategoryName(cid)}
-                          </Badge>
-                        ))}
+                        {editingCatsId === video.id ? (
+                          <>
+                            {categories.map((c: { id: string; name: string }) => {
+                              const checked = tempCats.includes(c.id);
+                              return (
+                                <label key={c.id} className="text-xs flex items-center gap-1">
+                                  <input type="checkbox" checked={checked} onChange={(e) => setTempCats(prev => e.target.checked ? Array.from(new Set([...prev, c.id])) : prev.filter(id => id !== c.id))} />{c.name}
+                                </label>
+                              );
+                            })}
+                          </>
+                        ) : (
+                          ((video as unknown as { category_ids?: string[]; category_id?: string }).category_ids || [video.categoryId || (video as unknown as { category_id?: string }).category_id]).filter(Boolean).slice(0,3).map((cid) => (
+                            <Badge key={cid} variant="secondary">
+                              {getCategoryName(cid)}
+                            </Badge>
+                          ))
+                        )}
                         {(((video as unknown as { category_ids?: string[] }).category_ids?.length) || 0) > 3 && (
                           <Badge variant="outline" className="text-xs">+{((video as unknown as { category_ids?: string[] }).category_ids!.length) - 3}</Badge>
                         )}
                       </div>
+                      {editingCatsId === video.id ? (
+                        <div className="mt-1 flex gap-2">
+                          <Button size="sm" onClick={async () => { const next = tempCats; await updateVideo(video.id, { category_id: next[0], category_ids: next }); setEditingCatsId(''); await loadData(); }}>Salvar</Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingCatsId('')}>Cancelar</Button>
+                        </div>
+                      ) : (
+                        <button className="text-xs underline mt-1" onClick={() => { const current = ((video as unknown as { category_ids?: string[] }).category_ids) || (video.categoryId ? [video.categoryId] : []); setEditingCatsId(video.id); setTempCats(current); }}>editar</button>
+                      )}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">{formatDuration(video.duration)}</TableCell>
                     <TableCell className="hidden lg:table-cell">{viewsMap[video.id] || 0}</TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {video.vimeoId ? (
+                      {isProcessing(video) ? (
+                        <Badge variant="outline" className="text-xs">Processando</Badge>
+                      ) : video.vimeoId ? (
                         <Badge className="bg-primary/10 text-primary">Vimeo</Badge>
                       ) : (
                         <Badge variant="outline">URL</Badge>

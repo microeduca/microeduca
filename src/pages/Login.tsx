@@ -47,10 +47,6 @@ export default function Login() {
           <CardTitle className="text-2xl font-poppins">Portal de Treinamento</CardTitle>
           <CardDescription>
             Acesso exclusivo para colaboradores
-            <br />
-            Credenciais de teste:
-            <br />
-            Admin: admin@micro.com.br | User: joao@micro.com.br
           </CardDescription>
         </CardHeader>
         <CardContent>

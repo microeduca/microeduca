@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,9 +19,17 @@ export default function UserDashboard() {
   const [categories, setCategories] = useState<any[]>([]);
   const [videos, setVideos] = useState<any[]>([]);
   const [viewHistory, setViewHistory] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'inProgress'>('all');
+  const [minDurationMin, setMinDurationMin] = useState<number>(0);
+  const [orderBy, setOrderBy] = useState<'recent' | 'oldest' | 'title'>('recent');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
   useEffect(() => {
     (async () => {
+      setIsLoading(true);
       const [c, v, vh] = await Promise.all([
         getCategories(),
         getVideos(),
@@ -30,8 +38,31 @@ export default function UserDashboard() {
       setCategories(c);
       setVideos(v);
       setViewHistory(vh);
+      setIsLoading(false);
     })();
   }, [user?.id]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Persist filters
+  useEffect(() => {
+    const saved = localStorage.getItem('ud_filters');
+    if (saved) {
+      try {
+        const f = JSON.parse(saved);
+        setSelectedCategories(f.selectedCategories || []);
+        setStatusFilter(f.statusFilter || 'all');
+        setMinDurationMin(f.minDurationMin || 0);
+        setOrderBy(f.orderBy || 'recent');
+      } catch {}
+    }
+  }, []);
+  useEffect(() => {
+    localStorage.setItem('ud_filters', JSON.stringify({ selectedCategories, statusFilter, minDurationMin, orderBy }));
+  }, [selectedCategories, statusFilter, minDurationMin, orderBy]);
   
   // Restringir conteúdo às categorias do usuário (exceto admin)
   const allowedCategoryIds = user?.role === 'admin' ? null : new Set<string>(user?.assignedCategories || []);
@@ -43,10 +74,48 @@ export default function UserDashboard() {
     : categories;
 
   // Filtrar vídeos com base na busca
-  const filteredVideos = visibleVideos.filter(video => 
-    video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    video.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredVideos = useMemo(() => {
+    const byQuery = (list: any[]) => list.filter(video =>
+      (video.title || '').toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+      (video.description || '').toLowerCase().includes(debouncedQuery.toLowerCase())
+    );
+    const byCats = (list: any[]) => {
+      if (selectedCategories.length === 0) return list;
+      return list.filter(v => {
+        const ids: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
+        return selectedCategories.some(id => ids.includes(id));
+      });
+    };
+    const byStatus = (list: any[]) => {
+      if (statusFilter === 'all') return list;
+      return list.filter(v => {
+        const h = viewHistory.find(h => h.videoId === v.id);
+        return statusFilter === 'completed' ? !!h?.completed : !!h && !h.completed && (h.watchedDuration || 0) > 0;
+      });
+    };
+    const byMinDuration = (list: any[]) => list.filter(v => (v.duration || 0) >= (minDurationMin * 60));
+    const order = (list: any[]) => {
+      const arr = [...list];
+      if (orderBy === 'recent') {
+        return arr.sort((a, b) => new Date(b.uploadedAt || b.created_at || 0).getTime() - new Date(a.uploadedAt || a.created_at || 0).getTime());
+      }
+      if (orderBy === 'oldest') {
+        return arr.sort((a, b) => new Date(a.uploadedAt || a.created_at || 0).getTime() - new Date(b.uploadedAt || b.created_at || 0).getTime());
+      }
+      return arr.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+    };
+    return order(byMinDuration(byStatus(byCats(byQuery(visibleVideos)))));
+  }, [visibleVideos, debouncedQuery, selectedCategories, statusFilter, minDurationMin, orderBy, viewHistory]);
+
+  const highlight = (text: string) => {
+    if (!debouncedQuery) return text;
+    const q = debouncedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.split(new RegExp(`(${q})`, 'ig')).map((part, i) => (
+      part.toLowerCase() === debouncedQuery.toLowerCase()
+        ? <mark key={i} className="bg-yellow-200 px-0.5 rounded">{part}</mark>
+        : <span key={i}>{part}</span>
+    ));
+  };
 
   // Calcular estatísticas do usuário
   const stats = {
@@ -158,7 +227,7 @@ export default function UserDashboard() {
         </div>
 
         {/* Continue Watching Section */}
-        {inProgressVideos.length > 0 && (
+        {!isLoading && inProgressVideos.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Continue Assistindo</CardTitle>
@@ -180,6 +249,7 @@ export default function UserDashboard() {
                           src={video.thumbnail} 
                           alt={video.title}
                           className="w-full h-full object-cover"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
@@ -195,7 +265,7 @@ export default function UserDashboard() {
                       </Button>
                     </div>
                     <div className="p-4 space-y-2">
-                      <h3 className="font-semibold line-clamp-1">{video.title}</h3>
+                      <h3 className="font-semibold line-clamp-1">{highlight(video.title)}</h3>
                       <Progress value={progress} className="h-1" />
                       <p className="text-xs text-muted-foreground">
                         {Math.round(progress)}% concluído
@@ -206,6 +276,69 @@ export default function UserDashboard() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Filtros rápidos */}
+        <div className="flex items-center justify-between">
+          <div className="flex flex-wrap gap-2">
+            {visibleCategories.map((c: any) => {
+              const active = selectedCategories.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedCategories(prev => active ? prev.filter(id => id !== c.id) : [...prev, c.id])}
+                  className={`px-3 py-1 rounded-full text-xs border ${active ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-foreground border-border'}`}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>Filtros</Button>
+        </div>
+        {showFilters && (
+          <div className="flex flex-col gap-3 text-sm text-muted-foreground" role="region" aria-label="Filtros">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2">
+                Status
+                <select
+                  className="border rounded px-2 py-1"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                >
+                  <option value="all">Todos</option>
+                  <option value="completed">Concluídos</option>
+                  <option value="inProgress">Em progresso</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2">
+                Duração mínima (min)
+                <input
+                  type="number"
+                  min={0}
+                  className="w-20 border rounded px-2 py-1"
+                  value={minDurationMin}
+                  onChange={(e) => setMinDurationMin(Math.max(0, parseInt(e.target.value) || 0))}
+                />
+              </label>
+              <label className="flex items-center gap-2">
+                Ordenar
+                <select
+                  className="border rounded px-2 py-1"
+                  value={orderBy}
+                  onChange={(e) => setOrderBy(e.target.value as any)}
+                >
+                  <option value="recent">Mais recentes</option>
+                  <option value="oldest">Mais antigos</option>
+                  <option value="title">Título (A–Z)</option>
+                </select>
+              </label>
+              <span className="ml-auto">{filteredVideos.length} vídeos</span>
+              {(selectedCategories.length > 0 || statusFilter !== 'all' || minDurationMin > 0) && (
+                <button className="underline" onClick={() => { setSelectedCategories([]); setStatusFilter('all'); setMinDurationMin(0); setOrderBy('recent'); }}>limpar filtros</button>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Main Content Tabs */}
@@ -243,7 +376,19 @@ export default function UserDashboard() {
               ? "grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" 
               : "space-y-4"
             }>
-              {filteredVideos.map(video => {
+              {isLoading ? (
+                <>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="rounded-lg border animate-pulse h-64 bg-muted" />
+                  ))}
+                </>
+              ) : filteredVideos.length === 0 ? (
+                <Card className="text-center py-12 col-span-full">
+                  <CardContent>
+                    <p className="text-muted-foreground">Nenhum vídeo encontrado.</p>
+                  </CardContent>
+                </Card>
+              ) : filteredVideos.map(video => {
                 const history = viewHistory.find(h => h.videoId === video.id);
                 const progressPercentage = history ? (() => {
                   const total = Number(video.duration) || 0;
@@ -263,6 +408,7 @@ export default function UserDashboard() {
                           src={video.thumbnail} 
                           alt={video.title}
                           className="w-full h-full object-cover"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
@@ -291,7 +437,7 @@ export default function UserDashboard() {
                       )}
                     </div>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base line-clamp-1">{video.title}</CardTitle>
+                      <CardTitle className="text-base line-clamp-1">{highlight(video.title)}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <p className="text-sm text-muted-foreground line-clamp-2 mb-3">

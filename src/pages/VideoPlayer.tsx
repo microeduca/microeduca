@@ -390,6 +390,14 @@ export default function VideoPlayer() {
             {/* Video Player */}
             <Card className="overflow-hidden">
               <div className="relative bg-black aspect-video">
+                {/* Overlay para retomar */}
+                {currentTime > 0 && !isPlaying && (
+                  <div className="absolute inset-0 flex items-center justify-center z-10">
+                    <Button onClick={() => setIsPlaying(true)} className="bg-primary/90">
+                      Retomar de {Math.floor(currentTime / 60)}m
+                    </Button>
+                  </div>
+                )}
                 {(video.vimeoEmbedUrl || video.vimeoId || vimeoIdFromUrl) ? (
                   <VimeoPlayer
                     vimeoId={video.vimeoId || vimeoIdFromUrl}
@@ -637,6 +645,19 @@ export default function VideoPlayer() {
                   <span>
                     Enviado em {new Date(video.uploadedAt).toLocaleDateString('pt-BR')}
                   </span>
+                  {/* Botão Próximo vídeo */}
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const sameCat = videos.filter(v => v.categoryId === video.categoryId && v.id !== video.id);
+                      if (sameCat.length > 0) {
+                        const next = sameCat[0];
+                        navigate(`/video/${next.id}`);
+                      }
+                    }}
+                  >
+                    Próximo vídeo
+                  </Button>
                   {user?.role === 'admin' && isEditing && (
                     <div className="ml-auto flex items-center gap-3">
                       <input

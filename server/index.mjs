@@ -370,13 +370,24 @@ app.post('/api/vimeo-auth', async (req, res) => {
 app.get('/api/vimeo-token/status', async (_req, res) => {
   try {
     const saved = await getSetting('vimeo_token');
-    if (!saved) return res.json({ hasToken: false, expiresInDays: null, needsRefresh: true });
-    const expiresAtSec = saved.created_at ? (new Date(saved.created_at).getTime() / 1000) + (saved.expires_in || 0) : null;
-    const nowSec = Date.now() / 1000;
-    const remainingSec = expiresAtSec ? Math.max(0, Math.floor(expiresAtSec - nowSec)) : null;
-    const expiresInDays = remainingSec != null ? Math.round(remainingSec / 86400) : null;
-    const needsRefresh = remainingSec != null ? remainingSec < 7 * 86400 : true;
-    res.json({ hasToken: true, expiresInDays, needsRefresh });
+    const envToken = process.env.VIMEO_ACCESS_TOKEN && String(process.env.VIMEO_ACCESS_TOKEN).trim();
+    const hasToken = !!(saved?.access_token || envToken);
+    if (!hasToken) return res.json({ hasToken: false, expiresInDays: null, needsRefresh: true });
+
+    // If using OAuth saved token, estimate expiry; for env token, no expiry
+    if (saved?.access_token) {
+      const createdAt = saved.created_at ? new Date(saved.created_at).getTime() : null;
+      const ttlSec = Number(saved.expires_in || 0);
+      if (createdAt && ttlSec > 0) {
+        const nowSec = Date.now();
+        const remainingMs = Math.max(0, (createdAt + ttlSec * 1000) - nowSec);
+        const expiresInDays = Math.round(remainingMs / 86400000);
+        const needsRefresh = remainingMs < 7 * 86400000;
+        return res.json({ hasToken: true, expiresInDays, needsRefresh });
+      }
+    }
+    // Env token case
+    return res.json({ hasToken: true, expiresInDays: null, needsRefresh: false });
   } catch (e) {
     res.json({ hasToken: false, expiresInDays: null, needsRefresh: true });
   }

@@ -59,7 +59,7 @@ export default function MeusCursos() {
     return (user?.assignedCategories || []).some((cid) => ids.includes(cid));
   });
 
-  // Calcular estatísticas por categoria (percentual por tempo assistido)
+  // Calcular estatísticas por categoria (agregando por vídeo e com fallback)
   const getCategoryStats = (categoryId: string) => {
     const categoryVideos = videos.filter(v => {
       const ids = (v as any).category_ids || [v.categoryId].filter(Boolean);
@@ -69,22 +69,41 @@ export default function MeusCursos() {
     const videoIdSet = new Set(categoryVideos.map(v => v.id));
     const watchedEntries = viewHistory.filter(h => videoIdSet.has(h.videoId));
 
+    // Agregar por vídeo: maior tempo assistido e completed se algum registro completou
+    const perVideo = new Map<string, { watched: number; completed: boolean }>();
+    for (const entry of watchedEntries) {
+      const prev = perVideo.get(entry.videoId) || { watched: 0, completed: false };
+      perVideo.set(entry.videoId, {
+        watched: Math.max(prev.watched, Math.max(0, Number(entry.watchedDuration) || 0)),
+        completed: prev.completed || !!entry.completed,
+      });
+    }
+
     const totalDuration = categoryVideos.reduce((acc, v) => acc + Math.max(0, Number(v.duration) || 0), 0);
-    const watchedSum = watchedEntries.reduce((acc, h) => {
-      const v = categoryVideos.find(v => v.id === h.videoId);
-      const vd = Math.max(0, Number(v?.duration) || 0);
-      const wd = Math.max(0, Number(h.watchedDuration) || 0);
-      return acc + Math.min(vd, wd);
+    const watchedSum = categoryVideos.reduce((acc, v) => {
+      const vDur = Math.max(0, Number(v.duration) || 0);
+      const agg = perVideo.get(v.id);
+      const watched = Math.max(0, agg?.watched || 0);
+      return acc + Math.min(vDur, watched);
     }, 0);
 
-    const completed = watchedEntries.filter(h => h.completed).length;
-    const inProgress = watchedEntries.filter(h => !h.completed && (h.watchedDuration || 0) > 0).length;
-    const percentage = totalDuration > 0 ? Math.round(Math.min(100, (watchedSum / totalDuration) * 100)) : 0;
+    const completedVideos = categoryVideos.filter(v => perVideo.get(v.id)?.completed).length;
+    const inProgressVideos = categoryVideos.filter(v => {
+      const agg = perVideo.get(v.id);
+      return !!agg && !agg.completed && (agg.watched || 0) > 0;
+    }).length;
+
+    // Percentual: se houver duração total, usar por tempo; senão, fallback por contagem
+    const percentage = totalDuration > 0
+      ? Math.round(Math.min(100, (watchedSum / totalDuration) * 100))
+      : (categoryVideos.length > 0
+          ? Math.round((completedVideos / categoryVideos.length) * 100)
+          : 0);
 
     return {
       totalVideos: categoryVideos.length,
-      completed,
-      inProgress,
+      completed: completedVideos,
+      inProgress: inProgressVideos,
       percentage,
     };
   };

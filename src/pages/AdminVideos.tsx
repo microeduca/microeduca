@@ -31,6 +31,7 @@ interface AdminVideoRow {
   thumbnail?: string;
   category_id?: string;
   categoryId?: string;
+  category_ids?: string[];
   duration: number;
   vimeo_id?: string;
   vimeoId?: string;
@@ -152,6 +153,7 @@ export default function AdminVideos() {
         video_url: editingVideo.video_url || editingVideo.videoUrl,
         thumbnail: editingVideo.thumbnail,
         category_id: editingVideo.category_id || editingVideo.categoryId,
+        category_ids: editingVideo.category_ids,
         duration: editingVideo.duration,
       });
       
@@ -257,7 +259,7 @@ export default function AdminVideos() {
               className="gap-2"
             >
               <Upload className="h-4 w-4" />
-              Upload Vimeo
+              Enviar novo vídeo
             </Button>
           </div>
         </div>
@@ -361,11 +363,11 @@ export default function AdminVideos() {
                 <TableRow>
                   <TableHead>Thumb</TableHead>
                   <TableHead>Título</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Duração</TableHead>
-                  <TableHead>Views</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Upload</TableHead>
+                  <TableHead className="hidden sm:table-cell">Categoria</TableHead>
+                  <TableHead className="hidden md:table-cell">Duração</TableHead>
+                  <TableHead className="hidden lg:table-cell">Views</TableHead>
+                  <TableHead className="hidden md:table-cell">Status</TableHead>
+                  <TableHead className="hidden lg:table-cell">Upload</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -377,31 +379,38 @@ export default function AdminVideos() {
                   <TableRow key={video.id}>
                     <TableCell>
                       {video.thumbnail ? (
-                        <img src={video.thumbnail} alt={video.title} className="h-10 w-16 object-cover rounded" />
+                        <img src={video.thumbnail} alt={video.title} className="h-10 w-16 object-cover rounded" loading="lazy" />
                       ) : (
                         getVimeoThumbFallback(video) ? (
-                          <img src={getVimeoThumbFallback(video) as string} alt={video.title} className="h-10 w-16 object-cover rounded" />
+                          <img src={getVimeoThumbFallback(video) as string} alt={video.title} className="h-10 w-16 object-cover rounded" loading="lazy" />
                         ) : (
                           <div className="h-10 w-16 bg-muted rounded" />
                         )
                       )}
                     </TableCell>
                     <TableCell className="font-medium">{video.title}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {getCategoryName(video.categoryId || video.category_id)}
-                      </Badge>
+                    <TableCell className="hidden sm:table-cell">
+                      <div className="flex flex-wrap gap-1">
+                        {((video as unknown as { category_ids?: string[]; category_id?: string }).category_ids || [video.categoryId || (video as unknown as { category_id?: string }).category_id]).filter(Boolean).slice(0,3).map((cid: string) => (
+                          <Badge key={cid} variant="secondary">
+                            {getCategoryName(cid)}
+                          </Badge>
+                        ))}
+                        {(((video as unknown as { category_ids?: string[] }).category_ids?.length) || 0) > 3 && (
+                          <Badge variant="outline" className="text-xs">+{((video as unknown as { category_ids?: string[] }).category_ids!.length) - 3}</Badge>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell>{formatDuration(video.duration)}</TableCell>
-                    <TableCell>{viewsMap[video.id] || 0}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">{formatDuration(video.duration)}</TableCell>
+                    <TableCell className="hidden lg:table-cell">{viewsMap[video.id] || 0}</TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {video.vimeoId ? (
                         <Badge className="bg-primary/10 text-primary">Vimeo</Badge>
                       ) : (
                         <Badge variant="outline">URL</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="hidden lg:table-cell text-muted-foreground">
                       {safeFormatDate(video.uploadedAt || video.created_at)}
                     </TableCell>
                     <TableCell className="text-right">
@@ -648,22 +657,29 @@ export default function AdminVideos() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-category">Categoria</Label>
-                  <Select
-                    value={editingVideo.categoryId}
-                    onValueChange={(value) => setEditingVideo({ ...editingVideo, categoryId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map(category => (
-                        <SelectItem key={category.id} value={category.id}>
+                  <Label>Categorias</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {categories.map((category) => {
+                      const list = editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : []);
+                      const checked = list.includes(category.id);
+                      return (
+                        <label key={category.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const current = editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : []);
+                              const next = e.target.checked
+                                ? Array.from(new Set([...current, category.id]))
+                                : current.filter((id) => id !== category.id);
+                              setEditingVideo({ ...editingVideo, category_ids: next, categoryId: next[0] || '' });
+                            }}
+                          />
                           {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-url">URL do Vídeo</Label>

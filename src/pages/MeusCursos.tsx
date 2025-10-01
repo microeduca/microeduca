@@ -54,13 +54,17 @@ export default function MeusCursos() {
     : [];
 
   // Filtrar vídeos das categorias do usuário
-  const userVideos = videos.filter(video => 
-    user?.assignedCategories?.includes(video.categoryId)
-  );
+  const userVideos = videos.filter(video => {
+    const ids = (video as any).category_ids || [video.categoryId].filter(Boolean);
+    return (user?.assignedCategories || []).some((cid) => ids.includes(cid));
+  });
 
   // Calcular estatísticas por categoria
   const getCategoryStats = (categoryId: string) => {
-    const categoryVideos = videos.filter(v => v.categoryId === categoryId);
+    const categoryVideos = videos.filter(v => {
+      const ids = (v as any).category_ids || [v.categoryId].filter(Boolean);
+      return ids.includes(categoryId);
+    });
     const watchedVideos = viewHistory.filter(h => 
       categoryVideos.some(v => v.id === h.videoId) && h.completed
     );
@@ -226,7 +230,10 @@ export default function MeusCursos() {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {userCategories.map(category => {
                   const stats = getCategoryStats(category.id);
-                  const categoryVideos = videos.filter(v => v.categoryId === category.id);
+                  const categoryVideos = videos.filter(v => {
+                    const ids = (v as any).category_ids || [v.categoryId].filter(Boolean);
+                    return ids.includes(category.id);
+                  });
                   
                   return (
                     <Card 
@@ -300,7 +307,10 @@ export default function MeusCursos() {
             <TabsContent value="list" className="space-y-4">
               {userCategories.map(category => {
                 const stats = getCategoryStats(category.id);
-                const categoryVideos = videos.filter(v => v.categoryId === category.id);
+                const categoryVideos = videos.filter(v => {
+                  const ids = (v as any).category_ids || [v.categoryId].filter(Boolean);
+                  return ids.includes(category.id);
+                });
                 
                 return (
                   <Card key={category.id}>

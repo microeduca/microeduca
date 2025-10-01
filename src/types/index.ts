@@ -22,7 +22,8 @@ export interface Video {
   description: string;
   videoUrl: string;
   thumbnail?: string;
-  categoryId: string;
+  categoryId: string; // principal (compat)
+  categoryIds?: string[]; // múltiplas categorias
   duration: number; // in seconds
   uploadedBy: string;
   uploadedAt: Date;

@@ -25,7 +25,7 @@ export default function VimeoUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -134,7 +134,7 @@ export default function VimeoUpload() {
   };
 
   const handleUpload = async () => {
-    if (!file || !title || !categoryId) {
+    if (!file || !title || categoryIds.length === 0) {
       toast({
         title: 'Campos obrigatórios',
         description: 'Por favor, preencha todos os campos obrigatórios.',
@@ -200,9 +200,10 @@ export default function VimeoUpload() {
         description,
         video_url: `https://vimeo.com/${videoId}`,
         thumbnail: thumbnailUrl,
-        category_id: categoryId,
+        category_id: categoryIds[0],
+        category_ids: categoryIds,
         duration: durationSec || 0,
-        uploaded_by: currentUser?.id || 'admin',
+        uploaded_by: currentUser?.name || 'admin',
         vimeo_id: videoId,
         vimeo_embed_url: embedUrl,
       });
@@ -219,7 +220,7 @@ export default function VimeoUpload() {
       setFile(null);
       setTitle('');
       setDescription('');
-      setCategoryId('');
+      setCategoryIds([]);
       
     } catch (error) {
       console.error('Upload error:', error);
@@ -298,23 +299,28 @@ export default function VimeoUpload() {
               </div>
 
               <div>
-                <Label htmlFor="category">Categoria *</Label>
-                <Select 
-                  value={categoryId} 
-                  onValueChange={setCategoryId}
-                  disabled={isUploading}
-                >
-                  <SelectTrigger id="category" className="mt-1">
-                    <SelectValue placeholder="Selecione uma categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
+                <Label>Categorias *</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {categories.map((category) => {
+                    const checked = categoryIds.includes(category.id);
+                    return (
+                      <label key={category.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            setCategoryIds((prev) =>
+                              e.target.checked
+                                ? Array.from(new Set([...prev, category.id]))
+                                : prev.filter((id) => id !== category.id)
+                            );
+                          }}
+                        />
                         {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Upload Progress */}
@@ -331,7 +337,7 @@ export default function VimeoUpload() {
               {/* Upload Button */}
               <Button 
                 onClick={handleUpload}
-                disabled={isUploading || !file || !title || !categoryId}
+                disabled={isUploading || !file || !title || categoryIds.length === 0}
                 className="w-full"
               >
                 {isUploading ? (

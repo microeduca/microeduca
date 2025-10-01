@@ -58,6 +58,7 @@ export async function updateVideo(id: string, updates: Partial<{
 	video_url?: string;
 	thumbnail?: string;
 	category_id: string;
+  category_ids: string[];
 	duration: number;
 	vimeo_id?: string;
 	vimeo_embed_url?: string;

@@ -167,11 +167,11 @@ export default function UserDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {inProgressVideos.slice(0, 3).map(({ video, progress }) => video && (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 overflow-x-auto md:overflow-visible [scroll-snap-type:x_mandatory] md:[scroll-snap-type:none] grid-flow-col auto-cols-[80%] md:auto-cols-auto">
+                {inProgressVideos.map(({ video, progress }) => video && (
                   <Card 
                     key={video.id} 
-                    className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                    className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer [scroll-snap-align:start]"
                     onClick={() => handleVideoClick(video.id)}
                   >
                     <div className="aspect-video relative">
@@ -302,9 +302,16 @@ export default function UserDashboard() {
                           <Clock className="h-3 w-3" />
                           {formatDuration(video.duration)}
                         </span>
-                        <Badge variant="secondary" className="text-xs">
-                          {categories.find(c => c.id === (video.categoryId || video.category_id))?.name || 'Sem categoria'}
-                        </Badge>
+                        <div className="flex gap-1 flex-wrap justify-end">
+                          {(((video as any).category_ids) || [video.categoryId || (video as any).category_id]).filter(Boolean).slice(0,2).map((cid: string) => (
+                            <Badge key={cid} variant="secondary" className="text-xs">
+                              {categories.find(c => c.id === cid)?.name || 'Sem categoria'}
+                            </Badge>
+                          ))}
+                          {((video as any).category_ids?.length || 0) > 2 && (
+                            <Badge variant="outline" className="text-[10px]">+{(video as any).category_ids.length - 2}</Badge>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -368,7 +375,10 @@ export default function UserDashboard() {
           {/* Categories Tab */}
           <TabsContent value="categories" className="space-y-6">
             {visibleCategories.map(category => {
-              const categoryVideos = filteredVideos.filter(v => (v.categoryId || v.category_id) === category.id);
+              const categoryVideos = filteredVideos.filter(v => {
+                const ids: string[] = ((v as unknown as { category_ids?: string[]; category_id?: string }).category_ids) || [v.categoryId || (v as unknown as { category_id?: string }).category_id].filter(Boolean) as string[];
+                return ids.includes(category.id);
+              });
               
               if (categoryVideos.length === 0) return null;
               

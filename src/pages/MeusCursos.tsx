@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -310,18 +310,19 @@ export default function MeusCursos() {
                           <Progress value={stats.percentage} className="h-2" />
                         </div>
 
-                        <Button 
-                          className="w-full"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (categoryVideos.length > 0) {
-                              handleVideoClick(categoryVideos[0].id);
-                            }
-                          }}
-                        >
-                          <PlayCircle className="h-4 w-4 mr-2" />
-                          {stats.inProgress > 0 ? 'Continuar' : 'Iniciar Curso'}
-                        </Button>
+                        {categoryVideos.length > 0 ? (
+                          <Button asChild className="w-full" onClick={(e) => e.stopPropagation()}>
+                            <Link to={`/video/${categoryVideos[0].id}`}>
+                              <PlayCircle className="h-4 w-4 mr-2" />
+                              {stats.inProgress > 0 ? 'Continuar' : 'Iniciar Curso'}
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button className="w-full" disabled>
+                            <PlayCircle className="h-4 w-4 mr-2" />
+                            Indisponível
+                          </Button>
+                        )}
                       </CardContent>
                     </Card>
                   );
@@ -356,16 +357,19 @@ export default function MeusCursos() {
                             <p className="text-sm font-medium">{stats.percentage}%</p>
                             <p className="text-xs text-muted-foreground">concluído</p>
                           </div>
-                          <Button
-                            onClick={() => {
-                              if (categoryVideos.length > 0) {
-                                handleVideoClick(categoryVideos[0].id);
-                              }
-                            }}
-                          >
-                            <PlayCircle className="h-4 w-4 mr-2" />
-                            Acessar
-                          </Button>
+                          {categoryVideos.length > 0 ? (
+                            <Button asChild>
+                              <Link to={`/video/${categoryVideos[0].id}`}>
+                                <PlayCircle className="h-4 w-4 mr-2" />
+                                Acessar
+                              </Link>
+                            </Button>
+                          ) : (
+                            <Button disabled>
+                              <PlayCircle className="h-4 w-4 mr-2" />
+                              Indisponível
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardHeader>

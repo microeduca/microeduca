@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHistory } from '@/lib/supabase';
+import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHistory, getProfiles } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import VimeoUpload from '@/components/admin/VimeoUpload';
 
@@ -39,6 +39,8 @@ interface AdminVideoRow {
   vimeoEmbedUrl?: string;
   uploadedAt?: string | Date;
   created_at?: string | Date;
+  uploaded_by?: string;
+  uploadedBy?: string;
 }
 
 export default function AdminVideos() {
@@ -63,6 +65,7 @@ export default function AdminVideos() {
   const [tempTitle, setTempTitle] = useState<string>('');
   const [editingCatsId, setEditingCatsId] = useState<string>('');
   const [tempCats, setTempCats] = useState<string[]>([]);
+  const [profileMap, setProfileMap] = useState<Record<string, string>>({});
   
   const [newVideo, setNewVideo] = useState({
     title: '',
@@ -79,13 +82,19 @@ export default function AdminVideos() {
 
   const loadData = async () => {
     setLoading(true);
-    const [videosData, categoriesData, viewHistory] = await Promise.all([
+    const [videosData, categoriesData, viewHistory, profiles] = await Promise.all([
       getVideos(),
       getCategories(),
       getViewHistory(),
+      getProfiles(),
     ]);
     setVideos(videosData);
     setCategories(categoriesData);
+    const pmap: Record<string, string> = {};
+    for (const p of profiles as Array<{ id?: string; name?: string; email?: string }> ) {
+      if (p && p.id) pmap[p.id] = (p.name || p.email || '');
+    }
+    setProfileMap(pmap);
     // construir mapa de views por videoId
     const temp: Record<string, number> = {};
     for (const vh of viewHistory) {
@@ -251,13 +260,25 @@ export default function AdminVideos() {
     return null;
   };
 
+  const getUploaderName = (v: AdminVideoRow): string => {
+    const raw = (v.uploaded_by || v.uploadedBy || '').trim();
+    if (!raw) return 'admin';
+    // Se for UUID conhecido, tentar mapear para o nome do perfil
+    const uuidLike = /^[0-9a-fA-F-]{30,}$/;
+    if (uuidLike.test(raw) && profileMap[raw]) return profileMap[raw];
+    return raw;
+  };
+
   const getCategoryName = (categoryId: string) => {
     const category = categories.find(c => c.id === categoryId);
     return category?.name || 'Sem categoria';
   };
 
   const getVimeoThumbFallback = (v: AdminVideoRow): string | null => {
-    const id = v?.vimeoId || v?.vimeo_id || (v?.video_url || v?.videoUrl)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
+    // Tentar extrair de vários campos (embed/url/id)
+    const fromEmbed = (v?.vimeo_embed_url || v?.vimeoEmbedUrl)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
+    const fromUrl = (v?.video_url || v?.videoUrl)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
+    const id = v?.vimeoId || v?.vimeo_id || fromEmbed || fromUrl;
     return id ? `https://vumbnail.com/${id}.jpg` : null;
   };
 
@@ -422,6 +443,7 @@ export default function AdminVideos() {
                   <TableHead>Título</TableHead>
                   <TableHead className="hidden sm:table-cell">Categoria</TableHead>
                   <TableHead className="hidden md:table-cell">Duração</TableHead>
+                  <TableHead className="hidden lg:table-cell">Enviado por</TableHead>
                   <TableHead className="hidden lg:table-cell">Views</TableHead>
                   <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead className="hidden lg:table-cell">Upload</TableHead>
@@ -498,6 +520,7 @@ export default function AdminVideos() {
                       )}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">{formatDuration(video.duration)}</TableCell>
+                    <TableCell className="hidden lg:table-cell">{getUploaderName(video)}</TableCell>
                     <TableCell className="hidden lg:table-cell">{viewsMap[video.id] || 0}</TableCell>
                     <TableCell className="hidden md:table-cell">
                       {isProcessing(video) ? (

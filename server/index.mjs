@@ -45,6 +45,16 @@ async function getSetting(key) {
   return rows[0]?.value || null;
 }
 
+// Ensure profiles.role allows 'cliente'
+async function ensureProfilesRoleConstraint() {
+  try {
+    await pool.query('ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check');
+    await pool.query("ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check CHECK (role IN ('admin','user','cliente'))");
+  } catch {}
+}
+// Run in background on start
+ensureProfilesRoleConstraint().catch(() => {});
+
 // Files storage (PDF/JPG) in Postgres
 async function ensureFilesTable() {
   await pool.query(`CREATE TABLE IF NOT EXISTS public.files (

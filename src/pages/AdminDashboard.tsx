@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Users, Video, Eye, TrendingUp, History, Upload, Film, Play, CheckCircle2, Clock3 } from 'lucide-react';
+import { Users, Video, Eye, TrendingUp, History, Upload, Film, Play, CheckCircle2, Clock3, Settings } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { getUsers, getVideos, getViewHistory, getRecentViews } from '@/lib/storage';
@@ -89,10 +89,16 @@ export default function AdminDashboard() {
               Gerencie vídeos, usuários e acompanhe o engajamento da plataforma
             </p>
           </div>
-          <Button onClick={() => navigate('/admin/videos')} className="gap-2">
-            <Film className="h-4 w-4" />
-            Gerenciar Vídeos
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => navigate('/admin/settings')} variant="outline" className="gap-2">
+              <Settings className="h-4 w-4" />
+              Configurações
+            </Button>
+            <Button onClick={() => navigate('/admin/videos')} className="gap-2">
+              <Film className="h-4 w-4" />
+              Gerenciar Vídeos
+            </Button>
+          </div>
         </div>
 
         {/* Statistics Cards */}

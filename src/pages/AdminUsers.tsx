@@ -269,7 +269,7 @@ export default function AdminUsers() {
                     <TableCell className="text-muted-foreground">
                       {new Date(user.createdAt).toLocaleDateString('pt-BR')}
                     </TableCell>
-                    <TableCell className="text-right">
+                  <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon">
@@ -277,6 +277,14 @@ export default function AdminUsers() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            window.location.href = `/admin/users/${user.id}`;
+                          }}
+                        >
+                          <UserCheck className="mr-2 h-4 w-4" />
+                          Ver perfil
+                        </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
                               setEditingUser(user);

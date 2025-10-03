@@ -40,6 +40,8 @@ export const api = {
   addProfile: (payload: any) => request('/profiles', { method: 'POST', body: JSON.stringify(payload) }),
   updateProfile: (id: string, payload: any) => request(`/profiles/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteProfile: (id: string) => request(`/profiles/${id}`, { method: 'DELETE' }),
+  changePassword: (id: string, currentPassword: string, newPassword: string) =>
+    request(`/profiles/${id}/password`, { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
 
   // Vimeo
   vimeoAuth: (payload: any) => request('/vimeo-auth', { method: 'POST', body: JSON.stringify(payload) }),

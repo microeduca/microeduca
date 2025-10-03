@@ -36,12 +36,30 @@ export default function AdminSettings() {
     })();
   }, []);
 
+  function normalizeVimeoUrl(raw?: string): { url?: string; vimeo_id?: string } {
+    const val = (raw || '').trim();
+    if (!val) return { url: '' } as any;
+    // Se for player.vimeo.com já é embed
+    if (/player\.vimeo\.com\/video\//.test(val)) return { url: val } as any;
+    // Aceitar links manage ou vimeo.com/ID e converter
+    const idMatch = val.match(/videos\/(\d+)/) || val.match(/vimeo\.com\/(\d+)/);
+    const id = idMatch?.[1];
+    if (id) {
+      // Usar endpoint do backend para pegar embed oficial quando possível
+      const embed = `https://player.vimeo.com/video/${id}`;
+      return { url: embed, vimeo_id: id };
+    }
+    return { url: val } as any;
+  }
+
   const handleSave = async () => {
     setSaving(true);
     try {
+      const userNorm = normalizeVimeoUrl(userCfg.url);
+      const clienteNorm = normalizeVimeoUrl(clienteCfg.url);
       await Promise.all([
-        setWelcomeVideo('user', userCfg),
-        setWelcomeVideo('cliente', clienteCfg),
+        setWelcomeVideo('user', { title: userCfg.title, url: userNorm.url, vimeo_id: userNorm.vimeo_id }),
+        setWelcomeVideo('cliente', { title: clienteCfg.title, url: clienteNorm.url, vimeo_id: clienteNorm.vimeo_id }),
       ]);
       await (await import('@/lib/api')).api.setSetting('support_files', files);
       toast({ title: 'Configurações salvas' });

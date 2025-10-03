@@ -391,6 +391,29 @@ app.delete('/api/profiles/:id', async (req, res) => {
   }
 });
 
+// Change password (user self-service)
+app.post('/api/profiles/:id/password', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { currentPassword, newPassword } = req.body || {};
+    if (!newPassword || String(newPassword).length < 6) {
+      return res.status(400).json({ error: 'Senha muito curta' });
+    }
+    const { rows } = await pool.query('SELECT id, password_hash FROM public.profiles WHERE id = $1 LIMIT 1', [id]);
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (user.password_hash) {
+      const ok = await bcrypt.compare(String(currentPassword || ''), user.password_hash);
+      if (!ok) return res.status(401).json({ error: 'Senha atual incorreta' });
+    }
+    const newHash = await bcrypt.hash(String(newPassword), 10);
+    await pool.query('UPDATE public.profiles SET password_hash = $1, updated_at = now() WHERE id = $2', [newHash, id]);
+    return res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Vimeo OAuth-like endpoints (migramos das Edge Functions)
 app.post('/api/vimeo-auth', async (req, res) => {
   try {
@@ -604,7 +627,7 @@ app.get('/api/vimeo-thumbnail/:videoId', async (req, res) => {
     if (!accessToken) accessToken = await getSharedVimeoAccessToken();
     if (!accessToken) return res.status(400).json({ error: 'Missing access token' });
 
-    const resp = await fetch(`https://api.vimeo.com/videos/${encodeURIComponent(videoId)}?fields=duration,pictures.sizes`, {
+    const resp = await fetch(`https://api.vimeo.com/videos/${encodeURIComponent(videoId)}?fields=duration,pictures.sizes,player_embed_url`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/vnd.vimeo.*+json;version=3.4'
@@ -616,14 +639,15 @@ app.get('/api/vimeo-thumbnail/:videoId', async (req, res) => {
     }
     const data = await resp.json();
     const sizes = data?.pictures?.sizes || [];
+    const embedUrl = data?.player_embed_url || null;
     if (!Array.isArray(sizes) || sizes.length === 0) {
-      return res.json({ thumbnail: null, duration: Number(data?.duration || 0) || 0 });
+      return res.json({ thumbnail: null, duration: Number(data?.duration || 0) || 0, embedUrl });
     }
     // Escolher a maior resolução disponível
     const best = sizes
       .filter(s => s?.link)
       .sort((a, b) => (b.width || 0) - (a.width || 0))[0];
-    return res.json({ thumbnail: best?.link || null, duration: Number(data?.duration || 0) || 0 });
+    return res.json({ thumbnail: best?.link || null, duration: Number(data?.duration || 0) || 0, embedUrl });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

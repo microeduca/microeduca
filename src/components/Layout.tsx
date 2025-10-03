@@ -1,8 +1,13 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Button } from './ui/button';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { LogOut, User, BookOpen, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { api } from '@/lib/api';
 
 interface LayoutProps {
   children: ReactNode;
@@ -11,6 +16,37 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const user = getCurrentUser();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isPwdOpen, setIsPwdOpen] = useState(false);
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [savingPwd, setSavingPwd] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (!user?.id) return;
+    if (!newPwd || newPwd.length < 6) {
+      toast({ title: 'A senha deve ter ao menos 6 caracteres', variant: 'destructive' });
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      toast({ title: 'Confirmação de senha não confere', variant: 'destructive' });
+      return;
+    }
+    try {
+      setSavingPwd(true);
+      await api.changePassword(user.id, currentPwd, newPwd);
+      setIsPwdOpen(false);
+      setCurrentPwd('');
+      setNewPwd('');
+      setConfirmPwd('');
+      toast({ title: 'Senha atualizada com sucesso' });
+    } catch (e: any) {
+      toast({ title: 'Não foi possível alterar a senha', description: e?.message, variant: 'destructive' });
+    } finally {
+      setSavingPwd(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
@@ -88,7 +124,14 @@ export default function Layout({ children }: LayoutProps) {
                 <>
                   <div className="flex items-center space-x-2 text-sm">
                     <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-foreground font-medium font-inter">{user.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsPwdOpen(true)}
+                      className="text-foreground font-medium font-inter underline underline-offset-2 hover:text-primary"
+                      title="Alterar senha"
+                    >
+                      {user.name}
+                    </button>
                     {user.role === 'admin' && (
                       <span className="px-2 py-0.5 bg-gradient-primary text-primary-foreground text-xs rounded-full font-semibold">
                         Admin
@@ -131,6 +174,34 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </div>
       </footer>
+
+      {/* Alterar Senha Dialog */}
+      <Dialog open={isPwdOpen} onOpenChange={setIsPwdOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Alterar senha</DialogTitle>
+            <DialogDescription>Informe sua senha atual e a nova senha.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label>Senha atual</Label>
+              <Input type="password" value={currentPwd} onChange={(e) => setCurrentPwd(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Nova senha</Label>
+              <Input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Confirmar nova senha</Label>
+              <Input type="password" value={confirmPwd} onChange={(e) => setConfirmPwd(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPwdOpen(false)}>Cancelar</Button>
+            <Button onClick={handleChangePassword} disabled={savingPwd}>{savingPwd ? 'Salvando...' : 'Salvar'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

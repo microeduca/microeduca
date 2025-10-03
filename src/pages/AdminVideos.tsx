@@ -52,6 +52,7 @@ export default function AdminVideos() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isVimeoUploadOpen, setIsVimeoUploadOpen] = useState(false);
+  const [isSelectTypeOpen, setIsSelectTypeOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<AdminVideoRow | null>(null);
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -318,7 +319,7 @@ export default function AdminVideos() {
           </div>
           <div className="flex gap-3">
             <Button 
-              onClick={() => navigate('/admin/vimeo-upload')}
+              onClick={() => setIsSelectTypeOpen(true)}
               className="gap-2"
             >
               <Upload className="h-4 w-4" />
@@ -585,6 +586,24 @@ export default function AdminVideos() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Seletor de tipo de material */}
+        <Dialog open={isSelectTypeOpen} onOpenChange={setIsSelectTypeOpen}>
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>Escolha o tipo de material</DialogTitle>
+              <DialogDescription>Selecione se deseja enviar um vídeo (Vimeo) ou um arquivo (PDF/JPG/PNG)</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3 py-2">
+              <Button className="h-20 gap-2" variant="outline" onClick={() => { setIsSelectTypeOpen(false); navigate('/admin/vimeo-upload'); }}>
+                <Cloud className="h-5 w-5" /> Vídeo (Vimeo)
+              </Button>
+              <Button className="h-20 gap-2" onClick={() => { setIsSelectTypeOpen(false); navigate('/admin/material-upload'); }}>
+                <Upload className="h-5 w-5" /> Arquivo (PDF/JPG/PNG)
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Add Video Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>

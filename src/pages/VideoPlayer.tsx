@@ -118,6 +118,8 @@ export default function VideoPlayer() {
   const category = categories.find(c => c.id === video?.categoryId);
   const relatedVideos = videos.filter(v => v.categoryId === video?.categoryId && v.id !== video?.id);
   const vimeoIdFromUrl = extractVimeoId(video?.videoUrl);
+  const isPdf = (video?.videoUrl || '').endsWith('.pdf') || (video?.videoUrl || '').includes('/api/files') && /application\/pdf/i.test('');
+  const isImage = (video?.videoUrl || '').match(/\.(jpg|jpeg|png)$/i);
 
   useEffect(() => {
     if (!user) {
@@ -390,7 +392,11 @@ export default function VideoPlayer() {
             {/* Video Player */}
             <Card className="overflow-hidden">
               <div className="relative bg-black aspect-video">
-                {(video.vimeoEmbedUrl || video.vimeoId || vimeoIdFromUrl) ? (
+                {isPdf ? (
+                  <iframe src={video.videoUrl} className="absolute inset-0 w-full h-full" title={video.title} />
+                ) : isImage ? (
+                  <img src={video.videoUrl} alt={video.title} className="absolute inset-0 w-full h-full object-contain bg-black" />
+                ) : (video.vimeoEmbedUrl || video.vimeoId || vimeoIdFromUrl) ? (
                   <VimeoPlayer
                     vimeoId={video.vimeoId || vimeoIdFromUrl}
                     vimeoEmbedUrl={video.vimeoEmbedUrl}

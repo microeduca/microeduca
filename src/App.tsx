@@ -17,6 +17,7 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminSettings from "./pages/AdminSettings";
 import AdminUserProfile from "./pages/AdminUserProfile";
 import AdminVimeoUpload from "./pages/AdminVimeoUpload";
+import AdminMaterialUpload from "./pages/AdminMaterialUpload";
 import History from "./pages/History";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/admin/users/:userId" element={<AdminUserProfile />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/vimeo-upload" element={<AdminVimeoUpload />} />
+          <Route path="/admin/material-upload" element={<AdminMaterialUpload />} />
           <Route path="/admin/vimeo-callback" element={<AdminVimeoUpload />} />
           <Route path="/dashboard" element={<UserDashboard />} />
           <Route path="/cliente" element={<UserDashboardCliente />} />

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { getWelcomeVideo, setWelcomeVideo, uploadSupportFile } from '@/lib/storage';
+import { api } from '@/lib/api';
 
 type WelcomeConfig = { title?: string; url?: string };
 
@@ -23,6 +24,19 @@ export default function AdminSettings() {
     const idMatch = val.match(/videos\/(\d+)/) || val.match(/vimeo\.com\/(\d+)/);
     const id = idMatch?.[1];
     return id ? `https://player.vimeo.com/video/${id}` : val;
+  };
+
+  const resolveEmbedUrl = async (raw?: string): Promise<string> => {
+    const val = String(raw || '').trim();
+    if (!val) return '';
+    const idMatch = val.match(/videos\/(\d+)/) || val.match(/vimeo\.com\/(\d+)/) || val.match(/player\.vimeo\.com\/video\/(\d+)/);
+    const id = idMatch?.[1];
+    if (!id) return toEmbed(val);
+    try {
+      const details = await api.getVimeoDetails(id);
+      if (details?.embedUrl) return details.embedUrl;
+    } catch {}
+    return `https://player.vimeo.com/video/${id}`;
   };
 
 
@@ -114,7 +128,7 @@ export default function AdminSettings() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="user-url">URL</Label>
-                <Input id="user-url" value={userCfg.url} onChange={(e) => setUserCfg({ ...userCfg, url: e.target.value })} onBlur={() => setUserCfg((s) => ({ ...s, url: toEmbed(s.url) }))} placeholder="https://player.vimeo.com/video/123456789?h=xxxx" />
+                <Input id="user-url" value={userCfg.url} onChange={(e) => setUserCfg({ ...userCfg, url: e.target.value })} onBlur={async () => setUserCfg((s) => ({ ...s, url: toEmbed(s.url) }))} placeholder="https://player.vimeo.com/video/123456789?h=xxxx" />
               </div>
               {toEmbed(userCfg.url) && (
                 <div className="rounded overflow-hidden bg-muted">
@@ -138,7 +152,7 @@ export default function AdminSettings() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="cliente-url">URL</Label>
-                <Input id="cliente-url" value={clienteCfg.url} onChange={(e) => setClienteCfg({ ...clienteCfg, url: e.target.value })} onBlur={() => setClienteCfg((s) => ({ ...s, url: toEmbed(s.url) }))} placeholder="https://player.vimeo.com/video/123456789?h=xxxx" />
+                <Input id="cliente-url" value={clienteCfg.url} onChange={(e) => setClienteCfg({ ...clienteCfg, url: e.target.value })} onBlur={async () => setClienteCfg((s) => ({ ...s, url: toEmbed(s.url) }))} placeholder="https://player.vimeo.com/video/123456789?h=xxxx" />
               </div>
               {toEmbed(clienteCfg.url) && (
                 <div className="rounded overflow-hidden bg-muted">

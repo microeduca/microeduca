@@ -10,6 +10,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getCategories, getVideos, getViewHistory, getWelcomeVideo } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
+import SupportFilesList from '@/components/SupportFilesList';
 
 export default function UserDashboard() {
   const user = getCurrentUser();

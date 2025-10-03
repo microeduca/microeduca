@@ -16,6 +16,15 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [files, setFiles] = useState<Array<{ id: string; url: string; filename: string; mimeType: string }>>([]);
+  const toEmbed = (raw?: string): string => {
+    const val = String(raw || '').trim();
+    if (!val) return '';
+    if (/player\.vimeo\.com\/video\//.test(val)) return val;
+    const idMatch = val.match(/videos\/(\d+)/) || val.match(/vimeo\.com\/(\d+)/);
+    const id = idMatch?.[1];
+    return id ? `https://player.vimeo.com/video/${id}` : val;
+  };
+
 
   useEffect(() => {
     (async () => {
@@ -105,12 +114,12 @@ export default function AdminSettings() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="user-url">URL</Label>
-                <Input id="user-url" value={userCfg.url} onChange={(e) => setUserCfg({ ...userCfg, url: e.target.value })} placeholder="https://player.vimeo.com/video/123456789?h=xxxx" />
+                <Input id="user-url" value={userCfg.url} onChange={(e) => setUserCfg({ ...userCfg, url: e.target.value })} onBlur={() => setUserCfg((s) => ({ ...s, url: toEmbed(s.url) }))} placeholder="https://player.vimeo.com/video/123456789?h=xxxx" />
               </div>
-              {userCfg.url && (
+              {toEmbed(userCfg.url) && (
                 <div className="rounded overflow-hidden bg-muted">
                   <div className="aspect-video">
-                    <iframe src={userCfg.url} className="w-full h-full" frameBorder={0} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title={userCfg.title || 'Boas‑vindas usuário'} />
+                    <iframe src={toEmbed(userCfg.url)} className="w-full h-full" frameBorder={0} allow="autoplay; fullscreen; picture-in-picture" title={userCfg.title || 'Boas‑vindas usuário'} />
                   </div>
                 </div>
               )}
@@ -129,12 +138,12 @@ export default function AdminSettings() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="cliente-url">URL</Label>
-                <Input id="cliente-url" value={clienteCfg.url} onChange={(e) => setClienteCfg({ ...clienteCfg, url: e.target.value })} placeholder="https://player.vimeo.com/video/123456789?h=xxxx" />
+                <Input id="cliente-url" value={clienteCfg.url} onChange={(e) => setClienteCfg({ ...clienteCfg, url: e.target.value })} onBlur={() => setClienteCfg((s) => ({ ...s, url: toEmbed(s.url) }))} placeholder="https://player.vimeo.com/video/123456789?h=xxxx" />
               </div>
-              {clienteCfg.url && (
+              {toEmbed(clienteCfg.url) && (
                 <div className="rounded overflow-hidden bg-muted">
                   <div className="aspect-video">
-                    <iframe src={clienteCfg.url} className="w-full h-full" frameBorder={0} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen title={clienteCfg.title || 'Boas‑vindas cliente'} />
+                    <iframe src={toEmbed(clienteCfg.url)} className="w-full h-full" frameBorder={0} allow="autoplay; fullscreen; picture-in-picture" title={clienteCfg.title || 'Boas‑vindas cliente'} />
                   </div>
                 </div>
               )}

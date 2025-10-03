@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHistory, getProfiles } from '@/lib/supabase';
+import { uploadSupportFile } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import VimeoUpload from '@/components/admin/VimeoUpload';
 
@@ -321,7 +322,7 @@ export default function AdminVideos() {
               className="gap-2"
             >
               <Upload className="h-4 w-4" />
-              Enviar novo vídeo
+              Enviar novo material
             </Button>
           </div>
         </div>
@@ -705,6 +706,32 @@ export default function AdminVideos() {
                         className="mt-2 h-24 w-auto rounded-md object-cover"
                       />
                     )}
+                  </div>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">ou</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Enviar arquivo (PDF/JPG/PNG)</h3>
+                    <Input
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        try {
+                          const res = await uploadSupportFile(f);
+                          setNewVideo({ ...newVideo, videoUrl: res.url, thumbnail: f.type.startsWith('image/') ? res.url : newVideo.thumbnail, duration: 0 });
+                        } catch (err) {
+                          toast({ title: 'Falha ao enviar arquivo', variant: 'destructive' });
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">O arquivo será disponibilizado como material na lista. Para imagens, usaremos a própria imagem como thumbnail.</p>
                   </div>
                 </div>
               </div>

@@ -11,8 +11,10 @@ import AdminVideos from "./pages/AdminVideos";
 import AdminCategories from "./pages/AdminCategories";
 import MeusCursos from "./pages/MeusCursos";
 import UserDashboard from "./pages/UserDashboard";
+import UserDashboardCliente from "./pages/UserDashboardCliente";
 import VideoPlayer from "./pages/VideoPlayer";
 import AdminUsers from "./pages/AdminUsers";
+import AdminSettings from "./pages/AdminSettings";
 import AdminVimeoUpload from "./pages/AdminVimeoUpload";
 import History from "./pages/History";
 
@@ -31,9 +33,11 @@ const App = () => (
           <Route path="/admin/videos" element={<AdminVideos />} />
           <Route path="/admin/categorias" element={<AdminCategories />} />
           <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/vimeo-upload" element={<AdminVimeoUpload />} />
           <Route path="/admin/vimeo-callback" element={<AdminVimeoUpload />} />
           <Route path="/dashboard" element={<UserDashboard />} />
+          <Route path="/cliente" element={<UserDashboardCliente />} />
           <Route path="/meus-cursos" element={<MeusCursos />} />
           <Route path="/video/:videoId" element={<VideoPlayer />} />
           <Route path="/history" element={<History />} />

@@ -45,6 +45,84 @@ async function getSetting(key) {
   return rows[0]?.value || null;
 }
 
+// Files storage (PDF/JPG) in Postgres
+async function ensureFilesTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS public.files (
+    id text PRIMARY KEY,
+    filename text NOT NULL,
+    mime_type text NOT NULL,
+    content bytea NOT NULL,
+    size integer NOT NULL,
+    created_at timestamptz DEFAULT now()
+  )`);
+}
+
+import crypto from 'node:crypto';
+
+app.post('/api/files', async (req, res) => {
+  try {
+    const { filename, mimeType, dataBase64 } = req.body || {};
+    if (!filename || !mimeType || !dataBase64) return res.status(400).json({ error: 'Missing fields' });
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!allowed.includes(mimeType)) return res.status(400).json({ error: 'Unsupported mimeType' });
+    const buf = Buffer.from(String(dataBase64).split(',').pop(), 'base64');
+    await ensureFilesTable();
+    const id = crypto.randomUUID();
+    await pool.query('INSERT INTO public.files (id, filename, mime_type, content, size) VALUES ($1,$2,$3,$4,$5)', [id, filename, mimeType, buf, buf.length]);
+    res.status(201).json({ id, filename, mimeType, size: buf.length, url: `/api/files/${id}` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/files/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await ensureFilesTable();
+    const { rows } = await pool.query('SELECT * FROM public.files WHERE id = $1', [id]);
+    const file = rows[0];
+    if (!file) return res.status(404).end();
+    res.setHeader('Content-Type', file.mime_type);
+    res.setHeader('Content-Disposition', `inline; filename="${file.filename}"`);
+    return res.send(Buffer.from(file.content));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/files/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await ensureFilesTable();
+    await pool.query('DELETE FROM public.files WHERE id = $1', [id]);
+    res.status(204).end();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Generic settings API (used by Admin to configurar vídeos de boas-vindas)
+app.get('/api/settings/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+    const value = await getSetting(key);
+    res.json(value);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/settings/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+    const value = req.body || null;
+    await setSetting(key, value);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 async function getSharedVimeoAccessToken() {
   const saved = await getSetting('vimeo_token');
   const token = saved?.access_token || process.env.VIMEO_ACCESS_TOKEN || null;

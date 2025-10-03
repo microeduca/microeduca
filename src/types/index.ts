@@ -2,7 +2,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'cliente';
   assignedCategories: string[];
   createdAt: Date;
   isActive?: boolean;

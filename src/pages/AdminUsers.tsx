@@ -37,7 +37,7 @@ export default function AdminUsers() {
     name: '',
     email: '',
     password: '',
-    role: 'user' as 'admin' | 'user',
+    role: 'user' as 'admin' | 'user' | 'cliente',
     assignedCategories: [] as string[],
   });
 
@@ -354,7 +354,7 @@ export default function AdminUsers() {
                 <Label htmlFor="role">Perfil</Label>
                 <Select
                   value={newUser.role}
-                  onValueChange={(value: 'admin' | 'user') => setNewUser({ ...newUser, role: value })}
+                  onValueChange={(value: 'admin' | 'user' | 'cliente') => setNewUser({ ...newUser, role: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -362,6 +362,7 @@ export default function AdminUsers() {
                   <SelectContent>
                     <SelectItem value="user">Usuário</SelectItem>
                     <SelectItem value="admin">Administrador</SelectItem>
+                    <SelectItem value="cliente">Cliente</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -464,7 +465,7 @@ export default function AdminUsers() {
                   <Label htmlFor="edit-role">Perfil</Label>
                   <Select
                     value={editingUser.role}
-                    onValueChange={(value: 'admin' | 'user') => setEditingUser({ ...editingUser, role: value })}
+                    onValueChange={(value: 'admin' | 'user' | 'cliente') => setEditingUser({ ...editingUser, role: value })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -472,6 +473,7 @@ export default function AdminUsers() {
                     <SelectContent>
                       <SelectItem value="user">Usuário</SelectItem>
                       <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="cliente">Cliente</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

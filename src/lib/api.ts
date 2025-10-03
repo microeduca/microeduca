@@ -52,6 +52,14 @@ export const api = {
   getRecentViews: (limit = 10) => request(`/view-history/recent?limit=${encodeURIComponent(String(limit))}`, { method: 'GET' }),
   addToHistory: (payload: any) => request('/view-history', { method: 'POST', body: JSON.stringify(payload) }),
 
+  // Settings
+  getSetting: (key: string) => request(`/settings/${encodeURIComponent(key)}`, { method: 'GET' }),
+  setSetting: (key: string, value: any) => request(`/settings/${encodeURIComponent(key)}`, { method: 'POST', body: JSON.stringify(value) }),
+
+  // Files
+  uploadFile: (payload: { filename: string; mimeType: string; dataBase64: string }) => request('/files', { method: 'POST', body: JSON.stringify(payload) }),
+  deleteFile: (id: string) => request(`/files/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   // Comments
   getComments: (videoId: string) => request(`/comments?videoId=${encodeURIComponent(videoId)}`, { method: 'GET' }),
   addComment: (payload: any) => request('/comments', { method: 'POST', body: JSON.stringify(payload) }),

@@ -43,7 +43,7 @@ const mapUser = (row: any): User => ({
   id: row.id,
   name: row.name,
   email: row.email,
-  role: row.role,
+  role: (row.role as 'admin' | 'user' | 'cliente') || 'user',
   assignedCategories: row.assigned_categories || [],
   createdAt: row.created_at ? new Date(row.created_at) : new Date(),
   isActive: row.is_active,
@@ -221,4 +221,28 @@ export const addToHistory = async (history: Omit<ViewHistory, 'id'>): Promise<Vi
     completed: !!row.completed,
     lastWatchedAt: row.last_watched_at ? new Date(row.last_watched_at) : new Date(),
   };
+};
+
+// Settings helpers
+export const getWelcomeVideo = async (role: 'user' | 'cliente') => {
+  const key = role === 'cliente' ? 'welcome_video_cliente' : 'welcome_video_user';
+  return await api.getSetting(key);
+};
+
+export const setWelcomeVideo = async (role: 'user' | 'cliente', value: { title?: string; url?: string; vimeo_id?: string }) => {
+  const key = role === 'cliente' ? 'welcome_video_cliente' : 'welcome_video_user';
+  return await api.setSetting(key, value);
+};
+
+export const uploadSupportFile = async (file: File) => {
+  const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+  if (!allowed.includes(file.type)) throw new Error('Formato não suportado');
+  const b64 = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error('Falha ao ler arquivo'));
+    r.readAsDataURL(file);
+  });
+  const res = await api.uploadFile({ filename: file.name, mimeType: file.type, dataBase64: b64 });
+  return res as { id: string; url: string; filename: string; mimeType: string; size: number };
 };

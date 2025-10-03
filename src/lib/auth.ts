@@ -40,3 +40,8 @@ export const isAdmin = (): boolean => {
 	const user = getCurrentUser();
 	return user?.role === 'admin';
 };
+
+export const isCliente = (): boolean => {
+  const user = getCurrentUser();
+  return user?.role === 'cliente';
+};

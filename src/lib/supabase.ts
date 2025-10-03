@@ -35,7 +35,7 @@ export async function getVideos() {
 
 export async function getVideoById(id: string) {
 	const all = await getVideos();
-	return all.find((v: any) => v.id === id) || null;
+	return all.find((v: { id: string }) => v.id === id) || null;
 }
 
 export async function addVideo(video: {
@@ -84,13 +84,13 @@ export async function getCurrentProfile() {
 	const user = getCurrentUser();
 	if (!user) return null;
 	const profiles = await getProfiles();
-	return profiles.find((p: any) => p.email === user.email) || null;
+	return profiles.find((p: { email: string }) => p.email === user.email) || null;
 }
 
 export async function addProfile(profile: {
 	email: string;
 	name: string;
-	role: 'admin' | 'user';
+	role: 'admin' | 'user' | 'cliente';
 	assigned_categories?: string[];
 	is_active?: boolean;
 }) {
@@ -99,7 +99,7 @@ export async function addProfile(profile: {
 
 export async function updateProfile(id: string, updates: Partial<{
 	name: string;
-	role: 'admin' | 'user';
+	role: 'admin' | 'user' | 'cliente';
 	assigned_categories?: string[];
 	is_active?: boolean;
 }>) {

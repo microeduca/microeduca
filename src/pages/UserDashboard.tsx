@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Play, Clock, CheckCircle, BookOpen, TrendingUp, Grid, List, Search } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
-import { getCategories, getVideos, getViewHistory } from '@/lib/storage';
+import { getCategories, getVideos, getViewHistory, getWelcomeVideo } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 
@@ -20,6 +20,7 @@ export default function UserDashboard() {
   const [videos, setVideos] = useState<any[]>([]);
   const [viewHistory, setViewHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [welcomeVideo, setWelcomeVideoState] = useState<any | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'inProgress'>('all');
@@ -30,14 +31,16 @@ export default function UserDashboard() {
   useEffect(() => {
     (async () => {
       setIsLoading(true);
-      const [c, v, vh] = await Promise.all([
+      const [c, v, vh, wv] = await Promise.all([
         getCategories(),
         getVideos(),
         getViewHistory(user?.id),
+        getWelcomeVideo('user'),
       ]);
       setCategories(c);
       setVideos(v);
       setViewHistory(vh);
+      setWelcomeVideoState(wv);
       setIsLoading(false);
     })();
   }, [user?.id]);
@@ -168,6 +171,25 @@ export default function UserDashboard() {
             Continue aprendendo e desenvolvendo suas habilidades
           </p>
         </div>
+
+        {/* Vídeo de boas‑vindas (configurável no Admin) */}
+        {welcomeVideo?.url && (
+          <div className="rounded-lg overflow-hidden bg-muted">
+            <div className="aspect-video">
+              <iframe
+                src={welcomeVideo.url}
+                className="w-full h-full"
+                frameBorder="0"
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowFullScreen
+                title={welcomeVideo.title || 'Boas‑vindas'}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Materiais de apoio (se configurados) */}
+        <SupportFilesList />
 
         {/* Statistics Cards */}
         <div className="grid gap-4 md:grid-cols-4">

@@ -8,7 +8,7 @@ interface VimeoPlayerProps {
   vimeoId?: string;
   vimeoEmbedUrl?: string;
   title: string;
-  onProgress?: (progress: number, duration: number) => void;
+  onProgress?: (progress: number, duration: number, seconds: number) => void;
   onComplete?: () => void;
   onPlay?: () => void;
   startAtSeconds?: number; // novo: posição inicial
@@ -92,7 +92,7 @@ export default function VimeoPlayer({
     player.on('timeupdate', (data) => {
       setCurrentTime(data.seconds);
       const progressPercent = (data.seconds / data.duration) * 100;
-      onProgressRef.current?.(progressPercent, data.duration);
+      onProgressRef.current?.(progressPercent, data.duration, data.seconds);
     });
 
     player.on('loaded', async () => {

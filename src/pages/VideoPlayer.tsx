@@ -108,6 +108,10 @@ export default function VideoPlayer() {
   const [maxProgress, setMaxProgress] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [viewRegistered, setViewRegistered] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [maxWatchedSeconds, setMaxWatchedSeconds] = useState(0);
+  const [lastVimeoSeconds, setLastVimeoSeconds] = useState(0);
+  const [lastHtml5Seconds, setLastHtml5Seconds] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -155,19 +159,39 @@ export default function VideoPlayer() {
     if (!videoElement) return;
 
     const handleTimeUpdate = () => {
-      setCurrentTime(videoElement.currentTime);
-      const computed = (videoElement.currentTime / (videoElement.duration || duration || 1)) * 100;
+      const cur = videoElement.currentTime;
+      setCurrentTime(cur);
+      const computed = (cur / (videoElement.duration || duration || 1)) * 100;
       const clamped = Math.min(100, Math.max(0, computed));
       setMaxProgress((prev) => Math.max(prev, clamped, isCompleted ? 100 : 0));
-      setProgress((prev) => Math.max(prev, clamped, isCompleted ? 100 : 0));
+
+      // Só aumenta progresso visual e tempo assistido se não for seek (avanço brusco)
+      if (!isSeeking) {
+        const delta = cur - lastHtml5Seconds;
+        if (delta >= 0 && delta <= 1.5) {
+          const nextWatched = Math.max(maxWatchedSeconds, Math.floor(cur));
+          setMaxWatchedSeconds(nextWatched);
+          const based = (nextWatched / Math.max(1, videoElement.duration || duration || 1)) * 100;
+          setProgress((prev) => Math.max(prev, Math.min(100, Math.max(0, based))));
+        }
+      }
+      setLastHtml5Seconds(cur);
+
       // Salvar progresso a cada 5 segundos sem regredir
-      if (Math.floor(videoElement.currentTime) % 5 === 0) {
+      if (!isSeeking && Math.floor(cur) % 5 === 0) {
         saveProgress();
       }
     };
 
     const handleLoadedMetadata = async () => {
       setDuration(videoElement.duration);
+      // Atualiza duração no backend se estiver desatualizada
+      if (video && Math.floor(videoElement.duration || 0) > 0 && Math.abs((video.duration || 0) - Math.floor(videoElement.duration)) > 1) {
+        try {
+          await updateVideo({ ...(video as any), duration: Math.floor(videoElement.duration) } as any);
+          setVideo((prev: any) => prev ? { ...prev, duration: Math.floor(videoElement.duration) } : prev);
+        } catch {}
+      }
       // Retomar posição salva se houver
       try {
         const vp = await getVideoProgressApi(videoId || '');
@@ -202,49 +226,25 @@ export default function VideoPlayer() {
       }
     };
 
+    const handleSeeking = () => setIsSeeking(true);
+    const handleSeeked = () => setIsSeeking(false);
+
     videoElement.addEventListener('timeupdate', handleTimeUpdate);
     videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
     videoElement.addEventListener('ended', handleEnded);
+    videoElement.addEventListener('seeking', handleSeeking);
+    videoElement.addEventListener('seeked', handleSeeked);
 
     return () => {
       videoElement.removeEventListener('timeupdate', handleTimeUpdate);
       videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
       videoElement.removeEventListener('ended', handleEnded);
+      videoElement.removeEventListener('seeking', handleSeeking);
+      videoElement.removeEventListener('seeked', handleSeeked);
     };
-  }, [user, video, toast, videoId, duration, isCompleted]);
+  }, [user, video, toast, videoId, duration, isCompleted, isSeeking]);
 
-  // Salvar progresso periodicamente para vídeos Vimeo
-  useEffect(() => {
-    if (!video?.vimeoId && !video?.vimeoEmbedUrl) return;
-    
-    const progressInterval = setInterval(() => {
-      // Para vídeos Vimeo, salvar progresso estimado
-      if (user && video) {
-        const estimatedProgress = Math.min(progress + 1, 100);
-        setProgress(estimatedProgress);
-        
-        const estimatedWatchTime = Math.floor((estimatedProgress / 100) * video.duration);
-        
-        addToHistory({
-          userId: user.id,
-          videoId: video.id,
-          watchedDuration: estimatedWatchTime,
-          completed: estimatedProgress >= 95,
-          lastWatchedAt: new Date(),
-        });
-
-        if (estimatedProgress >= 95 && !viewRegistered) {
-          toast({
-            title: "Vídeo concluído!",
-            description: "Parabéns por completar este vídeo.",
-          });
-          setViewRegistered(true);
-        }
-      }
-    }, 10000); // Atualizar a cada 10 segundos
-
-    return () => clearInterval(progressInterval);
-  }, [video, user, progress, viewRegistered, toast]);
+  // Removido incremento artificial de progresso para Vimeo; agora apenas eventos reais disparam salvamento
 
   const saveProgress = () => {
     if (!video || !user || !videoRef.current) return;
@@ -252,7 +252,7 @@ export default function VideoPlayer() {
     saveVideoProgress({
       videoId: video.id,
       currentTime: videoRef.current.currentTime,
-      duration: video.duration,
+      duration: Math.max(video.duration || 0, videoRef.current.duration || 0),
       completed: false,
     });
 
@@ -402,24 +402,36 @@ export default function VideoPlayer() {
                     vimeoEmbedUrl={video.vimeoEmbedUrl}
                     title={video.title}
                     startAtSeconds={currentTime}
-                    onProgress={(progressPercent, duration) => {
+                    onProgress={(progressPercent, vimeoDuration) => {
                       const clamped = Math.min(100, Math.max(0, progressPercent));
                       setMaxProgress((prev) => Math.max(prev, clamped, isCompleted ? 100 : 0));
                       setProgress((prev) => Math.max(prev, clamped, isCompleted ? 100 : 0));
-                      setDuration(duration);
-                      // Salvar progresso
-                      const watchedDuration = Math.floor((Math.max(clamped, isCompleted ? 100 : 0) / 100) * duration);
+                      setDuration(vimeoDuration);
+                      // atualiza duração do vídeo se preciso
+                      if (video && Math.floor(vimeoDuration || 0) > 0 && Math.abs((video.duration || 0) - Math.floor(vimeoDuration)) > 1) {
+                        (async () => {
+                          try {
+                            await updateVideo({ ...(video as any), duration: Math.floor(vimeoDuration) } as any);
+                            setVideo((prev: any) => prev ? { ...prev, duration: Math.floor(vimeoDuration) } : prev);
+                          } catch {}
+                        })();
+                      }
+                      // Apenas persiste progresso real; não marca como concluído por seek
                       if (user && video) {
+                        const watchedDuration = Math.floor((clamped / 100) * vimeoDuration);
+                        // evita regressão
+                        setMaxWatchedSeconds((prev) => Math.max(prev, watchedDuration));
+                        const safeWatched = Math.max(maxWatchedSeconds, watchedDuration);
                         saveVideoProgress({
                           videoId: video.id,
-                          currentTime: watchedDuration,
-                          duration: duration,
+                          currentTime: safeWatched,
+                          duration: vimeoDuration,
                           completed: isCompleted || clamped >= 95,
                         });
                         addToHistory({
                           userId: user.id,
                           videoId: video.id,
-                          watchedDuration,
+                          watchedDuration: safeWatched,
                           completed: isCompleted || clamped >= 95,
                           lastWatchedAt: new Date(),
                         });

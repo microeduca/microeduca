@@ -11,9 +11,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Users, UserCheck, Shield, Edit2, Trash2, MoreVertical, UserX, Mail, FolderOpen } from 'lucide-react';
+import { Plus, Users, UserCheck, Shield, Edit2, Trash2, MoreVertical, UserX, Mail, FolderOpen, FolderPlus, Network } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getUsers, addUser, updateUser, deleteUser, getCategories } from '@/lib/storage';
+import { getUsers, addUser, updateUser, deleteUser, getCategories, getModules, addCategory, addModule } from '@/lib/storage';
 import { User } from '@/types';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -22,11 +22,22 @@ export default function AdminUsers() {
   const currentUser = getCurrentUser();
   const [users, setUsers] = useState<User[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [modulesByCategory, setModulesByCategory] = useState<Record<string, any[]>>({});
   useEffect(() => {
     (async () => {
       const [u, c] = await Promise.all([getUsers(), getCategories()]);
       setUsers(u);
       setCategories(c);
+      // Pré-carregar módulos por categoria para facilitar seleção
+      const map: Record<string, any[]> = {};
+      for (const cat of c) {
+        try {
+          map[cat.id] = await getModules(cat.id);
+        } catch {
+          map[cat.id] = [];
+        }
+      }
+      setModulesByCategory(map);
     })();
   }, []);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -39,7 +50,13 @@ export default function AdminUsers() {
     password: '',
     role: 'user' as 'admin' | 'user' | 'cliente',
     assignedCategories: [] as string[],
+    assignedModules: [] as string[],
   });
+
+  // Busca e criação inline (Adicionar)
+  const [categorySearch, setCategorySearch] = useState('');
+  const [moduleSearch, setModuleSearch] = useState('');
+  const [moduleCreationCategoryId, setModuleCreationCategoryId] = useState<string | null>(null);
 
   const handleAddUser = async () => {
     if (!newUser.name || !newUser.email || !newUser.password) {
@@ -57,6 +74,7 @@ export default function AdminUsers() {
       email: newUser.email,
       role: newUser.role,
       assignedCategories: newUser.assignedCategories,
+      assignedModules: newUser.assignedModules,
       createdAt: new Date(),
       isActive: true,
     };
@@ -70,7 +88,11 @@ export default function AdminUsers() {
       password: '',
       role: 'user',
       assignedCategories: [],
+      assignedModules: [],
     });
+    setCategorySearch('');
+    setModuleSearch('');
+    setModuleCreationCategoryId(null);
 
     toast({
       title: "Usuário adicionado",
@@ -209,7 +231,7 @@ export default function AdminUsers() {
                   <TableHead>Nome</TableHead>
                   <TableHead>E-mail</TableHead>
                   <TableHead>Perfil</TableHead>
-                  <TableHead>Categorias</TableHead>
+                  <TableHead>Acessos</TableHead>
                   <TableHead>Cadastro</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -245,25 +267,46 @@ export default function AdminUsers() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {user.assignedCategories && user.assignedCategories.length > 0 ? (
-                          user.assignedCategories.slice(0, 2).map(catId => {
-                            const category = categories.find(c => c.id === catId);
-                            return category ? (
-                              <Badge key={catId} variant="outline" className="text-xs">
-                                <FolderOpen className="h-3 w-3 mr-1" />
-                                {category.name}
-                              </Badge>
-                            ) : null;
-                          })
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Nenhuma</span>
-                        )}
-                        {user.assignedCategories && user.assignedCategories.length > 2 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{user.assignedCategories.length - 2}
-                          </Badge>
-                        )}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex flex-wrap gap-1">
+                          {user.assignedCategories && user.assignedCategories.length > 0 ? (
+                            user.assignedCategories.slice(0, 2).map(catId => {
+                              const category = categories.find(c => c.id === catId);
+                              return category ? (
+                                <Badge key={catId} variant="outline" className="text-xs">
+                                  <FolderOpen className="h-3 w-3 mr-1" />
+                                  {category.name}
+                                </Badge>
+                              ) : null;
+                            })
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Sem categorias</span>
+                          )}
+                          {user.assignedCategories && user.assignedCategories.length > 2 && (
+                            <Badge variant="outline" className="text-xs">+{user.assignedCategories.length - 2}</Badge>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {user.assignedModules && user.assignedModules.length > 0 ? (
+                            (() => {
+                              const allMods = Object.values(modulesByCategory).flat();
+                              return user.assignedModules.slice(0, 2).map(mid => {
+                                const mod = allMods.find((m: any) => m.id === mid);
+                                return mod ? (
+                                  <Badge key={mid} variant="secondary" className="text-[10px]">
+                                    <Network className="h-3 w-3 mr-1" />
+                                    {mod.title}
+                                  </Badge>
+                                ) : null;
+                              });
+                            })()
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">Sem módulos</span>
+                          )}
+                          {user.assignedModules && user.assignedModules.length > 2 && (
+                            <Badge variant="outline" className="text-[10px]">+{user.assignedModules.length - 2}</Badge>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
@@ -376,52 +419,156 @@ export default function AdminUsers() {
               </div>
               <div className="grid gap-2">
                 <Label>Categorias de Acesso</Label>
-                <div className="text-sm text-muted-foreground mb-2">
-                  Selecione as categorias que o usuário terá acesso
+                <div className="flex items-center gap-2">
+                  <Input placeholder="Buscar categorias..." value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      if (!categorySearch.trim()) return;
+                      const exists = categories.some(c => c.name.toLowerCase() === categorySearch.trim().toLowerCase());
+                      if (exists) return;
+                      const newCat = { id: '', name: categorySearch.trim(), description: '', thumbnail: undefined, createdAt: new Date() } as any;
+                      await addCategory(newCat);
+                      const c = await getCategories();
+                      setCategories(c);
+                      const created = c.find((x: any) => x.name.toLowerCase() === categorySearch.trim().toLowerCase());
+                      if (created) {
+                        setNewUser({ ...newUser, assignedCategories: [...newUser.assignedCategories, created.id] });
+                      }
+                      setCategorySearch('');
+                    }}
+                  >
+                    <FolderPlus className="h-4 w-4 mr-1" /> Criar
+                  </Button>
                 </div>
+                <div className="text-sm text-muted-foreground">Selecione as categorias que o usuário terá acesso</div>
                 <ScrollArea className="h-[200px] w-full border rounded-md p-4">
                   <div className="space-y-3">
-                    {categories.map(category => (
-                      <div key={category.id} className="flex items-start space-x-2">
-                        <Checkbox
-                          id={`new-cat-${category.id}`}
-                          checked={newUser.assignedCategories.includes(category.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setNewUser({
-                                ...newUser,
-                                assignedCategories: [...newUser.assignedCategories, category.id]
-                              });
-                            } else {
-                              setNewUser({
-                                ...newUser,
-                                assignedCategories: newUser.assignedCategories.filter(id => id !== category.id)
-                              });
-                            }
-                          }}
-                        />
-                        <div className="grid gap-1 leading-none">
-                          <label
-                            htmlFor={`new-cat-${category.id}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                          >
-                            {category.name}
-                          </label>
-                          {category.description && (
-                            <p className="text-xs text-muted-foreground">
-                              {category.description}
-                            </p>
-                          )}
+                    {categories
+                      .filter(c => c.name.toLowerCase().includes(categorySearch.toLowerCase()))
+                      .map(category => (
+                        <div key={category.id} className="flex items-start space-x-2">
+                          <Checkbox
+                            id={`new-cat-${category.id}`}
+                            checked={newUser.assignedCategories.includes(category.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setNewUser({ ...newUser, assignedCategories: [...newUser.assignedCategories, category.id] });
+                              } else {
+                                setNewUser({ ...newUser, assignedCategories: newUser.assignedCategories.filter(id => id !== category.id), assignedModules: newUser.assignedModules.filter(mid => {
+                                  // remover módulos pertencentes a categorias desmarcadas
+                                  const mods = modulesByCategory[category.id] || [];
+                                  return !mods.some((m: any) => m.id === mid);
+                                }) });
+                              }
+                            }}
+                          />
+                          <div className="grid gap-1 leading-none">
+                            <label htmlFor={`new-cat-${category.id}`} className="text-sm font-medium cursor-pointer">{category.name}</label>
+                            {category.description && (<p className="text-xs text-muted-foreground">{category.description}</p>)}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {categories.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        Nenhuma categoria cadastrada
-                      </p>
-                    )}
+                      ))}
+                    {categories.length === 0 && (<p className="text-sm text-muted-foreground text-center py-4">Nenhuma categoria cadastrada</p>)}
                   </div>
                 </ScrollArea>
+              </div>
+
+              {/* Seleção de Módulos/Submódulos */}
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label>Módulos/Submódulos (opcional)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input placeholder="Buscar módulos..." value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)} />
+                    <Select value={moduleCreationCategoryId || (newUser.assignedCategories[0] || '')} onValueChange={(v) => setModuleCreationCategoryId(v)}>
+                      <SelectTrigger className="w-[200px]"><SelectValue placeholder="Categoria do módulo" /></SelectTrigger>
+                      <SelectContent>
+                        {newUser.assignedCategories.map(cid => (
+                          <SelectItem key={cid} value={cid}>{categories.find(c => c.id === cid)?.name || cid}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!moduleSearch.trim() || (newUser.assignedCategories.length === 0)}
+                      onClick={async () => {
+                        const targetCat = moduleCreationCategoryId || newUser.assignedCategories[0];
+                        if (!targetCat) return;
+                        const exists = (modulesByCategory[targetCat] || []).some(m => String(m.title).toLowerCase() === moduleSearch.trim().toLowerCase());
+                        if (exists) return;
+                        const created = await addModule({ categoryId: targetCat, parentId: null, title: moduleSearch.trim(), description: '', order: (modulesByCategory[targetCat]?.length || 0) });
+                        setModulesByCategory({ ...modulesByCategory, [targetCat]: [...(modulesByCategory[targetCat] || []), created] });
+                        setNewUser({ ...newUser, assignedModules: [...newUser.assignedModules, created.id] });
+                        setModuleSearch('');
+                      }}
+                    >
+                      <Network className="h-4 w-4 mr-1" /> Criar módulo
+                    </Button>
+                  </div>
+                </div>
+                {newUser.assignedCategories.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">Selecione ao menos uma categoria para listar módulos.</div>
+                ) : (
+                  <ScrollArea className="h-[220px] w-full border rounded-md p-4">
+                    <div className="space-y-4">
+                      {newUser.assignedCategories.map(cid => {
+                        const cat = categories.find(c => c.id === cid);
+                        const all = (modulesByCategory[cid] || []) as Array<{ id: string; title: string; parentId?: string | null; order?: number }>;
+                        const filtered = all.filter(m => String(m.title || '').toLowerCase().includes(moduleSearch.toLowerCase()));
+                        const roots = filtered.filter(m => !m.parentId).sort((a, b) => (Number((a as any).order || 0) - Number((b as any).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                        const childrenOf = (id: string) => filtered.filter(m => m.parentId === id).sort((a, b) => (Number((a as any).order || 0) - Number((b as any).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                        return (
+                          <div key={cid}>
+                            <div className="text-xs font-medium text-muted-foreground mb-1">{cat?.name || cid}</div>
+                            {roots.length === 0 && (
+                              <div className="text-xs text-muted-foreground">Nenhum módulo nesta categoria.</div>
+                            )}
+                            {roots.map(root => (
+                              <div key={root.id} className="space-y-2">
+                                <div className="flex items-start space-x-2">
+                                  <Checkbox
+                                    id={`new-mod-${root.id}`}
+                                    checked={newUser.assignedModules.includes(root.id)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setNewUser({ ...newUser, assignedModules: [...newUser.assignedModules, root.id] });
+                                      } else {
+                                        setNewUser({ ...newUser, assignedModules: newUser.assignedModules.filter(id => id !== root.id) });
+                                      }
+                                    }}
+                                  />
+                                  <label htmlFor={`new-mod-${root.id}`} className="text-sm cursor-pointer">{root.title}</label>
+                                </div>
+                                {childrenOf(root.id).map(child => (
+                                  <div key={child.id} className="flex items-start space-x-2 ml-6">
+                                    <Checkbox
+                                      id={`new-mod-${child.id}`}
+                                      checked={newUser.assignedModules.includes(child.id)}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setNewUser({ ...newUser, assignedModules: [...newUser.assignedModules, child.id] });
+                                        } else {
+                                          setNewUser({ ...newUser, assignedModules: newUser.assignedModules.filter(id => id !== child.id) });
+                                        }
+                                      }}
+                                    />
+                                    <label htmlFor={`new-mod-${child.id}`} className="text-sm cursor-pointer">{child.title}</label>
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => { window.location.href = '/admin/taxonomia'; }}>Gerenciar taxonomia</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/admin/taxonomia'; }}>Abrir primeira categoria</Button>
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -487,53 +634,158 @@ export default function AdminUsers() {
                 </div>
                 <div className="grid gap-2">
                   <Label>Categorias de Acesso</Label>
-                  <div className="text-sm text-muted-foreground mb-2">
-                    Selecione as categorias que o usuário terá acesso
+                  <div className="flex items-center gap-2">
+                    <Input placeholder="Buscar categorias..." value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        if (!categorySearch.trim()) return;
+                        const exists = categories.some(c => c.name.toLowerCase() === categorySearch.trim().toLowerCase());
+                        if (exists) return;
+                        const newCat = { id: '', name: categorySearch.trim(), description: '', thumbnail: undefined, createdAt: new Date() } as any;
+                        await addCategory(newCat);
+                        const c = await getCategories();
+                        setCategories(c);
+                        const created = c.find((x: any) => x.name.toLowerCase() === categorySearch.trim().toLowerCase());
+                        if (created) {
+                          setEditingUser({ ...editingUser, assignedCategories: [...(editingUser.assignedCategories || []), created.id] });
+                        }
+                        setCategorySearch('');
+                      }}
+                    >
+                      <FolderPlus className="h-4 w-4 mr-1" /> Criar
+                    </Button>
                   </div>
+                  <div className="text-sm text-muted-foreground">Selecione as categorias que o usuário terá acesso</div>
                   <ScrollArea className="h-[200px] w-full border rounded-md p-4">
                     <div className="space-y-3">
-                      {categories.map(category => (
-                        <div key={category.id} className="flex items-start space-x-2">
-                          <Checkbox
-                            id={`edit-cat-${category.id}`}
-                            checked={editingUser.assignedCategories?.includes(category.id) || false}
-                            onCheckedChange={(checked) => {
-                              const currentCategories = editingUser.assignedCategories || [];
-                              if (checked) {
-                                setEditingUser({
-                                  ...editingUser,
-                                  assignedCategories: [...currentCategories, category.id]
-                                });
-                              } else {
-                                setEditingUser({
-                                  ...editingUser,
-                                  assignedCategories: currentCategories.filter(id => id !== category.id)
-                                });
-                              }
-                            }}
-                          />
-                          <div className="grid gap-1 leading-none">
-                            <label
-                              htmlFor={`edit-cat-${category.id}`}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                            >
-                              {category.name}
-                            </label>
-                            {category.description && (
-                              <p className="text-xs text-muted-foreground">
-                                {category.description}
-                              </p>
-                            )}
+                      {categories
+                        .filter(c => c.name.toLowerCase().includes(categorySearch.toLowerCase()))
+                        .map(category => (
+                          <div key={category.id} className="flex items-start space-x-2">
+                            <Checkbox
+                              id={`edit-cat-${category.id}`}
+                              checked={(editingUser.assignedCategories || []).includes(category.id)}
+                              onCheckedChange={(checked) => {
+                                const currentCategories = editingUser.assignedCategories || [];
+                                if (checked) {
+                                  setEditingUser({ ...editingUser, assignedCategories: [...currentCategories, category.id] });
+                                } else {
+                                  setEditingUser({ ...editingUser, assignedCategories: currentCategories.filter(id => id !== category.id), assignedModules: (editingUser.assignedModules || []).filter(mid => {
+                                    const mods = modulesByCategory[category.id] || [];
+                                    return !mods.some((m: any) => m.id === mid);
+                                  }) });
+                                }
+                              }}
+                            />
+                            <div className="grid gap-1 leading-none">
+                              <label htmlFor={`edit-cat-${category.id}`} className="text-sm font-medium cursor-pointer">{category.name}</label>
+                              {category.description && (<p className="text-xs text-muted-foreground">{category.description}</p>)}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                      {categories.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          Nenhuma categoria cadastrada
-                        </p>
-                      )}
+                        ))}
+                      {categories.length === 0 && (<p className="text-sm text-muted-foreground text-center py-4">Nenhuma categoria cadastrada</p>)}
                     </div>
                   </ScrollArea>
+                </div>
+
+                {/* Seleção de Módulos/Submódulos */}
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Módulos/Submódulos (opcional)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input placeholder="Buscar módulos..." value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)} />
+                      <Select value={moduleCreationCategoryId || ((editingUser.assignedCategories || [])[0] || '')} onValueChange={(v) => setModuleCreationCategoryId(v)}>
+                        <SelectTrigger className="w-[200px]"><SelectValue placeholder="Categoria do módulo" /></SelectTrigger>
+                        <SelectContent>
+                          {(editingUser.assignedCategories || []).map(cid => (
+                            <SelectItem key={cid} value={cid}>{categories.find(c => c.id === cid)?.name || cid}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!moduleSearch.trim() || ((editingUser.assignedCategories || []).length === 0)}
+                        onClick={async () => {
+                          const targetCat = moduleCreationCategoryId || (editingUser.assignedCategories || [])[0];
+                          if (!targetCat) return;
+                          const exists = (modulesByCategory[targetCat] || []).some(m => String(m.title).toLowerCase() === moduleSearch.trim().toLowerCase());
+                          if (exists) return;
+                          const created = await addModule({ categoryId: targetCat, parentId: null, title: moduleSearch.trim(), description: '', order: (modulesByCategory[targetCat]?.length || 0) });
+                          setModulesByCategory({ ...modulesByCategory, [targetCat]: [...(modulesByCategory[targetCat] || []), created] });
+                          setEditingUser({ ...editingUser, assignedModules: [ ...(editingUser.assignedModules || []), created.id ] });
+                          setModuleSearch('');
+                        }}
+                      >
+                        <Network className="h-4 w-4 mr-1" /> Criar módulo
+                      </Button>
+                    </div>
+                  </div>
+                  {(editingUser.assignedCategories || []).length === 0 ? (
+                    <div className="text-sm text-muted-foreground">Selecione ao menos uma categoria para listar módulos.</div>
+                  ) : (
+                    <ScrollArea className="h-[220px] w-full border rounded-md p-4">
+                      <div className="space-y-4">
+                        {(editingUser.assignedCategories || []).map(cid => {
+                          const cat = categories.find(c => c.id === cid);
+                          const all = (modulesByCategory[cid] || []) as Array<{ id: string; title: string; parentId?: string | null; order?: number }>;
+                          const filtered = all.filter(m => String(m.title || '').toLowerCase().includes(moduleSearch.toLowerCase()));
+                          const roots = filtered.filter(m => !m.parentId).sort((a, b) => (Number((a as any).order || 0) - Number((b as any).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                          const childrenOf = (id: string) => filtered.filter(m => m.parentId === id).sort((a, b) => (Number((a as any).order || 0) - Number((b as any).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                          return (
+                            <div key={cid}>
+                              <div className="text-xs font-medium text-muted-foreground mb-1">{cat?.name || cid}</div>
+                              {roots.length === 0 && (
+                                <div className="text-xs text-muted-foreground">Nenhum módulo nesta categoria.</div>
+                              )}
+                              {roots.map(root => (
+                                <div key={root.id} className="space-y-2">
+                                  <div className="flex items-start space-x-2">
+                                    <Checkbox
+                                      id={`edit-mod-${root.id}`}
+                                      checked={(editingUser.assignedModules || []).includes(root.id)}
+                                      onCheckedChange={(checked) => {
+                                        const current = editingUser.assignedModules || [];
+                                        if (checked) {
+                                          setEditingUser({ ...editingUser, assignedModules: [...current, root.id] });
+                                        } else {
+                                          setEditingUser({ ...editingUser, assignedModules: current.filter(id => id !== root.id) });
+                                        }
+                                      }}
+                                    />
+                                    <label htmlFor={`edit-mod-${root.id}`} className="text-sm cursor-pointer">{root.title}</label>
+                                  </div>
+                                  {childrenOf(root.id).map(child => (
+                                    <div key={child.id} className="flex items-start space-x-2 ml-6">
+                                      <Checkbox
+                                        id={`edit-mod-${child.id}`}
+                                        checked={(editingUser.assignedModules || []).includes(child.id)}
+                                        onCheckedChange={(checked) => {
+                                          const current = editingUser.assignedModules || [];
+                                          if (checked) {
+                                            setEditingUser({ ...editingUser, assignedModules: [...current, child.id] });
+                                          } else {
+                                            setEditingUser({ ...editingUser, assignedModules: current.filter(id => id !== child.id) });
+                                          }
+                                        }}
+                                      />
+                                      <label htmlFor={`edit-mod-${child.id}`} className="text-sm cursor-pointer">{child.title}</label>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => { window.location.href = '/admin/taxonomia'; }}>Gerenciar taxonomia</Button>
+                    <Button variant="ghost" size="sm" onClick={() => { window.location.href = '/admin/taxonomia'; }}>Abrir primeira categoria</Button>
+                  </div>
                 </div>
               </div>
             )}

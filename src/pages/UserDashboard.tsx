@@ -11,47 +11,35 @@ import { getCategories, getVideos, getViewHistory, getWelcomeVideo, getModules }
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import SupportFilesList from '@/components/SupportFilesList';
+import VideoCard from '@/components/VideoCard';
+import ModuleBadge from '@/components/ModuleBadge';
+import { useDashboardData } from '@/hooks/useDashboardData';
+import { useFavorites } from '@/hooks/useFavorites';
 
 export default function UserDashboard() {
-  const user = getCurrentUser();
+  const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('user');
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [categories, setCategories] = useState<any[]>([]);
-  const [videos, setVideos] = useState<any[]>([]);
-  const [viewHistory, setViewHistory] = useState<any[]>([]);
-  const [modulesByCategory, setModulesByCategory] = useState<Record<string, any[]>>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [welcomeVideo, setWelcomeVideoState] = useState<any | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'inProgress'>('all');
   const [minDurationMin, setMinDurationMin] = useState<number>(0);
   const [orderBy, setOrderBy] = useState<'recent' | 'oldest' | 'title'>('recent');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [moduleQuery, setModuleQuery] = useState('');
+  const { favoriteIds, isFavorite, toggleFavorite } = useFavorites();
+  const [visibleCount, setVisibleCount] = useState(16);
 
   useEffect(() => {
-    (async () => {
-      setIsLoading(true);
-      const [c, v, vh, wv] = await Promise.all([
-        getCategories(),
-        getVideos(),
-        getViewHistory(user?.id),
-        getWelcomeVideo('user'),
-      ]);
-      setCategories(c);
-      setVideos(v);
-      setViewHistory(vh);
-      setWelcomeVideoState(wv);
-      const modMap: Record<string, any[]> = {};
-      for (const cat of c) {
-        const mods = await getModules(cat.id);
-        modMap[cat.id] = mods;
-      }
-      setModulesByCategory(modMap);
-      setIsLoading(false);
-    })();
-  }, [user?.id]);
+    const handler = () => {
+      const atBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
+      if (atBottom) setVisibleCount(prev => Math.min(prev + 12, filteredVideos.length));
+    };
+    window.addEventListener('scroll', handler);
+    return () => window.removeEventListener('scroll', handler);
+  }, [filteredVideos.length]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery), 300);
@@ -65,6 +53,7 @@ export default function UserDashboard() {
       try {
         const f = JSON.parse(saved);
         setSelectedCategories(f.selectedCategories || []);
+        setSelectedModules(f.selectedModules || []);
         setStatusFilter(f.statusFilter || 'all');
         setMinDurationMin(f.minDurationMin || 0);
         setOrderBy(f.orderBy || 'recent');
@@ -72,17 +61,25 @@ export default function UserDashboard() {
     }
   }, []);
   useEffect(() => {
-    localStorage.setItem('ud_filters', JSON.stringify({ selectedCategories, statusFilter, minDurationMin, orderBy }));
-  }, [selectedCategories, statusFilter, minDurationMin, orderBy]);
+    localStorage.setItem('ud_filters', JSON.stringify({ selectedCategories, selectedModules, statusFilter, minDurationMin, orderBy }));
+  }, [selectedCategories, selectedModules, statusFilter, minDurationMin, orderBy]);
   
-  // Restringir conteúdo às categorias do usuário (exceto admin)
-  const allowedCategoryIds = user?.role === 'admin' ? null : new Set<string>(user?.assignedCategories || []);
-  const visibleVideos = allowedCategoryIds
-    ? videos.filter(v => allowedCategoryIds.has((v.categoryId || v.category_id) as string))
-    : videos;
-  const visibleCategories = allowedCategoryIds
-    ? categories.filter(c => allowedCategoryIds.has(c.id))
-    : categories;
+  // Restringir conteúdo às categorias/módulos do usuário (exceto admin)
+  const isAdmin = user?.role === 'admin';
+  const allowedCategoryIds = isAdmin ? null : new Set<string>(user?.assignedCategories || []);
+  const allowedModuleIds = isAdmin ? null : new Set<string>(user?.assignedModules || []);
+  const visibleVideos = isAdmin
+    ? videos
+    : videos.filter(v => {
+        const categoryIds: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
+        const moduleId: string | undefined = (v as any).moduleId || (v as any).module_id;
+        const inAllowedCategories = categoryIds.some(id => (allowedCategoryIds as Set<string>).has(id));
+        const inAllowedModules = moduleId ? (allowedModuleIds as Set<string>).has(moduleId) : false;
+        return inAllowedCategories || inAllowedModules;
+      });
+  const visibleCategories = isAdmin
+    ? categories
+    : categories.filter(c => (allowedCategoryIds as Set<string>).has(c.id));
 
   // Filtrar vídeos com base na busca
   const filteredVideos = useMemo(() => {
@@ -95,6 +92,13 @@ export default function UserDashboard() {
       return list.filter(v => {
         const ids: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
         return selectedCategories.some(id => ids.includes(id));
+      });
+    };
+    const byModules = (list: any[]) => {
+      if (selectedModules.length === 0) return list;
+      return list.filter(v => {
+        const mid: string | undefined = (v as any).moduleId || (v as any).module_id;
+        return mid ? selectedModules.includes(mid) : false;
       });
     };
     const byStatus = (list: any[]) => {
@@ -115,8 +119,8 @@ export default function UserDashboard() {
       }
       return arr.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
     };
-    return order(byMinDuration(byStatus(byCats(byQuery(visibleVideos)))));
-  }, [visibleVideos, debouncedQuery, selectedCategories, statusFilter, minDurationMin, orderBy, viewHistory]);
+    return order(byMinDuration(byStatus(byModules(byCats(byQuery(visibleVideos))))));
+  }, [visibleVideos, debouncedQuery, selectedCategories, selectedModules, statusFilter, minDurationMin, orderBy, viewHistory]);
 
   const highlight = (text: string) => {
     if (!debouncedQuery) return text;
@@ -374,9 +378,54 @@ export default function UserDashboard() {
                 </select>
               </label>
               <span className="ml-auto">{filteredVideos.length} vídeos</span>
-              {(selectedCategories.length > 0 || statusFilter !== 'all' || minDurationMin > 0) && (
-                <button className="underline" onClick={() => { setSelectedCategories([]); setStatusFilter('all'); setMinDurationMin(0); setOrderBy('recent'); }}>limpar filtros</button>
+              {(selectedCategories.length > 0 || selectedModules.length > 0 || statusFilter !== 'all' || minDurationMin > 0) && (
+                <button className="underline" onClick={() => { setSelectedCategories([]); setSelectedModules([]); setStatusFilter('all'); setMinDurationMin(0); setOrderBy('recent'); setModuleQuery(''); }}>limpar filtros</button>
               )}
+            </div>
+
+            {/* Filtro por Módulos/Submódulos */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-foreground">Módulos</span>
+                <Input placeholder="Buscar módulos..." className="max-w-xs" value={moduleQuery} onChange={(e) => setModuleQuery(e.target.value)} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(() => {
+                  // Agregar módulos das categorias visíveis
+                  const catIds = visibleCategories.map((c: any) => c.id);
+                  const allMods = catIds.flatMap((cid: string) => (modulesByCategory[cid] || []) as Array<{ id: string; title: string; parentId?: string | null }>);
+                  // Construir mapa para labels Parent > Child
+                  const byId = new Map(allMods.map(m => [m.id, m] as const));
+                  const toLabel = (m: any) => {
+                    if (m.parentId) {
+                      const parent = byId.get(m.parentId);
+                      return parent ? `${parent.title} > ${m.title}` : m.title;
+                    }
+                    return m.title;
+                  };
+                  const unique = new Map<string, any>();
+                  for (const m of allMods) unique.set(m.id, m);
+                  return Array.from(unique.values())
+                    .filter(m => toLabel(m).toLowerCase().includes(moduleQuery.toLowerCase()))
+                    .sort((a, b) => String(toLabel(a)).localeCompare(String(toLabel(b))))
+                    .map((m: any) => {
+                      const active = selectedModules.includes(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => setSelectedModules(prev => active ? prev.filter(id => id !== m.id) : [...prev, m.id])}
+                          className={`px-3 py-1 rounded-full text-xs border ${active ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-foreground border-border'}`}
+                          title={toLabel(m)}
+                        >
+                          {toLabel(m)}
+                        </button>
+                      );
+                    });
+                })()}
+                {visibleCategories.length === 0 && (
+                  <span className="text-xs text-muted-foreground">Nenhuma categoria visível</span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -428,146 +477,30 @@ export default function UserDashboard() {
                     <p className="text-muted-foreground">Nenhum vídeo encontrado.</p>
                   </CardContent>
                 </Card>
-              ) : filteredVideos.map(video => {
+              ) : filteredVideos.slice(0, visibleCount).map(video => {
                 const history = viewHistory.find(h => h.videoId === video.id);
                 const progressPercentage = history ? (() => {
                   const total = Number(video.duration) || 0;
                   const raw = total > 0 ? (history.watchedDuration / total) * 100 : (history.completed ? 100 : 0);
                   return Math.max(0, Math.min(100, raw));
                 })() : 0;
-                const moduleTitle = (() => {
-                  const catId = (video as any).categoryId || (video as any).category_id;
-                  const list = modulesByCategory[catId] || [];
-                  const mid = (video as any).moduleId || (video as any).module_id;
-                  const mod = list.find((m: any) => m.id === mid);
-                  return mod?.title as string | undefined;
-                })();
+                const uploadedAt = new Date(video.uploadedAt || (video as any).created_at || 0);
+                const isNew = (Date.now() - uploadedAt.getTime()) < (7 * 24 * 60 * 60 * 1000);
 
-                return viewMode === 'grid' ? (
-                  <Card 
-                    key={video.id} 
-                    className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => handleVideoClick(video.id)}
-                  >
-                    <div className="aspect-video relative">
-                      {video.thumbnail ? (
-                        <img 
-                          src={video.thumbnail} 
-                          alt={video.title}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                          <Play className="h-12 w-12 text-primary/50" />
-                        </div>
-                      )}
-                      {history?.completed && (
-                        <div className="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full">
-                          <CheckCircle className="h-4 w-4" />
-                        </div>
-                      )}
-                      <Button 
-                        size="icon" 
-                        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary/90 hover:bg-primary opacity-100"
-                        onClick={(e) => { e.stopPropagation(); handleVideoClick(video.id); }}
-                      >
-                        <Play className="h-5 w-5" />
-                      </Button>
-                      {progressPercentage > 0 && progressPercentage < 100 && (
-                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/50">
-                          <div 
-                            className="h-full bg-primary"
-                            style={{ width: `${progressPercentage}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base line-clamp-1">{highlight(video.title)}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                        {video.description}
-                      </p>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {formatDuration(video.duration)}
-                        </span>
-                        <div className="flex gap-1 flex-wrap justify-end">
-                          {(((video as any).category_ids) || [video.categoryId || (video as any).category_id]).filter(Boolean).slice(0,2).map((cid: string) => (
-                            <Badge key={cid} variant="secondary" className="text-xs">
-                              {categories.find(c => c.id === cid)?.name || 'Sem categoria'}
-                            </Badge>
-                          ))}
-                          {((video as any).category_ids?.length || 0) > 2 && (
-                            <Badge variant="outline" className="text-[10px]">+{(video as any).category_ids.length - 2}</Badge>
-                          )}
-                          {moduleTitle && (
-                            <Badge variant="outline" className="text-[10px]">{moduleTitle}</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card 
+                return (
+                  <VideoCard
                     key={video.id}
-                    className="hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => handleVideoClick(video.id)}
-                  >
-                    <CardContent className="p-4 flex gap-4">
-                      <div className="aspect-video w-48 relative flex-shrink-0">
-                        {video.thumbnail ? (
-                          <img 
-                            src={video.thumbnail} 
-                            alt={video.title}
-                            className="w-full h-full object-cover rounded-md"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center rounded-md">
-                            <Play className="h-8 w-8 text-primary/50" />
-                          </div>
-                        )}
-                        {history?.completed && (
-                          <div className="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full">
-                            <CheckCircle className="h-4 w-4" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <div>
-                          <h3 className="font-semibold text-lg">{video.title}</h3>
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {video.description}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            {formatDuration(video.duration)}
-                          </span>
-                          <div className="flex items-center gap-1 flex-wrap">
-                            <Badge variant="secondary">
-                              {categories.find(c => c.id === ((video as any).categoryId || (video as any).category_id))?.name}
-                            </Badge>
-                            {moduleTitle && (
-                              <Badge variant="outline" className="text-[10px]">{moduleTitle}</Badge>
-                            )}
-                          </div>
-                        </div>
-                        {progressPercentage > 0 && progressPercentage < 100 && (
-                          <div className="space-y-1">
-                            <Progress value={progressPercentage} className="h-1" />
-                            <p className="text-xs text-muted-foreground">
-                              {Math.round(progressPercentage)}% concluído
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+                    video={video}
+                    progressPercentage={progressPercentage}
+                    modulesByCategory={modulesByCategory}
+                    categories={categories}
+                    layout={viewMode}
+                    onClick={handleVideoClick}
+                    isFavorite={isFavorite(video.id)}
+                    onToggleFavorite={toggleFavorite}
+                    isNew={isNew}
+                    onResume={handleVideoClick}
+                  />
                 );
               })}
             </div>

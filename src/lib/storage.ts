@@ -47,6 +47,7 @@ const mapUser = (row: any): User => ({
   email: row.email,
   role: (row.role as 'admin' | 'user' | 'cliente') || 'user',
   assignedCategories: row.assigned_categories || [],
+  assignedModules: row.assigned_modules || [],
   createdAt: row.created_at ? new Date(row.created_at) : new Date(),
   isActive: row.is_active,
 });
@@ -122,6 +123,7 @@ export const addUser = async (user: User, password?: string): Promise<void> => {
     name: user.name,
     role: user.role,
     assigned_categories: user.assignedCategories,
+    assigned_modules: user.assignedModules || [],
     is_active: user.isActive !== false,
     password: password || undefined,
   });
@@ -133,6 +135,7 @@ export const updateUser = async (updatedUser: User): Promise<void> => {
     name: updatedUser.name,
     role: updatedUser.role,
     assigned_categories: updatedUser.assignedCategories,
+    assigned_modules: updatedUser.assignedModules || [],
     is_active: updatedUser.isActive !== false,
   });
 };

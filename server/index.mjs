@@ -29,6 +29,13 @@ async function ensureSettingsTable() {
     updated_at timestamptz DEFAULT now()
   )`);
 }
+// ensure profiles has assigned_modules column
+async function ensureProfilesAssignedModules() {
+  try {
+    await pool.query("ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS assigned_modules uuid[] DEFAULT '{}' ");
+  } catch {}
+}
+ensureProfilesAssignedModules().catch(() => {});
 
 async function setSetting(key, value) {
   await ensureSettingsTable();
@@ -424,6 +431,7 @@ app.delete('/api/videos/:id', async (req, res) => {
 // Profiles (Users)
 app.get('/api/profiles', async (_req, res) => {
   try {
+    await ensureProfilesAssignedModules();
     const { rows } = await pool.query('SELECT * FROM public.profiles ORDER BY name');
     res.json(rows);
   } catch (e) {
@@ -435,14 +443,15 @@ app.get('/api/profiles', async (_req, res) => {
 
 app.post('/api/profiles', async (req, res) => {
   try {
-    const { email, name, role = 'user', assigned_categories = [], is_active = true, password } = req.body || {};
+    await ensureProfilesAssignedModules();
+    const { email, name, role = 'user', assigned_categories = [], assigned_modules = [], is_active = true, password } = req.body || {};
     let password_hash = null;
     if (password) {
       password_hash = await bcrypt.hash(password, 10);
     }
     const { rows } = await pool.query(
-      'INSERT INTO public.profiles (email, name, role, assigned_categories, is_active, password_hash) VALUES ($1,$2,$3,$4::uuid[],$5,$6) RETURNING *',
-      [email, name, role, assigned_categories, is_active, password_hash]
+      'INSERT INTO public.profiles (email, name, role, assigned_categories, assigned_modules, is_active, password_hash) VALUES ($1,$2,$3,$4::uuid[],$5::uuid[],$6,$7) RETURNING *',
+      [email, name, role, assigned_categories, assigned_modules, is_active, password_hash]
     );
     res.status(201).json(rows[0]);
   } catch (e) {
@@ -453,13 +462,14 @@ app.post('/api/profiles', async (req, res) => {
 app.put('/api/profiles/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const fields = ['email','name','role','assigned_categories','is_active'];
+    await ensureProfilesAssignedModules();
+    const fields = ['email','name','role','assigned_categories','assigned_modules','is_active'];
     const updates = [];
     const values = [];
     let idx = 1;
     for (const f of fields) {
       if (req.body[f] !== undefined) {
-        if (f === 'assigned_categories') {
+        if (f === 'assigned_categories' || f === 'assigned_modules') {
           updates.push(`"${f}" = $${idx++}::uuid[]`);
         } else {
           updates.push(`"${f}" = $${idx++}`);

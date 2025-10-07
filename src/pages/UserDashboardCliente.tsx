@@ -8,37 +8,47 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Play, Clock, CheckCircle, BookOpen, TrendingUp } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
-import { getCategories, getVideos, getViewHistory, getWelcomeVideo } from '@/lib/storage';
+import { getCategories, getVideos, getViewHistory, getWelcomeVideo, getModules } from '@/lib/storage';
+import VideoCard from '@/components/VideoCard';
+import ModuleBadge from '@/components/ModuleBadge';
+import { useDashboardData } from '@/hooks/useDashboardData';
 import { useNavigate } from 'react-router-dom';
+import { useFavorites } from '@/hooks/useFavorites';
 
 export default function UserDashboardCliente() {
-  const user = getCurrentUser();
+  const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('cliente');
   const navigate = useNavigate();
-  const [categories, setCategories] = useState<any[]>([]);
-  const [videos, setVideos] = useState<any[]>([]);
-  const [viewHistory, setViewHistory] = useState<any[]>([]);
-  const [welcomeVideo, setWelcomeVideoState] = useState<any | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [modulesByCategoryLocal, setModulesByCategoryLocal] = useState<Record<string, any[]>>({});
+  const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [moduleQuery, setModuleQuery] = useState('');
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const [visibleCount, setVisibleCount] = useState(16);
 
   useEffect(() => {
-    (async () => {
-      setIsLoading(true);
-      const [c, v, vh, wv] = await Promise.all([
-        getCategories(),
-        getVideos(),
-        getViewHistory(user?.id),
-        getWelcomeVideo('cliente'),
-      ]);
-      setCategories(c);
-      setVideos(v);
-      setViewHistory(vh);
-      setWelcomeVideoState(wv);
-      setIsLoading(false);
-    })();
-  }, [user?.id]);
+    // manter compatibilidade local
+    setModulesByCategoryLocal(modulesByCategory);
+  }, [modulesByCategory]);
 
-  const allowedCategoryIds = new Set<string>(user?.assignedCategories || []);
-  const visibleVideos = videos.filter(v => allowedCategoryIds.has((v.categoryId || (v as any).category_id) as string));
+  // Permissões por categorias OU módulos
+  const allowedCategories = new Set<string>(user?.assignedCategories || []);
+  const allowedModules = new Set<string>(user?.assignedModules || []);
+  const visibleVideos = videos.filter(v => {
+    const categoryIds: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
+    const moduleId: string | undefined = (v as any).moduleId || (v as any).module_id;
+    const byCategory = categoryIds.some(id => allowedCategories.has(id));
+    const byModule = moduleId ? allowedModules.has(moduleId) : false;
+    const byModuleFilter = selectedModules.length === 0 ? true : (moduleId ? selectedModules.includes(moduleId) : false);
+    return (byCategory || byModule) && byModuleFilter;
+  });
+
+  useEffect(() => {
+    const handler = () => {
+      const atBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
+      if (atBottom) setVisibleCount(prev => Math.min(prev + 12, visibleVideos.length));
+    };
+    window.addEventListener('scroll', handler);
+    return () => window.removeEventListener('scroll', handler);
+  }, [visibleVideos.length]);
 
   const stats = {
     totalVideos: visibleVideos.length,
@@ -89,6 +99,42 @@ export default function UserDashboardCliente() {
         )}
 
         {/* Cards */}
+        {/* Filtro por módulos/submódulos */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-foreground">Filtrar por módulos</span>
+            <input className="border rounded px-2 py-1 text-sm" placeholder="Buscar módulos..." value={moduleQuery} onChange={(e) => setModuleQuery(e.target.value)} />
+            {(selectedModules.length > 0) && (
+              <Button variant="outline" size="sm" onClick={() => { setSelectedModules([]); setModuleQuery(''); }}>Limpar</Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(() => {
+              const catIds = Array.from(allowedCategories);
+              const allMods = catIds.flatMap((cid: string) => (modulesByCategoryLocal[cid] || []) as Array<{ id: string; title: string; parentId?: string | null }>);
+              const byId = new Map(allMods.map(m => [m.id, m] as const));
+              const toLabel = (m: any) => m.parentId ? `${byId.get(m.parentId)?.title || ''} > ${m.title}` : m.title;
+              const unique = new Map<string, any>();
+              for (const m of allMods) unique.set(m.id, m);
+              return Array.from(unique.values())
+                .filter(m => toLabel(m).toLowerCase().includes(moduleQuery.toLowerCase()))
+                .sort((a, b) => String(toLabel(a)).localeCompare(String(toLabel(b))))
+                .map((m: any) => {
+                  const active = selectedModules.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => setSelectedModules(prev => active ? prev.filter(id => id !== m.id) : [...prev, m.id])}
+                      className={`px-3 py-1 rounded-full text-xs border ${active ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-foreground border-border'}`}
+                      title={toLabel(m)}
+                    >
+                      {toLabel(m)}
+                    </button>
+                  );
+                });
+            })()}
+          </div>
+        </div>
         <div className="grid gap-4 md:grid-cols-3">
           <Card><CardHeader className="pb-3"><div className="flex items-center justify-between"><CardTitle className="text-sm font-medium">Total de Vídeos</CardTitle><BookOpen className="h-4 w-4 text-muted-foreground" /></div></CardHeader><CardContent><div className="text-2xl font-bold">{stats.totalVideos}</div></CardContent></Card>
           <Card><CardHeader className="pb-3"><div className="flex items-center justify-between"><CardTitle className="text-sm font-medium">Concluídos</CardTitle><CheckCircle className="h-4 w-4 text-green-500" /></div></CardHeader><CardContent><div className="text-2xl font-bold">{stats.watchedVideos}</div></CardContent></Card>
@@ -120,6 +166,15 @@ export default function UserDashboardCliente() {
                     </div>
                     <div className="p-4 space-y-2">
                       <h3 className="font-semibold line-clamp-1">{video.title}</h3>
+                      {(() => {
+                        const catId = (video as any).categoryId || (video as any).category_id;
+                        const list = modulesByCategory[catId] || [];
+                        const mid = (video as any).moduleId || (video as any).module_id;
+                        const mod = list.find((m: any) => m.id === mid);
+                        return mod ? (
+                          <Badge variant="outline" className="w-fit text-[10px]">{mod.title}</Badge>
+                        ) : null;
+                      })()}
                       <Progress value={progress} className="h-1" />
                       <p className="text-xs text-muted-foreground">{Math.round(progress)}% concluído</p>
                     </div>
@@ -135,24 +190,30 @@ export default function UserDashboardCliente() {
           <CardHeader><CardTitle>Todos os Vídeos</CardTitle></CardHeader>
           <CardContent>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {visibleVideos.map(video => (
-                <Card key={video.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleVideoClick(video.id)}>
-                  <div className="aspect-video relative">
-                    {video.thumbnail ? (
-                      <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center"><Play className="h-12 w-12 text-primary/50" /></div>
-                    )}
-                  </div>
-                  <CardHeader className="pb-3"><CardTitle className="text-base line-clamp-1">{video.title}</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{formatDuration(video.duration)}</span>
-                      <Badge variant="secondary">{categories.find(c => c.id === (video.categoryId || (video as any).category_id))?.name}</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              {visibleVideos.slice(0, visibleCount).map(video => {
+                const history = viewHistory.find(h => h.videoId === video.id);
+                const progress = history ? (() => {
+                  const total = Number(video.duration) || 0;
+                  const raw = total > 0 ? (history.watchedDuration / total) * 100 : (history.completed ? 100 : 0);
+                  return Math.max(0, Math.min(100, raw));
+                })() : 0;
+                const uploadedAt = new Date((video as any).uploadedAt || (video as any).created_at || 0);
+                const isNew = (Date.now() - uploadedAt.getTime()) < (7 * 24 * 60 * 60 * 1000);
+                return (
+                  <VideoCard
+                    key={video.id}
+                    video={video}
+                    progressPercentage={progress}
+                    modulesByCategory={modulesByCategoryLocal}
+                    categories={categories}
+                    onClick={handleVideoClick}
+                    isFavorite={isFavorite(video.id)}
+                    onToggleFavorite={toggleFavorite}
+                    isNew={isNew}
+                    onResume={handleVideoClick}
+                  />
+                );
+              })}
             </div>
           </CardContent>
         </Card>

@@ -4,6 +4,7 @@ export interface User {
   email: string;
   role: 'admin' | 'user' | 'cliente';
   assignedCategories: string[];
+  assignedModules?: string[];
   createdAt: Date;
   isActive?: boolean;
 }

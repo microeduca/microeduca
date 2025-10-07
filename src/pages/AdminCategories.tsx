@@ -260,6 +260,12 @@ export default function AdminCategories() {
                             Editar
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            onClick={() => navigate(`/admin/modulos?categoryId=${category.id}`)}
+                          >
+                            <FolderTree className="mr-2 h-4 w-4" />
+                            Gerenciar módulos
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
                             onClick={() => handleDeleteCategory(category.id)}
                             className="text-destructive"
                           >

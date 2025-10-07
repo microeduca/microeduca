@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHistory, getProfiles } from '@/lib/supabase';
+import { getModules } from '@/lib/storage';
 import { uploadSupportFile } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import VimeoUpload from '@/components/admin/VimeoUpload';
@@ -42,6 +43,8 @@ interface AdminVideoRow {
   created_at?: string | Date;
   uploaded_by?: string;
   uploadedBy?: string;
+  module_id?: string;
+  moduleId?: string;
 }
 
 export default function AdminVideos() {
@@ -49,6 +52,7 @@ export default function AdminVideos() {
   const { toast } = useToast();
   const [videos, setVideos] = useState<AdminVideoRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [modulesByCategory, setModulesByCategory] = useState<Record<string, Array<{ id: string; title: string; parentId?: string | null }>>>({});
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isVimeoUploadOpen, setIsVimeoUploadOpen] = useState(false);
@@ -74,6 +78,7 @@ export default function AdminVideos() {
     description: '',
     videoUrl: '',
     categoryId: '',
+    moduleId: '',
     duration: 0,
     thumbnail: ''
   });
@@ -92,6 +97,13 @@ export default function AdminVideos() {
     ]);
     setVideos(videosData);
     setCategories(categoriesData);
+    // Carregar módulos por categoria
+    const modMap: Record<string, Array<{ id: string; title: string; parentId?: string | null }>> = {};
+    for (const c of categoriesData) {
+      const list = await getModules(c.id);
+      modMap[c.id] = list.map(m => ({ id: m.id, title: m.title, parentId: m.parentId ?? null }));
+    }
+    setModulesByCategory(modMap);
     const pmap: Record<string, string> = {};
     for (const p of profiles as Array<{ id?: string; name?: string; email?: string }> ) {
       if (p && p.id) pmap[p.id] = (p.name || p.email || '');
@@ -123,6 +135,7 @@ export default function AdminVideos() {
         video_url: newVideo.videoUrl,
         thumbnail: newVideo.thumbnail || undefined,
         category_id: newVideo.categoryId,
+        module_id: undefined,
         duration: newVideo.duration,
         uploaded_by: 'admin',
       });
@@ -134,6 +147,7 @@ export default function AdminVideos() {
         description: '',
         videoUrl: '',
         categoryId: '',
+        moduleId: '',
         duration: 0,
         thumbnail: ''
       });
@@ -171,6 +185,7 @@ export default function AdminVideos() {
         thumbnail: editingVideo.thumbnail,
         category_id: editingVideo.category_id || editingVideo.categoryId,
         category_ids: editingVideo.category_ids,
+        module_id: editingVideo.module_id || editingVideo.moduleId,
         duration: editingVideo.duration,
       });
       
@@ -679,6 +694,26 @@ export default function AdminVideos() {
                       </SelectContent>
                     </Select>
                   </div>
+                {newVideo.categoryId && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="module">Módulo/Submódulo</Label>
+                    <Select
+                      value={newVideo.moduleId}
+                      onValueChange={(value) => setNewVideo({ ...newVideo, moduleId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um módulo (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(modulesByCategory[newVideo.categoryId] || []).map(m => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                   <div className="grid gap-2">
                     <Label htmlFor="url">URL do Vídeo *</Label>
                     <Input
@@ -866,6 +901,24 @@ export default function AdminVideos() {
                     onChange={(e) => setEditingVideo({ ...editingVideo, duration: parseInt(e.target.value) || 0 })}
                   />
                 </div>
+                  <div className="grid gap-2">
+                    <Label>Módulo/Submódulo</Label>
+                    <Select
+                      value={editingVideo.module_id || editingVideo.moduleId || ''}
+                      onValueChange={(value) => setEditingVideo({ ...editingVideo, module_id: value, moduleId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um módulo (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(modulesByCategory[(editingVideo.category_id || editingVideo.categoryId || '')] || []).map(m => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 <div className="grid gap-2">
                   <Label>Thumbnail</Label>
                   <div className="flex items-center gap-2">

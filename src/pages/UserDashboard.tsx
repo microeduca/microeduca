@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Play, Clock, CheckCircle, BookOpen, TrendingUp, Grid, List, Search } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
-import { getCategories, getVideos, getViewHistory, getWelcomeVideo } from '@/lib/storage';
+import { getCategories, getVideos, getViewHistory, getWelcomeVideo, getModules } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import SupportFilesList from '@/components/SupportFilesList';
@@ -20,6 +20,7 @@ export default function UserDashboard() {
   const [categories, setCategories] = useState<any[]>([]);
   const [videos, setVideos] = useState<any[]>([]);
   const [viewHistory, setViewHistory] = useState<any[]>([]);
+  const [modulesByCategory, setModulesByCategory] = useState<Record<string, any[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [welcomeVideo, setWelcomeVideoState] = useState<any | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -42,6 +43,12 @@ export default function UserDashboard() {
       setVideos(v);
       setViewHistory(vh);
       setWelcomeVideoState(wv);
+      const modMap: Record<string, any[]> = {};
+      for (const cat of c) {
+        const mods = await getModules(cat.id);
+        modMap[cat.id] = mods;
+      }
+      setModulesByCategory(modMap);
       setIsLoading(false);
     })();
   }, [user?.id]);
@@ -289,6 +296,16 @@ export default function UserDashboard() {
                     </div>
                     <div className="p-4 space-y-2">
                       <h3 className="font-semibold line-clamp-1">{highlight(video.title)}</h3>
+                      {/* módulo/submódulo */}
+                      {(() => {
+                        const catId = (video as any).categoryId || (video as any).category_id;
+                        const list = modulesByCategory[catId] || [];
+                        const mid = (video as any).moduleId || (video as any).module_id;
+                        const mod = list.find((m: any) => m.id === mid);
+                        return mod ? (
+                          <Badge variant="outline" className="w-fit text-[10px]">{mod.title}</Badge>
+                        ) : null;
+                      })()}
                       <Progress value={progress} className="h-1" />
                       <p className="text-xs text-muted-foreground">
                         {Math.round(progress)}% concluído
@@ -418,6 +435,13 @@ export default function UserDashboard() {
                   const raw = total > 0 ? (history.watchedDuration / total) * 100 : (history.completed ? 100 : 0);
                   return Math.max(0, Math.min(100, raw));
                 })() : 0;
+                const moduleTitle = (() => {
+                  const catId = (video as any).categoryId || (video as any).category_id;
+                  const list = modulesByCategory[catId] || [];
+                  const mid = (video as any).moduleId || (video as any).module_id;
+                  const mod = list.find((m: any) => m.id === mid);
+                  return mod?.title as string | undefined;
+                })();
 
                 return viewMode === 'grid' ? (
                   <Card 
@@ -480,6 +504,9 @@ export default function UserDashboard() {
                           {((video as any).category_ids?.length || 0) > 2 && (
                             <Badge variant="outline" className="text-[10px]">+{(video as any).category_ids.length - 2}</Badge>
                           )}
+                          {moduleTitle && (
+                            <Badge variant="outline" className="text-[10px]">{moduleTitle}</Badge>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -521,9 +548,14 @@ export default function UserDashboard() {
                             <Clock className="h-3 w-3" />
                             {formatDuration(video.duration)}
                           </span>
-                          <Badge variant="secondary">
-                            {categories.find(c => c.id === video.categoryId)?.name}
-                          </Badge>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <Badge variant="secondary">
+                              {categories.find(c => c.id === ((video as any).categoryId || (video as any).category_id))?.name}
+                            </Badge>
+                            {moduleTitle && (
+                              <Badge variant="outline" className="text-[10px]">{moduleTitle}</Badge>
+                            )}
+                          </div>
                         </div>
                         {progressPercentage > 0 && progressPercentage < 100 && (
                           <div className="space-y-1">
@@ -548,65 +580,98 @@ export default function UserDashboard() {
                 const ids: string[] = ((v as unknown as { category_ids?: string[]; category_id?: string }).category_ids) || [v.categoryId || (v as unknown as { category_id?: string }).category_id].filter(Boolean) as string[];
                 return ids.includes(category.id);
               });
-              
               if (categoryVideos.length === 0) return null;
-              
+              const mods = (modulesByCategory[category.id] || []) as Array<{ id: string; title: string; parentId?: string | null; order: number }>;
               return (
                 <div key={category.id}>
                   <div className="mb-4">
                     <h2 className="text-xl font-poppins font-semibold">{category.name}</h2>
                     <p className="text-sm text-muted-foreground">{category.description}</p>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {categoryVideos.map(video => {
-                      const history = viewHistory.find(h => h.videoId === video.id);
-                      
+                  {/* Por módulo raiz */}
+                  {mods.filter(m => !m.parentId)
+                    .sort((a, b) => (a.order - b.order) || String(a.title).localeCompare(String(b.title)))
+                    .map(root => {
+                      const children = mods.filter(m => m.parentId === root.id).sort((a, b) => (a.order - b.order) || String(a.title).localeCompare(String(b.title)));
+                      const rootVideos = categoryVideos.filter(v => (v.moduleId || (v as any).module_id) === root.id);
+                      const childGroups = children.map(child => ({ child, vids: categoryVideos.filter(v => (v.moduleId || (v as any).module_id) === child.id) }));
+                      const hasAny = rootVideos.length > 0 || childGroups.some(g => g.vids.length > 0);
+                      if (!hasAny) return null;
                       return (
-                        <Card 
-                          key={video.id} 
-                          className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
-                          onClick={() => handleVideoClick(video.id)}
-                        >
-                          <div className="aspect-video relative">
-                            {video.thumbnail ? (
-                              <img 
-                                src={video.thumbnail} 
-                                alt={video.title}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                                <Play className="h-12 w-12 text-primary/50" />
-                              </div>
-                            )}
-                            {history?.completed && (
-                              <div className="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full">
-                                <CheckCircle className="h-4 w-4" />
-                              </div>
-                            )}
-                            <Button 
-                              size="icon" 
-                              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary/90 hover:bg-primary opacity-0 hover:opacity-100 transition-opacity"
-                              onClick={() => handleVideoClick(video.id)}
-                            >
-                              <Play className="h-5 w-5" />
-                            </Button>
-                          </div>
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-base line-clamp-1">{video.title}</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="flex items-center gap-1 text-muted-foreground">
-                                <Clock className="h-3 w-3" />
-                                {formatDuration(video.duration)}
-                              </span>
+                        <div key={root.id} className="mb-6">
+                          <h3 className="text-lg font-semibold mb-2">{root.title}</h3>
+                          {rootVideos.length > 0 && (
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-4">
+                              {rootVideos.map(video => (
+                                <Card key={video.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleVideoClick(video.id)}>
+                                  <div className="aspect-video relative">
+                                    {video.thumbnail ? (
+                                      <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                                        <Play className="h-12 w-12 text-primary/50" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <CardHeader className="pb-3">
+                                    <CardTitle className="text-base line-clamp-1">{video.title}</CardTitle>
+                                  </CardHeader>
+                                </Card>
+                              ))}
                             </div>
-                          </CardContent>
-                        </Card>
+                          )}
+                          {childGroups.map(({ child, vids }) => (
+                            vids.length === 0 ? null : (
+                              <div key={child.id} className="mb-4 ml-2">
+                                <h4 className="text-sm font-medium mb-2">{child.title}</h4>
+                                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                  {vids.map(video => (
+                                    <Card key={video.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleVideoClick(video.id)}>
+                                      <div className="aspect-video relative">
+                                        {video.thumbnail ? (
+                                          <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
+                                        ) : (
+                                          <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                                            <Play className="h-12 w-12 text-primary/50" />
+                                          </div>
+                                        )}
+                                      </div>
+                                      <CardHeader className="pb-3">
+                                        <CardTitle className="text-base line-clamp-1">{video.title}</CardTitle>
+                                      </CardHeader>
+                                    </Card>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          ))}
+                        </div>
                       );
                     })}
-                  </div>
+                  {/* Fallback: vídeos sem módulo */}
+                  {categoryVideos.filter(v => !(v.moduleId || (v as any).module_id)).length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-2">Outros</h3>
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {categoryVideos.filter(v => !(v.moduleId || (v as any).module_id)).map(video => (
+                          <Card key={video.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleVideoClick(video.id)}>
+                            <div className="aspect-video relative">
+                              {video.thumbnail ? (
+                                <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                                  <Play className="h-12 w-12 text-primary/50" />
+                                </div>
+                              )}
+                            </div>
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-base line-clamp-1">{video.title}</CardTitle>
+                            </CardHeader>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Clock, Play, Search, Calendar, Filter, BarChart3 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
-import { getViewHistory, getVideos, getCategories } from "@/lib/storage";
+import { getViewHistory, getVideos, getCategories, getModules } from "@/lib/storage";
 import { ViewHistory, Video, Category } from "@/types";
 
 export default function History() {
@@ -18,6 +18,7 @@ export default function History() {
   const [history, setHistory] = useState<ViewHistory[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [modulesByCategory, setModulesByCategory] = useState<Record<string, any[]>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -39,6 +40,12 @@ export default function History() {
         setHistory(userHistory);
         setVideos(videosList);
         setCategories(categoriesList);
+        const modMap: Record<string, any[]> = {};
+        for (const c of categoriesList) {
+          const mods = await getModules(c.id);
+          modMap[c.id] = mods;
+        }
+        setModulesByCategory(modMap);
       } catch (_e) {
         setHistory([]);
         setVideos([]);
@@ -359,6 +366,16 @@ export default function History() {
                               {category.name}
                             </Badge>
                           )}
+                          {/* módulo/submódulo */}
+                          {(() => {
+                            const catId = video.categoryId as string;
+                            const list = modulesByCategory[catId] || [];
+                            const mid = (video as any).moduleId || (video as any).module_id;
+                            const mod = list.find((m: any) => m.id === mid);
+                            return mod ? (
+                              <Badge variant="outline">{mod.title}</Badge>
+                            ) : null;
+                          })()}
                           {item.completed ? (
                             <Badge className="bg-green-500/10 text-green-600 hover:bg-green-500/20">
                               Concluído

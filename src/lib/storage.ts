@@ -1,4 +1,4 @@
-import { Comment, VideoProgress, ViewHistory, User, Category, Video } from '@/types';
+import { Comment, VideoProgress, ViewHistory, User, Category, Video, Module } from '@/types';
 import { api } from '@/lib/api';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -24,6 +24,7 @@ const mapVideo = (row: any): Video => ({
   uploadedAt: row.uploaded_at ? new Date(row.uploaded_at) : (row.uploadedAt ? new Date(row.uploadedAt) : new Date()),
   vimeoId: row.vimeo_id || row.vimeoId || undefined,
   vimeoEmbedUrl: row.vimeo_embed_url || row.vimeoEmbedUrl || undefined,
+  moduleId: row.module_id || row.moduleId || undefined,
 });
 
 const toDbVideo = (v: Video) => ({
@@ -37,6 +38,7 @@ const toDbVideo = (v: Video) => ({
   uploaded_by: v.uploadedBy,
   vimeo_id: v.vimeoId,
   vimeo_embed_url: v.vimeoEmbedUrl,
+  module_id: v.moduleId,
 });
 
 const mapUser = (row: any): User => ({
@@ -245,4 +247,47 @@ export const uploadSupportFile = async (file: File) => {
   });
   const res = await api.uploadFile({ filename: file.name, mimeType: file.type, dataBase64: b64 });
   return res as { id: string; url: string; filename: string; mimeType: string; size: number };
+};
+
+// Modules
+const mapModule = (row: any): Module => ({
+  id: row.id,
+  categoryId: row.category_id,
+  parentId: row.parent_id,
+  title: row.title,
+  description: row.description || undefined,
+  order: row.order || 0,
+  createdAt: row.created_at ? new Date(row.created_at) : undefined,
+  updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+});
+
+export const getModules = async (categoryId?: string): Promise<Module[]> => {
+  const rows = await api.getModules(categoryId);
+  return rows.map(mapModule);
+};
+
+export const addModule = async (module: Omit<Module, 'id' | 'createdAt' | 'updatedAt' | 'children'>): Promise<Module> => {
+  const row = await api.addModule({
+    category_id: module.categoryId,
+    parent_id: module.parentId || null,
+    title: module.title,
+    description: module.description,
+    order: module.order,
+  });
+  return mapModule(row);
+};
+
+export const updateModule = async (id: string, updates: Partial<Omit<Module, 'id' | 'createdAt' | 'updatedAt' | 'children'>>): Promise<Module> => {
+  const row = await api.updateModule(id, {
+    category_id: updates.categoryId,
+    parent_id: updates.parentId,
+    title: updates.title,
+    description: updates.description,
+    order: updates.order,
+  });
+  return mapModule(row);
+};
+
+export const deleteModule = async (id: string): Promise<void> => {
+  await api.deleteModule(id);
 };

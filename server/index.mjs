@@ -237,6 +237,78 @@ app.delete('/api/categories/:id', async (req, res) => {
   }
 });
 
+// Modules (hierárquico: category_id, parent_id)
+app.get('/api/modules', async (req, res) => {
+  try {
+    const { categoryId } = req.query;
+    const params = [];
+    let sql = 'SELECT * FROM public.modules';
+    if (categoryId) {
+      sql += ' WHERE category_id = $1';
+      params.push(categoryId);
+    }
+    sql += ' ORDER BY "order", title';
+    const { rows } = await pool.query(sql, params);
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/modules', async (req, res) => {
+  try {
+    const { category_id, parent_id, title, description, order } = req.body || {};
+    const { rows } = await pool.query(
+      `INSERT INTO public.modules (category_id, parent_id, title, description, "order")
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING *`,
+      [category_id, parent_id || null, title, description || null, Number.isFinite(order) ? order : 0]
+    );
+    res.status(201).json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/modules/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fields = ['category_id','parent_id','title','description','order'];
+    const updates = [];
+    const values = [];
+    let idx = 1;
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        updates.push(`"${f}" = $${idx++}`);
+        values.push(req.body[f]);
+      }
+    }
+    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    values.push(id);
+    const sql = `UPDATE public.modules SET ${updates.join(', ')}, updated_at = now() WHERE id = $${idx} RETURNING *`;
+    const { rows } = await pool.query(sql, values);
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/modules/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Política de deleção: proíbe deletar se houver filhos ou vídeos vinculados
+    const { rows: childRows } = await pool.query('SELECT 1 FROM public.modules WHERE parent_id = $1 LIMIT 1', [id]);
+    if (childRows[0]) return res.status(400).json({ error: 'Módulo possui submódulos' });
+    const { rows: videoRows } = await pool.query('SELECT 1 FROM public.videos WHERE module_id = $1 LIMIT 1', [id]);
+    if (videoRows[0]) return res.status(400).json({ error: 'Módulo possui vídeos vinculados' });
+    await pool.query('DELETE FROM public.modules WHERE id = $1', [id]);
+    res.status(204).end();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Videos
 app.get('/api/videos', async (_req, res) => {
   try {
@@ -256,6 +328,7 @@ app.post('/api/videos', async (req, res) => {
       thumbnail,
       category_id,
       category_ids,
+      module_id,
       duration,
       uploaded_by,
       vimeo_id,
@@ -266,10 +339,10 @@ app.post('/api/videos', async (req, res) => {
     try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
 
     const { rows } = await pool.query(
-      `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7, now(), $8, $9)
+      `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, module_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now(), $9, $10)
        RETURNING *`,
-      [title, description, video_url, thumbnail, category_id, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url]
+      [title, description, video_url, thumbnail, category_id, module_id || null, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url]
     );
     const inserted = rows[0];
     if (Array.isArray(category_ids) && category_ids.length > 0) {
@@ -288,7 +361,7 @@ app.put('/api/videos/:id', async (req, res) => {
     // ensure optional array column exists
     try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
 
-    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','duration','vimeo_id','vimeo_embed_url'];
+    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','module_id','duration','vimeo_id','vimeo_embed_url'];
     const updates = [];
     const values = [];
     let idx = 1;

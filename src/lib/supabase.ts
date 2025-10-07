@@ -44,6 +44,7 @@ export async function addVideo(video: {
 	video_url?: string;
 	thumbnail?: string;
 	category_id: string;
+  module_id?: string;
 	duration: number;
 	uploaded_by?: string;
 	vimeo_id?: string;
@@ -59,6 +60,7 @@ export async function updateVideo(id: string, updates: Partial<{
 	thumbnail?: string;
 	category_id: string;
   category_ids: string[];
+  module_id?: string;
 	duration: number;
 	vimeo_id?: string;
 	vimeo_embed_url?: string;

@@ -71,4 +71,10 @@ export const api = {
   // Video progress
   getVideoProgress: (userId: string, videoId: string) => request(`/video-progress?userId=${encodeURIComponent(userId)}&videoId=${encodeURIComponent(videoId)}`, { method: 'GET' }),
   saveVideoProgress: (payload: any) => request('/video-progress', { method: 'POST', body: JSON.stringify(payload) }),
+
+  // Modules
+  getModules: (categoryId?: string) => request(`/modules${categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : ''}`, { method: 'GET' }),
+  addModule: (payload: any) => request('/modules', { method: 'POST', body: JSON.stringify(payload) }),
+  updateModule: (id: string, payload: any) => request(`/modules/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteModule: (id: string) => request(`/modules/${id}`, { method: 'DELETE' }),
 };

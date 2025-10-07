@@ -81,22 +81,10 @@ export default function Layout({ children }: LayoutProps) {
                         Vídeos
                       </button>
                       <button
-                        onClick={() => navigate('/admin/categorias')}
-                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
-                      >
-                        Categorias
-                      </button>
-                      <button
                         onClick={() => navigate('/admin/taxonomia')}
                         className="text-muted-foreground hover:text-foreground transition-colors font-inter"
                       >
                         Categorias & Módulos
-                      </button>
-                      <button
-                        onClick={() => navigate('/admin/modulos')}
-                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
-                      >
-                        Módulos
                       </button>
                       <button
                         onClick={() => navigate('/admin/users')}

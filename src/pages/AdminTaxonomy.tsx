@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, FolderOpen, FolderTree, Pencil, Trash2, ArrowUp, ArrowDown, Search, GripVertical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getCategories } from '@/lib/supabase';
+import { getCategories, addCategory } from '@/lib/supabase';
 import { getModules, addModule, updateModule, deleteModule } from '@/lib/storage';
 
 export default function AdminTaxonomy() {
@@ -19,6 +19,8 @@ export default function AdminTaxonomy() {
   const [newModuleTitle, setNewModuleTitle] = useState('');
   const [editingId, setEditingId] = useState<string>('');
   const [editingTitle, setEditingTitle] = useState<string>('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatDesc, setNewCatDesc] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -51,6 +53,22 @@ export default function AdminTaxonomy() {
   const refreshModules = async () => {
     const list = await getModules(selectedCategoryId);
     setModules(list.map(m => ({ id: m.id, title: m.title, parentId: m.parentId ?? null, order: m.order })));
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCatName.trim()) return;
+    try {
+      const row = await addCategory({ name: newCatName.trim(), description: newCatDesc.trim() });
+      const cats = await getCategories();
+      setCategories(cats);
+      setNewCatName('');
+      setNewCatDesc('');
+      const newId = (row && (row as any).id) || cats[cats.length - 1]?.id || '';
+      setSelectedCategoryId(newId);
+      toast({ title: 'Categoria criada' });
+    } catch {
+      toast({ title: 'Erro ao criar categoria', variant: 'destructive' });
+    }
   };
 
   const handleAddRoot = async () => {
@@ -153,6 +171,20 @@ export default function AdminTaxonomy() {
               <CardDescription>Selecione a categoria para editar seus módulos</CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Criar categoria */}
+              <div className="mb-3 grid md:grid-cols-3 gap-2">
+                <div className="md:col-span-1">
+                  <Label>Nova categoria</Label>
+                  <Input value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="Nome" />
+                </div>
+                <div className="md:col-span-2">
+                  <Label className="invisible md:visible">Descrição</Label>
+                  <Input value={newCatDesc} onChange={(e) => setNewCatDesc(e.target.value)} placeholder="Descrição (opcional)" />
+                </div>
+                <div className="md:col-span-3 flex justify-end">
+                  <Button size="sm" onClick={handleAddCategory} disabled={!newCatName.trim()}><Plus className="h-4 w-4 mr-1" />Adicionar categoria</Button>
+                </div>
+              </div>
               <div className="mb-3 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input value={catSearch} onChange={(e) => setCatSearch(e.target.value)} placeholder="Buscar categoria..." className="pl-9" />

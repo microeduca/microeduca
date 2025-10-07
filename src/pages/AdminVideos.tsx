@@ -82,9 +82,13 @@ export default function AdminVideos() {
     videoUrl: '',
     categoryId: '',
     moduleId: '',
+    categoryIds: [] as string[],
     duration: 0,
     thumbnail: ''
   });
+  const [newCatSearch, setNewCatSearch] = useState('');
+  const [newModuleSearch, setNewModuleSearch] = useState('');
+  const [showNewAdvanced, setShowNewAdvanced] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -132,13 +136,15 @@ export default function AdminVideos() {
     }
 
     try {
+      const allCats = Array.from(new Set([newVideo.categoryId, ...newVideo.categoryIds].filter(Boolean)));
       await addVideo({
         title: newVideo.title,
         description: newVideo.description,
         video_url: newVideo.videoUrl,
         thumbnail: newVideo.thumbnail || undefined,
         category_id: newVideo.categoryId,
-        module_id: undefined,
+        category_ids: allCats,
+        module_id: newVideo.moduleId || undefined,
         duration: newVideo.duration,
         uploaded_by: 'admin',
       });
@@ -150,6 +156,7 @@ export default function AdminVideos() {
         description: '',
         videoUrl: '',
         categoryId: '',
+        categoryIds: [],
         moduleId: '',
         duration: 0,
         thumbnail: ''
@@ -685,16 +692,25 @@ export default function AdminVideos() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="category">Categoria *</Label>
+                    <Label htmlFor="category">Categoria Principal *</Label>
                     <Select
                       value={newVideo.categoryId}
-                      onValueChange={(value) => setNewVideo({ ...newVideo, categoryId: value })}
+                      onValueChange={(value) => setNewVideo({ ...newVideo, categoryId: value, moduleId: '' })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione uma categoria" />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories.map(category => (
+                        <div className="px-2 py-1">
+                          <Input
+                            placeholder="Buscar categoria..."
+                            value={newCatSearch}
+                            onChange={(e) => setNewCatSearch(e.target.value)}
+                          />
+                        </div>
+                        {categories
+                          .filter(c => (newCatSearch ? (c.name || '').toLowerCase().includes(newCatSearch.toLowerCase()) : true))
+                          .map(category => (
                           <SelectItem key={category.id} value={category.id}>
                             {category.name}
                           </SelectItem>
@@ -702,9 +718,104 @@ export default function AdminVideos() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Avançado</Label>
+                      <Button size="sm" variant="outline" onClick={() => setShowNewAdvanced(!showNewAdvanced)}>
+                        {showNewAdvanced ? 'Ocultar' : 'Mostrar'}
+                      </Button>
+                    </div>
+                    {showNewAdvanced && (
+                      <div className="space-y-2">
+                        <div>
+                          <Label>Categorias (múltiplas)</Label>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="w-full min-h-10 border rounded px-2 py-2 text-left flex items-center flex-wrap gap-1">
+                                {(() => {
+                                  const selectedIds: string[] = Array.from(new Set([newVideo.categoryId, ...newVideo.categoryIds].filter(Boolean)));
+                                  const selected = categories.filter(c => selectedIds.includes(c.id));
+                                  return selected.length > 0 ? (
+                                    selected.map(s => (
+                                      <span key={s.id} className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded">
+                                        {s.name}
+                                        {(s.id !== newVideo.categoryId) && (
+                                          <button
+                                            type="button"
+                                            className="opacity-70 hover:opacity-100"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              const current = selectedIds;
+                                              const next = current.filter(id => id !== s.id);
+                                              const ensured = newVideo.categoryId && !next.includes(newVideo.categoryId) ? [newVideo.categoryId, ...next] : next;
+                                              setNewVideo({ ...newVideo, categoryIds: ensured.filter(id => id !== newVideo.categoryId) });
+                                            }}
+                                          >×</button>
+                                        )}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-muted-foreground text-sm">Selecionar categorias...</span>
+                                  );
+                                })()}
+                                <span className="ml-auto text-muted-foreground text-sm">▼</span>
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-80">
+                              <div className="px-2 py-2">
+                                <Input
+                                  placeholder="Buscar categoria..."
+                                  value={newCatSearch}
+                                  onChange={(e) => setNewCatSearch(e.target.value)}
+                                />
+                              </div>
+                              <div className="max-h-72 overflow-auto">
+                                {categories
+                                  .filter((c) => (newCatSearch ? (c.name || '').toLowerCase().includes(newCatSearch.toLowerCase()) : true))
+                                  .map((category) => {
+                                    const list: string[] = Array.from(new Set([newVideo.categoryId, ...newVideo.categoryIds].filter(Boolean)));
+                                    const checked = list.includes(category.id);
+                                    const disabled = category.id === newVideo.categoryId; // principal sempre incluída
+                                    return (
+                                      <DropdownMenuItem
+                                        key={category.id}
+                                        onSelect={(e) => {
+                                          e.preventDefault();
+                                          const current = list;
+                                          let next: string[];
+                                          if (checked) {
+                                            if (disabled) return; // não remove a principal
+                                            next = current.filter((id) => id !== category.id);
+                                          } else {
+                                            next = Array.from(new Set([...current, category.id]));
+                                          }
+                                          const ensured = newVideo.categoryId && !next.includes(newVideo.categoryId) ? [newVideo.categoryId, ...next] : next;
+                                          setNewVideo({ ...newVideo, categoryIds: ensured.filter(id => id !== newVideo.categoryId) });
+                                        }}
+                                      >
+                                        <input type="checkbox" readOnly checked={checked} className="mr-2" />
+                                        {category.name}
+                                        {disabled && <span className="ml-auto text-xs text-muted-foreground">principal</span>}
+                                      </DropdownMenuItem>
+                                    );
+                                  })}
+                              </div>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <p className="text-xs text-muted-foreground mt-1">A categoria principal sempre ficará selecionada.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 {newVideo.categoryId && (
                   <div className="grid gap-2">
                     <Label htmlFor="module">Módulo/Submódulo</Label>
+                    <Input
+                      placeholder="Buscar módulo..."
+                      value={newModuleSearch}
+                      onChange={(e) => setNewModuleSearch(e.target.value)}
+                    />
                     <Select
                       value={newVideo.moduleId}
                       onValueChange={(value) => setNewVideo({ ...newVideo, moduleId: value })}
@@ -713,11 +824,26 @@ export default function AdminVideos() {
                         <SelectValue placeholder="Selecione um módulo (opcional)" />
                       </SelectTrigger>
                       <SelectContent>
-                        {(modulesByCategory[newVideo.categoryId] || []).map(m => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.title}
-                          </SelectItem>
-                        ))}
+                        {(() => {
+                          const all = (modulesByCategory[newVideo.categoryId] || []).filter((m) => (newModuleSearch ? (m.title || '').toLowerCase().includes(newModuleSearch.toLowerCase()) : true));
+                          const roots = all.filter(m => !m.parentId);
+                          return (
+                            <div className="max-h-64 overflow-auto">
+                              {roots.map(root => {
+                                const children = all.filter(m => m.parentId === root.id);
+                                return (
+                                  <div key={root.id}>
+                                    <div className="px-2 py-1 text-xs text-muted-foreground uppercase">{root.title}</div>
+                                    <SelectItem value={root.id}>{root.title}</SelectItem>
+                                    {children.map(child => (
+                                      <SelectItem key={child.id} value={child.id}><span className="pl-4 inline-block">↳ {child.title}</span></SelectItem>
+                                    ))}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </SelectContent>
                     </Select>
                   </div>
@@ -904,31 +1030,86 @@ export default function AdminVideos() {
                   {showAdvanced && (
                     <div className="space-y-2">
                       <div>
-                        <Label>Categorias Adicionais</Label>
-                        <div className="grid grid-cols-2 gap-2 mt-1">
-                          {categories
-                            .filter((c) => (editCategorySearch ? (c.name || '').toLowerCase().includes(editCategorySearch.toLowerCase()) : true))
-                            .map((category) => {
-                              const list = editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : []);
-                              const checked = list.includes(category.id);
-                              return (
-                                <label key={category.id} className="flex items-center gap-2 text-sm">
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={(e) => {
-                                      const current = editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : []);
-                                      const next = e.target.checked
-                                        ? Array.from(new Set([...current, category.id]))
-                                        : current.filter((id) => id !== category.id);
-                                      setEditingVideo({ ...editingVideo, category_ids: next, categoryId: next[0] || '' });
-                                    }}
-                                  />
-                                  {category.name}
-                                </label>
-                              );
-                            })}
-                        </div>
+                        <Label>Categorias (múltiplas)</Label>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="w-full min-h-10 border rounded px-2 py-2 text-left flex items-center flex-wrap gap-1">
+                              {(() => {
+                                const selectedIds: string[] = (editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : [])) as unknown as string[];
+                                const selected = categories.filter(c => selectedIds.includes(c.id));
+                                return selected.length > 0 ? (
+                                  selected.map(s => (
+                                    <span key={s.id} className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded">
+                                      {s.name}
+                                      {(s.id !== (editingVideo.category_id || editingVideo.categoryId)) && (
+                                        <button
+                                          type="button"
+                                          className="opacity-70 hover:opacity-100"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            const main = (editingVideo.category_id || editingVideo.categoryId) as string | undefined;
+                                            const current = selectedIds;
+                                            const next = current.filter(id => id !== s.id);
+                                            // garantir principal presente
+                                            const ensured = main && !next.includes(main) ? [main, ...next] : next;
+                                            setEditingVideo({ ...editingVideo, category_ids: ensured, categoryId: main || ensured[0] || '' });
+                                          }}
+                                        >×</button>
+                                      )}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">Selecionar categorias...</span>
+                                );
+                              })()}
+                              <span className="ml-auto text-muted-foreground text-sm">▼</span>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="w-80">
+                            <div className="px-2 py-2">
+                              <Input
+                                placeholder="Buscar categoria..."
+                                value={editCategorySearch}
+                                onChange={(e) => setEditCategorySearch(e.target.value)}
+                              />
+                            </div>
+                            <div className="max-h-72 overflow-auto">
+                              {categories
+                                .filter((c) => (editCategorySearch ? (c.name || '').toLowerCase().includes(editCategorySearch.toLowerCase()) : true))
+                                .map((category) => {
+                                  const list: string[] = (editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : [])) as unknown as string[];
+                                  const checked = list.includes(category.id);
+                                  const main = (editingVideo.category_id || editingVideo.categoryId) as string | undefined;
+                                  const disabled = category.id === main; // principal sempre incluída
+                                  return (
+                                    <DropdownMenuItem
+                                      key={category.id}
+                                      onSelect={(e) => {
+                                        e.preventDefault();
+                                        const current = list;
+                                        let next: string[];
+                                        if (checked) {
+                                          if (disabled) return; // não remove a principal
+                                          next = current.filter((id) => id !== category.id);
+                                        } else {
+                                          next = Array.from(new Set([...current, category.id]));
+                                        }
+                                        // garantir principal presente
+                                        const ensured = main && !next.includes(main) ? [main, ...next] : next;
+                                        setEditingVideo({ ...editingVideo, category_ids: ensured, categoryId: main || ensured[0] || '' });
+                                      }}
+                                    >
+                                      <input type="checkbox" readOnly checked={checked} className="mr-2" />
+                                      {category.name}
+                                      {disabled && <span className="ml-auto text-xs text-muted-foreground">principal</span>}
+                                    </DropdownMenuItem>
+                                  );
+                                })}
+                            </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <p className="text-xs text-muted-foreground mt-1">A categoria principal sempre ficará selecionada.</p>
                       </div>
                     </div>
                   )}

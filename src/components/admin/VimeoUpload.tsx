@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
@@ -26,9 +27,13 @@ export default function VimeoUpload() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState<string>('');
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [moduleId, setModuleId] = useState<string>('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [modules, setModules] = useState<Array<Pick<Module, 'id' | 'title' | 'parentId' | 'order'>>>([]);
+  const [catSearch, setCatSearch] = useState('');
+  const [moduleSearch, setModuleSearch] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null);
@@ -211,13 +216,14 @@ export default function VimeoUpload() {
 
       // Step 4: Save video in Railway
       const currentUser = getCurrentUser();
+      const allCats = Array.from(new Set([categoryId, ...categoryIds].filter(Boolean)));
       await api.addVideo({
         title,
         description,
         video_url: `https://vimeo.com/${videoId}`,
         thumbnail: thumbnailUrl,
         category_id: categoryId,
-        category_ids: [categoryId],
+        category_ids: allCats,
         module_id: moduleId || undefined,
         duration: durationSec || 0,
         uploaded_by: currentUser?.name || 'admin',
@@ -238,6 +244,7 @@ export default function VimeoUpload() {
       setTitle('');
       setDescription('');
       setCategoryId('');
+      setCategoryIds([]);
       setModuleId('');
       setModules([]);
       
@@ -318,13 +325,16 @@ export default function VimeoUpload() {
               </div>
 
               <div>
-                <Label>Categoria *</Label>
-                <Select value={categoryId} onValueChange={setCategoryId}>
+                <Label>Categoria Principal *</Label>
+                <Select value={categoryId} onValueChange={(v) => { setCategoryId(v); }}>
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Selecione a categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((c) => (
+                    <div className="px-2 py-1">
+                      <Input placeholder="Buscar categoria..." value={catSearch} onChange={(e) => setCatSearch(e.target.value)} />
+                    </div>
+                    {categories.filter(c => (catSearch ? (c.name || '').toLowerCase().includes(catSearch.toLowerCase()) : true)).map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -332,26 +342,113 @@ export default function VimeoUpload() {
               </div>
 
               <div>
+                <div className="flex items-center justify-between mt-2">
+                  <Label>Avançado</Label>
+                  <Button size="sm" variant="outline" onClick={() => setShowAdvanced(!showAdvanced)}>{showAdvanced ? 'Ocultar' : 'Mostrar'}</Button>
+                </div>
+                {showAdvanced && (
+                  <div className="space-y-2 mt-2">
+                    <Label>Categorias (múltiplas)</Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="w-full min-h-10 border rounded px-2 py-2 text-left flex items-center flex-wrap gap-1">
+                          {(() => {
+                            const selectedIds = Array.from(new Set([categoryId, ...categoryIds].filter(Boolean)));
+                            const selected = categories.filter(c => selectedIds.includes(c.id));
+                            return selected.length > 0 ? (
+                              selected.map(s => (
+                                <span key={s.id} className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded">
+                                  {s.name}
+                                  {(s.id !== categoryId) && (
+                                    <button
+                                      type="button"
+                                      className="opacity-70 hover:opacity-100"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const current = selectedIds;
+                                        const next = current.filter(id => id !== s.id);
+                                        const ensured = categoryId && !next.includes(categoryId) ? [categoryId, ...next] : next;
+                                        setCategoryIds(ensured.filter(id => id !== categoryId));
+                                      }}
+                                    >×</button>
+                                  )}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-muted-foreground text-sm">Selecionar categorias...</span>
+                            );
+                          })()}
+                          <span className="ml-auto text-muted-foreground text-sm">▼</span>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-80">
+                        <div className="px-2 py-2">
+                          <Input placeholder="Buscar categoria..." value={catSearch} onChange={(e) => setCatSearch(e.target.value)} />
+                        </div>
+                        <div className="max-h-72 overflow-auto">
+                          {categories
+                            .filter((c) => (catSearch ? (c.name || '').toLowerCase().includes(catSearch.toLowerCase()) : true))
+                            .map((category) => {
+                              const list = Array.from(new Set([categoryId, ...categoryIds].filter(Boolean)));
+                              const checked = list.includes(category.id);
+                              const disabled = category.id === categoryId;
+                              return (
+                                <DropdownMenuItem
+                                  key={category.id}
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    const current = list;
+                                    let next: string[];
+                                    if (checked) {
+                                      if (disabled) return;
+                                      next = current.filter((id) => id !== category.id);
+                                    } else {
+                                      next = Array.from(new Set([...current, category.id]));
+                                    }
+                                    const ensured = categoryId && !next.includes(categoryId) ? [categoryId, ...next] : next;
+                                    setCategoryIds(ensured.filter(id => id !== categoryId));
+                                  }}
+                                >
+                                  <input type="checkbox" readOnly checked={checked} className="mr-2" />
+                                  {category.name}
+                                  {disabled && <span className="ml-auto text-xs text-muted-foreground">principal</span>}
+                                </DropdownMenuItem>
+                              );
+                            })}
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <p className="text-xs text-muted-foreground mt-1">A categoria principal sempre ficará selecionada.</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
                 <Label>Módulo/Submódulo (opcional)</Label>
+                <Input placeholder="Buscar módulo..." value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)} />
                 <Select value={moduleId} onValueChange={setModuleId} disabled={!categoryId || modules.length === 0}>
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder={categoryId ? (modules.length ? 'Selecione o módulo' : 'Nenhum módulo nesta categoria') : 'Escolha uma categoria primeiro'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {modules
-                      .filter((m) => !m.parentId)
-                      .sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || String(a.title).localeCompare(String(b.title)))
-                      .map((root) => (
-                        <div key={root.id}>
-                          <SelectItem value={root.id}>{root.title}</SelectItem>
-                          {modules
-                            .filter((m) => m.parentId === root.id)
-                            .sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || String(a.title).localeCompare(String(b.title)))
-                            .map((child) => (
-                              <SelectItem key={child.id} value={child.id}>↳ {child.title}</SelectItem>
-                            ))}
+                    {(() => {
+                      const all = modules.filter(m => (moduleSearch ? (m.title || '').toLowerCase().includes(moduleSearch.toLowerCase()) : true));
+                      const roots = all.filter((m) => !m.parentId).sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || String(a.title).localeCompare(String(b.title)));
+                      return (
+                        <div className="max-h-64 overflow-auto">
+                          {roots.map((root) => (
+                            <div key={root.id}>
+                              <div className="px-2 py-1 text-xs text-muted-foreground uppercase">{root.title}</div>
+                              <SelectItem value={root.id}>{root.title}</SelectItem>
+                              {all.filter(m => m.parentId === root.id).map(child => (
+                                <SelectItem key={child.id} value={child.id}>↳ {child.title}</SelectItem>
+                              ))}
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      );
+                    })()}
                   </SelectContent>
                 </Select>
               </div>

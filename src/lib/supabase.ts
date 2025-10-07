@@ -44,6 +44,7 @@ export async function addVideo(video: {
 	video_url?: string;
 	thumbnail?: string;
 	category_id: string;
+  category_ids?: string[];
   module_id?: string;
 	duration: number;
 	uploaded_by?: string;

@@ -12,7 +12,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, Video, AlertCircle, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { useNavigate as useNavLink } from 'react-router-dom';
-import { getCategories, getModules } from '@/lib/storage';
+import { getCategories, getModules, addModule } from '@/lib/storage';
+import { addCategory } from '@/lib/supabase';
 import type { Category, Module } from '@/types';
 import { uploadToVimeo, getBackendUrl } from '@/lib/vimeo';
 import { getCurrentUser } from '@/lib/auth';
@@ -28,14 +29,13 @@ export default function VimeoUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState<string>('');
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [moduleId, setModuleId] = useState<string>('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [modules, setModules] = useState<Array<Pick<Module, 'id' | 'title' | 'parentId' | 'order'>>>([]);
   const [catSearch, setCatSearch] = useState('');
   const [moduleSearch, setModuleSearch] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null);
@@ -64,19 +64,25 @@ export default function VimeoUpload() {
     })();
   }, []);
 
-  // Carregar módulos quando a categoria mudar
+  // Carregar módulos quando as categorias mudarem (união)
   useEffect(() => {
     (async () => {
-      if (!categoryId) {
+      if (!categoryIds || categoryIds.length === 0) {
         setModules([]);
         setModuleId('');
         return;
       }
-      const mods = await getModules(categoryId);
-      setModules(mods.map(m => ({ id: m.id, title: m.title, parentId: m.parentId ?? null, order: m.order })));
+      const results: Array<Pick<Module, 'id' | 'title' | 'parentId' | 'order'>> = [];
+      for (const cid of categoryIds) {
+        const list = await getModules(cid);
+        for (const m of list) {
+          results.push({ id: m.id, title: m.title, parentId: m.parentId ?? null, order: m.order });
+        }
+      }
+      setModules(results);
       setModuleId('');
     })();
-  }, [categoryId]);
+  }, [categoryIds]);
 
   // Handle OAuth callback (mantido apenas para compatibilidade; ignora com token permanente)
   useEffect(() => {
@@ -157,10 +163,10 @@ export default function VimeoUpload() {
   };
 
   const handleUpload = async () => {
-    if (!file || !title || !categoryId) {
+    if (!file || !title || categoryIds.length === 0) {
       toast({
         title: 'Campos obrigatórios',
-        description: 'Por favor, selecione a categoria e informe o título/arquivo.',
+        description: 'Por favor, selecione ao menos uma categoria e informe o título/arquivo.',
         variant: 'destructive'
       });
       return;
@@ -218,13 +224,14 @@ export default function VimeoUpload() {
 
       // Step 4: Save video in Railway
       const currentUser = getCurrentUser();
-      const allCats = Array.from(new Set([categoryId, ...categoryIds].filter(Boolean)));
+      const mainId = categoryIds[0];
+      const allCats = Array.from(new Set(categoryIds));
       await api.addVideo({
         title,
         description,
         video_url: `https://vimeo.com/${videoId}`,
         thumbnail: thumbnailUrl,
-        category_id: categoryId,
+        category_id: mainId,
         category_ids: allCats,
         module_id: moduleId || undefined,
         duration: durationSec || 0,
@@ -245,7 +252,6 @@ export default function VimeoUpload() {
       setFile(null);
       setTitle('');
       setDescription('');
-      setCategoryId('');
       setCategoryIds([]);
       setModuleId('');
       setModules([]);
@@ -326,61 +332,31 @@ export default function VimeoUpload() {
                 />
               </div>
 
-              <div>
-                <Label>Categoria Principal *</Label>
-                <Select value={categoryId} onValueChange={(v) => { setCategoryId(v); }}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Selecione a categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <div className="px-2 py-1">
-                      <Input placeholder="Buscar categoria..." value={catSearch} onChange={(e) => setCatSearch(e.target.value)} />
-                    </div>
-                    {categories.filter(c => (catSearch ? (c.name || '').toLowerCase().includes(catSearch.toLowerCase()) : true)).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => nav('/admin/taxonomia')}>Gerenciar categorias/módulos</Button>
-                {categoryId && (
-                  <Button size="sm" variant="outline" onClick={() => nav(`/admin/taxonomia?categoryId=${categoryId}`)}>Abrir categoria atual</Button>
-                )}
-              </div>
+              {/* Removido select de categoria principal; multisseleção abaixo substitui */}
 
               <div>
-                <div className="flex items-center justify-between mt-2">
-                  <Label>Avançado</Label>
-                  <Button size="sm" variant="outline" onClick={() => setShowAdvanced(!showAdvanced)}>{showAdvanced ? 'Ocultar' : 'Mostrar'}</Button>
-                </div>
-                {showAdvanced && (
-                  <div className="space-y-2 mt-2">
+                <div className="space-y-2 mt-2">
                     <Label>Categorias (múltiplas)</Label>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button className="w-full min-h-10 border rounded px-2 py-2 text-left flex items-center flex-wrap gap-1">
                           {(() => {
-                            const selectedIds = Array.from(new Set([categoryId, ...categoryIds].filter(Boolean)));
-                            const selected = categories.filter(c => selectedIds.includes(c.id));
+                            const selected = categories.filter(c => categoryIds.includes(c.id));
                             return selected.length > 0 ? (
                               selected.map(s => (
                                 <span key={s.id} className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded">
                                   {s.name}
-                                  {(s.id !== categoryId) && (
+                                  {
                                     <button
                                       type="button"
                                       className="opacity-70 hover:opacity-100"
                                       onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        const current = selectedIds;
-                                        const next = current.filter(id => id !== s.id);
-                                        const ensured = categoryId && !next.includes(categoryId) ? [categoryId, ...next] : next;
-                                        setCategoryIds(ensured.filter(id => id !== categoryId));
+                                        setCategoryIds(prev => prev.filter(id => id !== s.id));
                                       }}
                                     >×</button>
-                                  )}
+                                  }
                                 </span>
                               ))
                             ) : (
@@ -398,46 +374,32 @@ export default function VimeoUpload() {
                           {categories
                             .filter((c) => (catSearch ? (c.name || '').toLowerCase().includes(catSearch.toLowerCase()) : true))
                             .map((category) => {
-                              const list = Array.from(new Set([categoryId, ...categoryIds].filter(Boolean)));
-                              const checked = list.includes(category.id);
-                              const disabled = category.id === categoryId;
+                              const checked = categoryIds.includes(category.id);
                               return (
                                 <DropdownMenuItem
                                   key={category.id}
                                   onSelect={(e) => {
                                     e.preventDefault();
-                                    const current = list;
-                                    let next: string[];
-                                    if (checked) {
-                                      if (disabled) return;
-                                      next = current.filter((id) => id !== category.id);
-                                    } else {
-                                      next = Array.from(new Set([...current, category.id]));
-                                    }
-                                    const ensured = categoryId && !next.includes(categoryId) ? [categoryId, ...next] : next;
-                                    setCategoryIds(ensured.filter(id => id !== categoryId));
+                                    setCategoryIds(prev => checked ? prev.filter(id => id !== category.id) : Array.from(new Set([...prev, category.id])));
                                   }}
                                 >
                                   <input type="checkbox" readOnly checked={checked} className="mr-2" />
                                   {category.name}
-                                  {disabled && <span className="ml-auto text-xs text-muted-foreground">principal</span>}
                                 </DropdownMenuItem>
                               );
                             })}
                         </div>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <p className="text-xs text-muted-foreground mt-1">A categoria principal sempre ficará selecionada.</p>
-                  </div>
-                )}
+                </div>
               </div>
 
               <div>
                 <Label>Módulo/Submódulo (opcional)</Label>
                 <Input placeholder="Buscar módulo..." value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)} />
-                <Select value={moduleId} onValueChange={setModuleId} disabled={!categoryId || modules.length === 0}>
+                <Select value={moduleId} onValueChange={setModuleId} disabled={categoryIds.length === 0 || modules.length === 0}>
                   <SelectTrigger className="mt-1">
-                    <SelectValue placeholder={categoryId ? (modules.length ? 'Selecione o módulo' : 'Nenhum módulo nesta categoria') : 'Escolha uma categoria primeiro'} />
+                    <SelectValue placeholder={categoryIds.length > 0 ? (modules.length ? 'Selecione o módulo' : 'Nenhum módulo nas categorias') : 'Escolha uma categoria primeiro'} />
                   </SelectTrigger>
                   <SelectContent>
                     {(() => {
@@ -473,9 +435,9 @@ export default function VimeoUpload() {
               )}
 
               {/* Upload Button */}
-              <Button 
+                <Button 
                 onClick={handleUpload}
-                disabled={isUploading || !file || !title || !categoryId}
+                disabled={isUploading || !file || !title || categoryIds.length === 0}
                 className="w-full"
               >
                 {isUploading ? (

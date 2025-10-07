@@ -12,8 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHistory, getProfiles } from '@/lib/supabase';
-import { getModules } from '@/lib/storage';
+import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHistory, getProfiles, addCategory } from '@/lib/supabase';
+import { getModules, addModule } from '@/lib/storage';
 import { uploadSupportFile } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import VimeoUpload from '@/components/admin/VimeoUpload';
@@ -88,6 +88,7 @@ export default function AdminVideos() {
   });
   const [newCatSearch, setNewCatSearch] = useState('');
   const [newModuleSearch, setNewModuleSearch] = useState('');
+  const [creatingNew, setCreatingNew] = useState(false);
   const [showNewAdvanced, setShowNewAdvanced] = useState(false);
 
   useEffect(() => {
@@ -126,23 +127,24 @@ export default function AdminVideos() {
   };
 
   const handleAddVideo = async () => {
-    if (!newVideo.title || !newVideo.videoUrl || !newVideo.categoryId) {
+    if (!newVideo.title || !newVideo.videoUrl || (newVideo.categoryIds || []).length === 0) {
       toast({
         title: "Erro ao adicionar vídeo",
-        description: "Preencha todos os campos obrigatórios.",
+        description: "Preencha título, URL e selecione ao menos uma categoria.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const allCats = Array.from(new Set([newVideo.categoryId, ...newVideo.categoryIds].filter(Boolean)));
+      const allCats = Array.from(new Set([...(newVideo.categoryIds || [])]));
+      const mainId = allCats[0];
       await addVideo({
         title: newVideo.title,
         description: newVideo.description,
         video_url: newVideo.videoUrl,
         thumbnail: newVideo.thumbnail || undefined,
-        category_id: newVideo.categoryId,
+        category_id: mainId,
         category_ids: allCats,
         module_id: newVideo.moduleId || undefined,
         duration: newVideo.duration,
@@ -692,31 +694,77 @@ export default function AdminVideos() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="category">Categoria Principal *</Label>
-                    <Select
-                      value={newVideo.categoryId}
-                      onValueChange={(value) => setNewVideo({ ...newVideo, categoryId: value, moduleId: '' })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma categoria" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <div className="px-2 py-1">
-                          <Input
-                            placeholder="Buscar categoria..."
-                            value={newCatSearch}
-                            onChange={(e) => setNewCatSearch(e.target.value)}
-                          />
+                    <Label htmlFor="category">Categorias (múltiplas) *</Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="w-full min-h-10 border rounded px-2 py-2 text-left flex items-center flex-wrap gap-1">
+                          {(() => {
+                            const selected = categories.filter(c => (newVideo.categoryIds || []).includes(c.id));
+                            return selected.length > 0 ? (
+                              selected.map(s => (
+                                <span key={s.id} className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded">
+                                  {s.name}
+                                  <button type="button" className="opacity-70 hover:opacity-100" onClick={(e) => {
+                                    e.preventDefault(); e.stopPropagation();
+                                    setNewVideo(v => ({ ...v, categoryIds: (v.categoryIds || []).filter(id => id !== s.id) }));
+                                  }}>×</button>
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-muted-foreground text-sm">Selecionar categorias...</span>
+                            );
+                          })()}
+                          <span className="ml-auto text-muted-foreground text-sm">▼</span>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-80">
+                        <div className="px-2 py-2">
+                          <Input placeholder="Buscar categoria..." value={newCatSearch} onChange={(e) => setNewCatSearch(e.target.value)} />
                         </div>
-                        {categories
-                          .filter(c => (newCatSearch ? (c.name || '').toLowerCase().includes(newCatSearch.toLowerCase()) : true))
-                          .map(category => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        <div className="max-h-72 overflow-auto">
+                          {categories
+                            .filter(c => (newCatSearch ? (c.name || '').toLowerCase().includes(newCatSearch.toLowerCase()) : true))
+                            .map(category => {
+                              const checked = (newVideo.categoryIds || []).includes(category.id);
+                              return (
+                                <DropdownMenuItem
+                                  key={category.id}
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    setNewVideo(v => ({ ...v,
+                                      categoryIds: checked ? (v.categoryIds || []).filter(id => id !== category.id) : Array.from(new Set([...(v.categoryIds || []), category.id]))
+                                    }));
+                                  }}
+                                >
+                                  <input type="checkbox" readOnly checked={checked} className="mr-2" />
+                                  {category.name}
+                                </DropdownMenuItem>
+                              );
+                            })}
+                          {/* Criar categoria inline */}
+                          {newCatSearch && !categories.some(c => (c.name || '').toLowerCase() === newCatSearch.toLowerCase()) && (
+                            <DropdownMenuItem
+                              onSelect={async (e) => {
+                                e.preventDefault();
+                                try {
+                                  setCreatingNew(true);
+                                  const row = await addCategory({ name: newCatSearch, description: '' });
+                                  const cats = await getCategories();
+                                  setCategories(cats);
+                                  const newId = (row as unknown as { id?: string })?.id || cats.find(c => c.name === newCatSearch)?.id;
+                                  if (newId) setNewVideo(v => ({ ...v, categoryIds: Array.from(new Set([...(v.categoryIds || []), newId])) }));
+                                  setNewCatSearch('');
+                                  toast({ title: 'Categoria criada' });
+                                } catch { toast({ title: 'Erro ao criar categoria', variant: 'destructive' }); }
+                                finally { setCreatingNew(false); }
+                              }}
+                            >
+                              {creatingNew ? 'Criando...' : `+ Criar categoria "${newCatSearch}"`}
+                            </DropdownMenuItem>
+                          )}
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button size="sm" variant="outline" onClick={() => navigate('/admin/taxonomia')}>Gerenciar categorias/módulos</Button>
@@ -814,7 +862,7 @@ export default function AdminVideos() {
                       </div>
                     )}
                   </div>
-                {newVideo.categoryId && (
+                {(newVideo.categoryIds || []).length > 0 && (
                   <div className="grid gap-2">
                     <Label htmlFor="module">Módulo/Submódulo</Label>
                     <Input
@@ -831,7 +879,14 @@ export default function AdminVideos() {
                       </SelectTrigger>
                       <SelectContent>
                         {(() => {
-                          const all = (modulesByCategory[newVideo.categoryId] || []).filter((m) => (newModuleSearch ? (m.title || '').toLowerCase().includes(newModuleSearch.toLowerCase()) : true));
+                          // União de módulos das categorias selecionadas
+                          const sets: Array<{ id: string; title: string; parentId?: string | null }> = [];
+                          for (const cid of (newVideo.categoryIds || [])) {
+                            for (const m of (modulesByCategory[cid] || [])) {
+                              sets.push(m);
+                            }
+                          }
+                          const all = sets.filter((m) => (newModuleSearch ? (m.title || '').toLowerCase().includes(newModuleSearch.toLowerCase()) : true));
                           const roots = all.filter(m => !m.parentId);
                           return (
                             <div className="max-h-64 overflow-auto">
@@ -847,6 +902,29 @@ export default function AdminVideos() {
                                   </div>
                                 );
                               })}
+                              {/* Criar módulo inline */}
+                              {newModuleSearch && !all.some(m => (m.title || '').toLowerCase() === newModuleSearch.toLowerCase()) && (
+                                <div className="px-2 py-1">
+                                  <Button size="sm" onClick={async () => {
+                                    try {
+                                      setCreatingNew(true);
+                                      for (const cid of (newVideo.categoryIds || [])) {
+                                        await addModule({ categoryId: cid, parentId: null, title: newModuleSearch, order: 999 });
+                                      }
+                                      // recarrega módulos
+                                      const modMap: Record<string, Array<{ id: string; title: string; parentId?: string | null }>> = {};
+                                      for (const c of categories) {
+                                        const list = await getModules(c.id);
+                                        modMap[c.id] = list.map(m => ({ id: m.id, title: m.title, parentId: m.parentId ?? null }));
+                                      }
+                                      setModulesByCategory(modMap);
+                                      setNewModuleSearch('');
+                                      toast({ title: 'Módulo criado' });
+                                    } catch { toast({ title: 'Erro ao criar módulo', variant: 'destructive' }); }
+                                    finally { setCreatingNew(false); }
+                                  }}>{creatingNew ? 'Criando...' : `+ Criar módulo "${newModuleSearch}"`}</Button>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}

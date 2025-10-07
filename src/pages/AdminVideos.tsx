@@ -72,6 +72,9 @@ export default function AdminVideos() {
   const [editingCatsId, setEditingCatsId] = useState<string>('');
   const [tempCats, setTempCats] = useState<string[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, string>>({});
+  const [editCategorySearch, setEditCategorySearch] = useState('');
+  const [editModuleSearch, setEditModuleSearch] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   
   const [newVideo, setNewVideo] = useState({
     title: '',
@@ -178,6 +181,11 @@ export default function AdminVideos() {
     if (!editingVideo) return;
 
     try {
+      const mainCat = editingVideo.category_id || editingVideo.categoryId;
+      if (!mainCat) {
+        toast({ title: 'Selecione a categoria principal', variant: 'destructive' });
+        return;
+      }
       await updateVideo(editingVideo.id, {
         title: editingVideo.title,
         description: editingVideo.description,
@@ -859,29 +867,71 @@ export default function AdminVideos() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Categorias</Label>
-                  <div className="grid grid-cols-2 gap-2 mt-1">
-                    {categories.map((category) => {
-                      const list = editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : []);
-                      const checked = list.includes(category.id);
-                      return (
-                        <label key={category.id} className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              const current = editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : []);
-                              const next = e.target.checked
-                                ? Array.from(new Set([...current, category.id]))
-                                : current.filter((id) => id !== category.id);
-                              setEditingVideo({ ...editingVideo, category_ids: next, categoryId: next[0] || '' });
-                            }}
-                          />
-                          {category.name}
-                        </label>
-                      );
-                    })}
+                  <Label>Categoria Principal</Label>
+                  <Select
+                    value={(editingVideo.category_id || editingVideo.categoryId || '') as string}
+                    onValueChange={(value) => setEditingVideo({ ...editingVideo, category_id: value, categoryId: value, module_id: '', moduleId: '' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a categoria principal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <div className="px-2 py-1">
+                        <Input
+                          placeholder="Buscar categoria..."
+                          value={editCategorySearch}
+                          onChange={(e) => setEditCategorySearch(e.target.value)}
+                        />
+                      </div>
+                      {categories
+                        .filter((c) => (editCategorySearch ? (c.name || '').toLowerCase().includes(editCategorySearch.toLowerCase()) : true))
+                        .map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {!((editingVideo.category_id || editingVideo.categoryId)) && (
+                    <p className="text-xs text-destructive">Categoria principal é obrigatória</p>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Avançado</Label>
+                    <Button size="sm" variant="outline" onClick={() => setShowAdvanced(!showAdvanced)}>
+                      {showAdvanced ? 'Ocultar' : 'Mostrar'}
+                    </Button>
                   </div>
+                  {showAdvanced && (
+                    <div className="space-y-2">
+                      <div>
+                        <Label>Categorias Adicionais</Label>
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          {categories
+                            .filter((c) => (editCategorySearch ? (c.name || '').toLowerCase().includes(editCategorySearch.toLowerCase()) : true))
+                            .map((category) => {
+                              const list = editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : []);
+                              const checked = list.includes(category.id);
+                              return (
+                                <label key={category.id} className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      const current = editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : []);
+                                      const next = e.target.checked
+                                        ? Array.from(new Set([...current, category.id]))
+                                        : current.filter((id) => id !== category.id);
+                                      setEditingVideo({ ...editingVideo, category_ids: next, categoryId: next[0] || '' });
+                                    }}
+                                  />
+                                  {category.name}
+                                </label>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-url">URL do Vídeo</Label>
@@ -903,6 +953,13 @@ export default function AdminVideos() {
                 </div>
                   <div className="grid gap-2">
                     <Label>Módulo/Submódulo</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Buscar módulo..."
+                      value={editModuleSearch}
+                      onChange={(e) => setEditModuleSearch(e.target.value)}
+                    />
+                  </div>
                     <Select
                       value={editingVideo.module_id || editingVideo.moduleId || ''}
                       onValueChange={(value) => setEditingVideo({ ...editingVideo, module_id: value, moduleId: value })}
@@ -911,11 +968,29 @@ export default function AdminVideos() {
                         <SelectValue placeholder="Selecione um módulo (opcional)" />
                       </SelectTrigger>
                       <SelectContent>
-                        {(modulesByCategory[(editingVideo.category_id || editingVideo.categoryId || '')] || []).map(m => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.title}
-                          </SelectItem>
-                        ))}
+                      {(() => {
+                        const all = (modulesByCategory[(editingVideo.category_id || editingVideo.categoryId || '')] || [])
+                          .filter((m) => (editModuleSearch ? (m.title || '').toLowerCase().includes(editModuleSearch.toLowerCase()) : true));
+                        const roots = all.filter((m) => !m.parentId).sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                        return (
+                          <div className="max-h-64 overflow-auto">
+                            {roots.map((root) => {
+                              const children = all.filter((m) => m.parentId === root.id).sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                              return (
+                                <div key={root.id}>
+                                  <div className="px-2 py-1 text-xs text-muted-foreground uppercase">{root.title}</div>
+                                  <SelectItem value={root.id}>{root.title}</SelectItem>
+                                  {children.map((child) => (
+                                    <SelectItem key={child.id} value={child.id}>
+                                      <span className="pl-4 inline-block">↳ {child.title}</span>
+                                    </SelectItem>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                       </SelectContent>
                     </Select>
                   </div>

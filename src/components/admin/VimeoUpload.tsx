@@ -10,8 +10,8 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, Video, AlertCircle, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
-import { getCategories } from '@/lib/storage';
-import type { Category } from '@/types';
+import { getCategories, getModules } from '@/lib/storage';
+import type { Category, Module } from '@/types';
 import { uploadToVimeo, getBackendUrl } from '@/lib/vimeo';
 import { getCurrentUser } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -25,8 +25,10 @@ export default function VimeoUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [categoryId, setCategoryId] = useState<string>('');
+  const [moduleId, setModuleId] = useState<string>('');
   const [categories, setCategories] = useState<Category[]>([]);
+  const [modules, setModules] = useState<Array<Pick<Module, 'id' | 'title' | 'parentId' | 'order'>>>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null);
@@ -54,6 +56,20 @@ export default function VimeoUpload() {
       setCategories(cats);
     })();
   }, []);
+
+  // Carregar módulos quando a categoria mudar
+  useEffect(() => {
+    (async () => {
+      if (!categoryId) {
+        setModules([]);
+        setModuleId('');
+        return;
+      }
+      const mods = await getModules(categoryId);
+      setModules(mods.map(m => ({ id: m.id, title: m.title, parentId: m.parentId ?? null, order: m.order })));
+      setModuleId('');
+    })();
+  }, [categoryId]);
 
   // Handle OAuth callback (mantido apenas para compatibilidade; ignora com token permanente)
   useEffect(() => {
@@ -134,10 +150,10 @@ export default function VimeoUpload() {
   };
 
   const handleUpload = async () => {
-    if (!file || !title || categoryIds.length === 0) {
+    if (!file || !title || !categoryId) {
       toast({
         title: 'Campos obrigatórios',
-        description: 'Por favor, preencha todos os campos obrigatórios.',
+        description: 'Por favor, selecione a categoria e informe o título/arquivo.',
         variant: 'destructive'
       });
       return;
@@ -200,8 +216,9 @@ export default function VimeoUpload() {
         description,
         video_url: `https://vimeo.com/${videoId}`,
         thumbnail: thumbnailUrl,
-        category_id: categoryIds[0],
-        category_ids: categoryIds,
+        category_id: categoryId,
+        category_ids: [categoryId],
+        module_id: moduleId || undefined,
         duration: durationSec || 0,
         uploaded_by: currentUser?.name || 'admin',
         vimeo_id: videoId,
@@ -220,7 +237,9 @@ export default function VimeoUpload() {
       setFile(null);
       setTitle('');
       setDescription('');
-      setCategoryIds([]);
+      setCategoryId('');
+      setModuleId('');
+      setModules([]);
       
     } catch (error) {
       console.error('Upload error:', error);
@@ -299,28 +318,42 @@ export default function VimeoUpload() {
               </div>
 
               <div>
-                <Label>Categorias *</Label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  {categories.map((category) => {
-                    const checked = categoryIds.includes(category.id);
-                    return (
-                      <label key={category.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            setCategoryIds((prev) =>
-                              e.target.checked
-                                ? Array.from(new Set([...prev, category.id]))
-                                : prev.filter((id) => id !== category.id)
-                            );
-                          }}
-                        />
-                        {category.name}
-                      </label>
-                    );
-                  })}
-                </div>
+                <Label>Categoria *</Label>
+                <Select value={categoryId} onValueChange={setCategoryId}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione a categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Módulo/Submódulo (opcional)</Label>
+                <Select value={moduleId} onValueChange={setModuleId} disabled={!categoryId || modules.length === 0}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder={categoryId ? (modules.length ? 'Selecione o módulo' : 'Nenhum módulo nesta categoria') : 'Escolha uma categoria primeiro'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modules
+                      .filter((m) => !m.parentId)
+                      .sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || String(a.title).localeCompare(String(b.title)))
+                      .map((root) => (
+                        <div key={root.id}>
+                          <SelectItem value={root.id}>{root.title}</SelectItem>
+                          {modules
+                            .filter((m) => m.parentId === root.id)
+                            .sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || String(a.title).localeCompare(String(b.title)))
+                            .map((child) => (
+                              <SelectItem key={child.id} value={child.id}>↳ {child.title}</SelectItem>
+                            ))}
+                        </div>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Upload Progress */}
@@ -337,7 +370,7 @@ export default function VimeoUpload() {
               {/* Upload Button */}
               <Button 
                 onClick={handleUpload}
-                disabled={isUploading || !file || !title || categoryIds.length === 0}
+                disabled={isUploading || !file || !title || !categoryId}
                 className="w-full"
               >
                 {isUploading ? (

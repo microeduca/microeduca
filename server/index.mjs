@@ -45,6 +45,26 @@ async function getSetting(key) {
   return rows[0]?.value || null;
 }
 
+// Ensure Modules schema exists (for environments without migrations applied)
+async function ensureModulesSchema() {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS public.modules (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      category_id uuid REFERENCES public.categories(id) ON DELETE CASCADE,
+      parent_id uuid REFERENCES public.modules(id) ON DELETE CASCADE,
+      title text NOT NULL,
+      description text,
+      "order" integer NOT NULL DEFAULT 0,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now()
+    )`);
+  } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_modules_category_id ON public.modules(category_id)'); } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_modules_parent_id ON public.modules(parent_id)'); } catch {}
+  try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS module_id uuid REFERENCES public.modules(id) ON DELETE SET NULL'); } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_videos_module_id ON public.videos(module_id)'); } catch {}
+}
+
 // Ensure profiles.role allows 'cliente'
 async function ensureProfilesRoleConstraint() {
   try {
@@ -240,6 +260,7 @@ app.delete('/api/categories/:id', async (req, res) => {
 // Modules (hierárquico: category_id, parent_id)
 app.get('/api/modules', async (req, res) => {
   try {
+    await ensureModulesSchema();
     const { categoryId } = req.query;
     const params = [];
     let sql = 'SELECT * FROM public.modules';
@@ -257,6 +278,7 @@ app.get('/api/modules', async (req, res) => {
 
 app.post('/api/modules', async (req, res) => {
   try {
+    await ensureModulesSchema();
     const { category_id, parent_id, title, description, order } = req.body || {};
     const { rows } = await pool.query(
       `INSERT INTO public.modules (category_id, parent_id, title, description, "order")
@@ -272,6 +294,7 @@ app.post('/api/modules', async (req, res) => {
 
 app.put('/api/modules/:id', async (req, res) => {
   try {
+    await ensureModulesSchema();
     const { id } = req.params;
     const fields = ['category_id','parent_id','title','description','order'];
     const updates = [];
@@ -296,6 +319,7 @@ app.put('/api/modules/:id', async (req, res) => {
 
 app.delete('/api/modules/:id', async (req, res) => {
   try {
+    await ensureModulesSchema();
     const { id } = req.params;
     // Política de deleção: proíbe deletar se houver filhos ou vídeos vinculados
     const { rows: childRows } = await pool.query('SELECT 1 FROM public.modules WHERE parent_id = $1 LIMIT 1', [id]);

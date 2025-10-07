@@ -9,11 +9,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, FolderOpen, Edit2, Trash2, MoreVertical, Film, Tag } from 'lucide-react';
+import { Plus, FolderOpen, Edit2, Trash2, MoreVertical, Film, Tag, FolderTree } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { getCategories, addCategory, updateCategory, deleteCategory, getVideos } from '@/lib/supabase';
 
 export default function AdminCategories() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [categories, setCategories] = useState<any[]>([]);
   const [videos, setVideos] = useState<any[]>([]);
@@ -149,10 +151,16 @@ export default function AdminCategories() {
               Organize os vídeos em categorias para facilitar a navegação
             </p>
           </div>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Nova Categoria
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/admin/modulos')} className="gap-2">
+              <FolderTree className="h-4 w-4" />
+              Módulos
+            </Button>
+            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nova Categoria
+            </Button>
+          </div>
         </div>
 
         {/* Statistics Cards */}

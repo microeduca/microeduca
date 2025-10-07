@@ -11,6 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, Video, AlertCircle, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { useNavigate as useNavLink } from 'react-router-dom';
 import { getCategories, getModules } from '@/lib/storage';
 import type { Category, Module } from '@/types';
 import { uploadToVimeo, getBackendUrl } from '@/lib/vimeo';
@@ -19,6 +20,7 @@ import { api } from '@/lib/api';
 
 export default function VimeoUpload() {
   const navigate = useNavigate();
+  const nav = useNavLink();
   const location = useLocation();
   const { toast } = useToast();
   
@@ -339,6 +341,12 @@ export default function VimeoUpload() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => nav('/admin/taxonomia')}>Gerenciar categorias/módulos</Button>
+                {categoryId && (
+                  <Button size="sm" variant="outline" onClick={() => nav(`/admin/taxonomia?categoryId=${categoryId}`)}>Abrir categoria atual</Button>
+                )}
               </div>
 
               <div>

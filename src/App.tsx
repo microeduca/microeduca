@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminVideos from "./pages/AdminVideos";
 import AdminCategories from "./pages/AdminCategories";
+import AdminTaxonomy from "./pages/AdminTaxonomy";
 import AdminModules from "./pages/AdminModules";
 import MeusCursos from "./pages/MeusCursos";
 import UserDashboard from "./pages/UserDashboard";
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/videos" element={<AdminVideos />} />
           <Route path="/admin/categorias" element={<AdminCategories />} />
+          <Route path="/admin/taxonomia" element={<AdminTaxonomy />} />
           <Route path="/admin/modulos" element={<AdminModules />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/users/:userId" element={<AdminUserProfile />} />

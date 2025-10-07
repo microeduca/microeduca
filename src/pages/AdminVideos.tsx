@@ -718,6 +718,12 @@ export default function AdminVideos() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => navigate('/admin/taxonomia')}>Gerenciar categorias/módulos</Button>
+                    {newVideo.categoryId && (
+                      <Button size="sm" variant="outline" onClick={() => navigate(`/admin/taxonomia?categoryId=${newVideo.categoryId}`)}>Abrir categoria atual</Button>
+                    )}
+                  </div>
                   <div className="grid gap-2">
                     <div className="flex items-center justify-between">
                       <Label>Avançado</Label>

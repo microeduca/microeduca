@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/Layout';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -431,6 +432,7 @@ export default function UserDashboard() {
         )}
 
         {/* Main Content Tabs */}
+        <ErrorBoundary>
         <Tabs defaultValue="all" className="space-y-4">
           <div className="flex items-center justify-between">
             <TabsList>
@@ -671,6 +673,7 @@ export default function UserDashboard() {
             )}
           </TabsContent>
         </Tabs>
+        </ErrorBoundary>
       </div>
     </Layout>
   );

@@ -10,10 +10,12 @@ type PdfViewerProps = {
   className?: string;
 };
 
-// Configurar worker do PDF.js usando CDN para evitar problemas de build
+// Configurar worker do PDF.js - desabilitar worker para evitar problemas de CORS
 if (typeof window !== 'undefined' && pdfjs?.GlobalWorkerOptions) {
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
-  console.log('PDF.js worker configured with CDN version');
+  // Desabilitar worker para evitar problemas de CORS e CDN
+  // Isso fará o processamento ser feito inline (mais lento mas mais confiável)
+  pdfjs.GlobalWorkerOptions.workerSrc = '';
+  console.log('PDF.js worker disabled, using inline processing for reliability');
 }
 
 export default function PdfViewer({ url, title, className }: PdfViewerProps) {
@@ -43,8 +45,16 @@ export default function PdfViewer({ url, title, className }: PdfViewerProps) {
 
   const onDocumentLoadError = (error: Error) => {
     console.error('PDF load error:', error, { url });
-    setLoadingError(error.message);
-    setUseFallback(true);
+    
+    // Se o erro for relacionado ao worker, tentar fallback imediatamente
+    if (error.message.includes('worker') || error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+      console.log('Worker-related error detected, using iframe fallback');
+      setUseFallback(true);
+      setLoadingError('Erro no processador PDF, usando visualizador alternativo');
+    } else {
+      setLoadingError(error.message);
+      setUseFallback(true);
+    }
   };
 
   const canPrev = pageNumber > 1;

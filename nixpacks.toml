@@ -1,11 +1,12 @@
 [variables]
 NODE_ENV = "production"
 NPM_CONFIG_CACHE = "/tmp/.npm"
+NPM_CONFIG_PRODUCTION = "false"
 
 [phases.install]
 cmds = [
   "rm -rf node_modules node_modules/.cache || true",
-  "npm ci --no-audit --no-fund"
+  "npm ci --no-audit --no-fund --include=dev"
 ]
 
 [phases.build]

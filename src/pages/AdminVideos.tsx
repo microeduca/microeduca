@@ -1335,7 +1335,8 @@ export default function AdminVideos() {
               </DialogDescription>
             </DialogHeader>
             {(() => {
-              const url = String((previewVideo as unknown as { video_url?: string; videoUrl?: string }).video_url || (previewVideo as unknown as { video_url?: string; videoUrl?: string }).videoUrl || '');
+              const pv = (previewVideo as unknown as { video_url?: string; videoUrl?: string } | null);
+              const url = String(pv?.video_url || pv?.videoUrl || '');
               const lower = url.toLowerCase();
               const isPdf = lower.endsWith('.pdf') || lower.includes('/api/files/');
               const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(lower);

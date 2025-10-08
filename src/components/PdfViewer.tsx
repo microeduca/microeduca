@@ -4,7 +4,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 // Em pdfjs-dist >=5 existe o arquivo .mjs; usamos ?url para obter a URL final
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, ExternalLink, Download, Printer } from 'lucide-react';
+import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, ExternalLink, Download, Printer, RefreshCw } from 'lucide-react';
 
 type PdfViewerProps = {
   url: string;
@@ -15,6 +15,7 @@ type PdfViewerProps = {
 // Configurar worker do PDF.js (de forma compatível com Vite/produção)
 if (typeof window !== 'undefined' && pdfjs?.GlobalWorkerOptions) {
   pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl as unknown as string;
+  console.log('PDF.js worker configured:', pdfjsWorkerUrl);
 }
 
 export default function PdfViewer({ url, title, className }: PdfViewerProps) {
@@ -23,6 +24,8 @@ export default function PdfViewer({ url, title, className }: PdfViewerProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.2);
+  const [useFallback, setUseFallback] = useState<boolean>(false);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
 
   // Ajustar largura conforme o container (responsivo)
   useEffect(() => {
@@ -35,8 +38,15 @@ export default function PdfViewer({ url, title, className }: PdfViewerProps) {
   }, []);
 
   const onDocumentLoadSuccess = ({ numPages: nextNum }: { numPages: number }) => {
+    console.log('PDF loaded successfully:', { numPages: nextNum, url });
     setNumPages(nextNum);
     setPageNumber(1);
+  };
+
+  const onDocumentLoadError = (error: Error) => {
+    console.error('PDF load error:', error, { url });
+    setLoadingError(error.message);
+    setUseFallback(true);
   };
 
   const canPrev = pageNumber > 1;
@@ -60,6 +70,11 @@ export default function PdfViewer({ url, title, className }: PdfViewerProps) {
   const onPrint = () => {
     // Estratégia simples: abrir em nova aba e o usuário imprime de lá
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const retryWithFallback = () => {
+    setUseFallback(true);
+    setLoadingError(null);
   };
 
   const toolbar = (
@@ -93,6 +108,11 @@ export default function PdfViewer({ url, title, className }: PdfViewerProps) {
         <Button size="icon" variant="ghost" className="text-white" onClick={onPrint} title="Imprimir">
           <Printer className="h-4 w-4" />
         </Button>
+        {loadingError && (
+          <Button size="icon" variant="ghost" className="text-white" onClick={retryWithFallback} title="Usar visualizador alternativo">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -103,11 +123,48 @@ export default function PdfViewer({ url, title, className }: PdfViewerProps) {
     return Math.floor(containerWidth * 0.98);
   }, [containerWidth]);
 
+  // Fallback: usar iframe se react-pdf falhar
+  if (useFallback) {
+    return (
+      <div ref={containerRef} className={[className, 'bg-gray-100 relative'].filter(Boolean).join(' ')}>
+        {toolbar}
+        <div className="pt-10 h-full">
+          <iframe
+            src={url}
+            className="w-full h-full border-0"
+            title={title || 'Documento PDF'}
+            style={{ minHeight: '600px' }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div ref={containerRef} className={[className, 'bg-black relative overflow-auto'].filter(Boolean).join(' ')}>
       {toolbar}
       <div className="pt-10 pb-4 flex justify-center">
-        <Document file={url} onLoadSuccess={onDocumentLoadSuccess} loading={<div className="text-white/70 p-4">Carregando PDF…</div>} noData={<div className="text-white/70 p-4">PDF não disponível</div>}>
+        <Document 
+          file={url} 
+          onLoadSuccess={onDocumentLoadSuccess}
+          onLoadError={onDocumentLoadError}
+          loading={<div className="text-white/70 p-4">Carregando PDF…</div>} 
+          error={
+            <div className="text-white/70 p-4 text-center">
+              <div>Erro ao carregar PDF</div>
+              {loadingError && <div className="text-xs mt-2 opacity-75">{loadingError}</div>}
+              <Button 
+                onClick={retryWithFallback} 
+                variant="outline" 
+                size="sm" 
+                className="mt-2 text-white border-white hover:bg-white hover:text-black"
+              >
+                Usar visualizador alternativo
+              </Button>
+            </div>
+          }
+          noData={<div className="text-white/70 p-4">PDF não disponível</div>}
+        >
           <Page pageNumber={pageNumber} scale={scale} width={pageWidth} renderAnnotationLayer={false} renderTextLayer={false} />
         </Document>
       </div>

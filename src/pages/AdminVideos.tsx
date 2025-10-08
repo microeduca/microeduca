@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle, ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHistory, getProfiles, addCategory } from '@/lib/supabase';
 import { getModules, addModule } from '@/lib/storage';
@@ -48,6 +48,13 @@ interface AdminVideoRow {
   moduleId?: string;
 }
 
+interface ModuleWithOrder {
+  id: string;
+  title: string;
+  parentId?: string | null;
+  order?: number;
+}
+
 export default function AdminVideos() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -76,6 +83,9 @@ export default function AdminVideos() {
   const [editCategorySearch, setEditCategorySearch] = useState('');
   const [editModuleSearch, setEditModuleSearch] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [collapsedModules, setCollapsedModules] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'list' | 'hierarchical'>('hierarchical');
   
   const [newVideo, setNewVideo] = useState({
     title: '',
@@ -91,6 +101,244 @@ export default function AdminVideos() {
   const [newModuleSearch, setNewModuleSearch] = useState('');
   const [creatingNew, setCreatingNew] = useState(false);
   const [showNewAdvanced, setShowNewAdvanced] = useState(false);
+
+  // Funções para controlar seções colapsáveis
+  const toggleCategory = (categoryId: string) => {
+    const newCollapsed = new Set(collapsedCategories);
+    if (newCollapsed.has(categoryId)) {
+      newCollapsed.delete(categoryId);
+    } else {
+      newCollapsed.add(categoryId);
+    }
+    setCollapsedCategories(newCollapsed);
+  };
+
+  const toggleModule = (moduleId: string) => {
+    const newCollapsed = new Set(collapsedModules);
+    if (newCollapsed.has(moduleId)) {
+      newCollapsed.delete(moduleId);
+    } else {
+      newCollapsed.add(moduleId);
+    }
+    setCollapsedModules(newCollapsed);
+  };
+
+  // Função para renderizar vídeo individual
+  const renderVideoRow = (video: AdminVideoRow) => (
+    <div key={video.id} className="flex items-center gap-3 p-3 border-b border-gray-100 hover:bg-gray-50">
+      <input 
+        type="checkbox" 
+        checked={selectedIds.includes(video.id)} 
+        onChange={() => toggleSelect(video.id)} 
+        aria-label="Selecionar" 
+      />
+      <div className="flex-shrink-0">
+        {video.thumbnail ? (
+          <img src={video.thumbnail} alt={video.title} className="h-12 w-16 object-cover rounded" loading="lazy" />
+        ) : (
+          getVimeoThumbFallback(video) ? (
+            <img src={getVimeoThumbFallback(video) as string} alt={video.title} className="h-12 w-16 object-cover rounded" loading="lazy" />
+          ) : (
+            <div className="h-12 w-16 bg-muted rounded flex items-center justify-center">
+              <Video className="h-6 w-6 text-muted-foreground" />
+            </div>
+          )
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-sm truncate">
+          {editingTitleId === video.id ? (
+            <input
+              value={tempTitle}
+              onChange={(e) => setTempTitle(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter') { await updateVideo(video.id, { title: tempTitle }); setEditingTitleId(''); await loadData(); }
+                if (e.key === 'Escape') { setEditingTitleId(''); }
+              }}
+              autoFocus
+              className="w-full border rounded px-2 py-1"
+            />
+          ) : (
+            <button className="text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
+          <Clock className="h-3 w-3" />
+          {Math.floor(video.duration / 60)}:{String(video.duration % 60).padStart(2, '0')}
+          <span>•</span>
+          <Eye className="h-3 w-3" />
+          {viewsMap[video.id] || 0} views
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="outline" onClick={() => setPreviewVideo(video)}>
+          <Eye className="h-4 w-4" />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => { setEditingVideo(video); setIsEditDialogOpen(true); }}>
+              <Edit2 className="h-4 w-4 mr-2" />
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPreviewVideo(video)}>
+              <Play className="h-4 w-4 mr-2" />
+              Visualizar
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleDeleteVideo(video.id)} className="text-red-600">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Excluir
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+
+  // Função para renderizar estrutura hierárquica
+  const renderHierarchicalView = () => {
+    const filteredVideos = videos.filter(v => 
+      (filterCategory && filterCategory !== 'all' ? (v.categoryId || v.category_id) === filterCategory : true) &&
+      (search ? (v.title || '').toLowerCase().includes(search.toLowerCase()) : true)
+    );
+
+    return (
+      <div className="space-y-4">
+        {categories.map(category => {
+          const categoryVideos = filteredVideos.filter(v => {
+            const ids = v.category_ids || [v.categoryId || v.category_id].filter(Boolean);
+            return ids.includes(category.id);
+          });
+          
+          if (categoryVideos.length === 0) return null;
+
+          const mods = modulesByCategory[category.id] || [];
+          const roots = mods.filter(m => !m.parentId)
+            .sort((a, b) => (Number((a as ModuleWithOrder).order || 0) - Number((b as ModuleWithOrder).order || 0)) || String(a.title).localeCompare(String(b.title)));
+
+          const isCategoryCollapsed = collapsedCategories.has(category.id);
+
+          return (
+            <div key={category.id} className="border rounded-lg">
+              {/* Cabeçalho da Categoria */}
+              <div 
+                className="flex items-center gap-3 p-4 bg-gray-50 border-b cursor-pointer hover:bg-gray-100"
+                onClick={() => toggleCategory(category.id)}
+              >
+                {isCategoryCollapsed ? (
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                )}
+                <FolderOpen className="h-5 w-5 text-blue-600" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg">{category.name}</h3>
+                  <p className="text-sm text-muted-foreground">{categoryVideos.length} vídeos</p>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {Math.floor(categoryVideos.reduce((acc, v) => acc + v.duration, 0) / 60)}h de conteúdo
+                </div>
+              </div>
+
+              {/* Conteúdo da Categoria */}
+              {!isCategoryCollapsed && (
+                <div className="divide-y">
+                  {roots.length > 0 ? (
+                    roots.map(root => {
+                      const children = mods.filter(m => m.parentId === root.id)
+                        .sort((a, b) => (Number((a as ModuleWithOrder).order || 0) - Number((b as ModuleWithOrder).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                      
+                      const rootVideos = categoryVideos.filter(v => (v.moduleId || v.module_id) === root.id);
+                      const childGroups = children.map(child => ({ 
+                        child, 
+                        videos: categoryVideos.filter(v => (v.moduleId || v.module_id) === child.id) 
+                      }));
+                      
+                      const hasAny = rootVideos.length > 0 || childGroups.some(g => g.videos.length > 0);
+                      if (!hasAny) return null;
+
+                      const isModuleCollapsed = collapsedModules.has(root.id);
+
+                      return (
+                        <div key={root.id} className="bg-white">
+                          {/* Cabeçalho do Módulo Raiz */}
+                          <div 
+                            className="flex items-center gap-3 p-3 border-b cursor-pointer hover:bg-gray-50"
+                            onClick={() => toggleModule(root.id)}
+                          >
+                            {isModuleCollapsed ? (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground ml-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground ml-4" />
+                            )}
+                            <Folder className="h-4 w-4 text-green-600" />
+                            <div className="flex-1">
+                              <h4 className="font-medium">{root.title}</h4>
+                              <p className="text-xs text-muted-foreground">
+                                {rootVideos.length + childGroups.reduce((acc, g) => acc + g.videos.length, 0)} vídeos
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Conteúdo do Módulo */}
+                          {!isModuleCollapsed && (
+                            <div>
+                              {/* Vídeos do módulo raiz */}
+                              {rootVideos.length > 0 && (
+                                <div>
+                                  {rootVideos.map(renderVideoRow)}
+                                </div>
+                              )}
+
+                              {/* Submódulos */}
+                              {childGroups.map(({ child, videos: childVideos }) => {
+                                if (childVideos.length === 0) return null;
+                                return (
+                                  <div key={child.id} className="ml-8 border-l-2 border-gray-100">
+                                    <div className="flex items-center gap-2 p-3 bg-gray-25">
+                                      <Folder className="h-4 w-4 text-orange-600" />
+                                      <h5 className="font-medium text-sm">{child.title}</h5>
+                                      <span className="text-xs text-muted-foreground">({childVideos.length} vídeos)</span>
+                                    </div>
+                                    {childVideos.map(renderVideoRow)}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    /* Vídeos sem módulo específico */
+                    categoryVideos.filter(v => !v.moduleId && !v.module_id).map(renderVideoRow)
+                  )}
+
+                  {/* Vídeos sem módulo */}
+                  {categoryVideos.filter(v => !v.moduleId && !v.module_id).length > 0 && (
+                    <div className="ml-8 border-l-2 border-gray-100">
+                      <div className="flex items-center gap-2 p-3 bg-gray-25">
+                        <Video className="h-4 w-4 text-gray-600" />
+                        <h5 className="font-medium text-sm">Vídeos sem módulo específico</h5>
+                        <span className="text-xs text-muted-foreground">
+                          ({categoryVideos.filter(v => !v.moduleId && !v.module_id).length} vídeos)
+                        </span>
+                      </div>
+                      {categoryVideos.filter(v => !v.moduleId && !v.module_id).map(renderVideoRow)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   useEffect(() => {
     loadData();
@@ -476,10 +724,34 @@ export default function AdminVideos() {
         {/* Videos Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Lista de Vídeos</CardTitle>
-            <CardDescription>
-              Todos os vídeos disponíveis na plataforma
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Lista de Vídeos</CardTitle>
+                <CardDescription>
+                  Todos os vídeos disponíveis na plataforma
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={viewMode === 'hierarchical' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('hierarchical')}
+                  className="flex items-center gap-2"
+                >
+                  <Folder className="h-4 w-4" />
+                  Hierárquico
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                  className="flex items-center gap-2"
+                >
+                  <Video className="h-4 w-4" />
+                  Lista
+                </Button>
+              </div>
+            </div>
             {selectedIds.length > 0 && (
               <div className="mt-3 flex items-center gap-2">
                 <span className="text-sm">Selecionados: {selectedIds.length}</span>
@@ -495,7 +767,10 @@ export default function AdminVideos() {
             )}
           </CardHeader>
           <CardContent>
-            <Table>
+            {viewMode === 'hierarchical' ? (
+              renderHierarchicalView()
+            ) : (
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>
@@ -644,6 +919,7 @@ export default function AdminVideos() {
                 ))}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
 

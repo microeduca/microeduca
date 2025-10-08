@@ -34,15 +34,6 @@ export default function UserDashboard() {
   const [visibleCount, setVisibleCount] = useState(16);
 
   useEffect(() => {
-    const handler = () => {
-      const atBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
-      if (atBottom) setVisibleCount(prev => Math.min(prev + 12, filteredVideos.length));
-    };
-    window.addEventListener('scroll', handler);
-    return () => window.removeEventListener('scroll', handler);
-  }, [filteredVideos.length]);
-
-  useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery), 300);
     return () => clearTimeout(t);
   }, [searchQuery]);
@@ -122,6 +113,16 @@ export default function UserDashboard() {
     };
     return order(byMinDuration(byStatus(byModules(byCats(byQuery(visibleVideos))))));
   }, [visibleVideos, debouncedQuery, selectedCategories, selectedModules, statusFilter, minDurationMin, orderBy, viewHistory]);
+
+  // Handler de scroll depende de filteredVideos.length; declarar após a criação de filteredVideos
+  useEffect(() => {
+    const handler = () => {
+      const atBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
+      if (atBottom) setVisibleCount(prev => Math.min(prev + 12, filteredVideos.length));
+    };
+    window.addEventListener('scroll', handler);
+    return () => window.removeEventListener('scroll', handler);
+  }, [filteredVideos.length]);
 
   const highlight = (text: string) => {
     if (!debouncedQuery) return text;

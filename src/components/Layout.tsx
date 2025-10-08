@@ -195,10 +195,10 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Alterar Senha Dialog */}
       <Dialog open={isPwdOpen} onOpenChange={setIsPwdOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px]" aria-describedby="change-password-desc">
           <DialogHeader>
             <DialogTitle>Alterar senha</DialogTitle>
-            <DialogDescription>Informe sua senha atual e a nova senha.</DialogDescription>
+            <DialogDescription id="change-password-desc">Informe sua senha atual e a nova senha.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
@@ -223,10 +223,10 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Termos e Condições (primeiro login) */}
       <Dialog open={isTermsOpen} onOpenChange={(_open) => { /* bloqueado até aceitar ou sair */ }}>
-        <DialogContent className="sm:max-w-[720px]">
+        <DialogContent className="sm:max-w-[720px]" aria-describedby="terms-desc">
           <DialogHeader>
             <DialogTitle>Termos e Condições de Uso</DialogTitle>
-            <DialogDescription>
+            <DialogDescription id="terms-desc">
               Leia com atenção e aceite para continuar utilizando a plataforma.
             </DialogDescription>
           </DialogHeader>

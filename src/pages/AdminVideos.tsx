@@ -621,10 +621,10 @@ export default function AdminVideos() {
 
         {/* Seletor de tipo de material */}
         <Dialog open={isSelectTypeOpen} onOpenChange={setIsSelectTypeOpen}>
-          <DialogContent className="sm:max-w-[480px]">
+          <DialogContent className="sm:max-w-[480px]" aria-describedby="select-type-desc">
             <DialogHeader>
               <DialogTitle>Escolha o tipo de material</DialogTitle>
-              <DialogDescription>Selecione se deseja enviar um vídeo (Vimeo) ou um arquivo (PDF/JPG/PNG)</DialogDescription>
+              <DialogDescription id="select-type-desc">Selecione se deseja enviar um vídeo (Vimeo) ou um arquivo (PDF/JPG/PNG)</DialogDescription>
             </DialogHeader>
             <div className="grid gap-3 py-2">
               <Button className="h-20 gap-2" variant="outline" onClick={() => { setIsSelectTypeOpen(false); navigate('/admin/vimeo-upload'); }}>

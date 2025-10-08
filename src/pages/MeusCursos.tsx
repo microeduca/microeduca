@@ -539,7 +539,7 @@ export default function MeusCursos() {
 
               {/* Modal de detalhes por módulos */}
               <Dialog open={isDetailsOpen} onOpenChange={(open) => { setIsDetailsOpen(open); if (!open) setDetailsCategoryId(null); }}>
-                <DialogContent className="max-w-4xl">
+                <DialogContent className="max-w-4xl" aria-describedby="course-details-desc">
                   <DialogHeader>
                     <DialogTitle>Conteúdo do Curso</DialogTitle>
                   </DialogHeader>
@@ -553,7 +553,7 @@ export default function MeusCursos() {
                       </div>
                     ) : null;
                   })()}
-                  <div className="max-h-[70vh] overflow-y-auto">
+                  <div id="course-details-desc" className="max-h-[70vh] overflow-y-auto">
                     {detailsCategoryId ? renderCategoryDetails(detailsCategoryId) : null}
                   </div>
                 </DialogContent>

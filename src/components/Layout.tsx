@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { LogOut, User, BookOpen, Settings } from 'lucide-react';
@@ -22,6 +22,24 @@ export default function Layout({ children }: LayoutProps) {
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
   const [savingPwd, setSavingPwd] = useState(false);
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [termsChecked, setTermsChecked] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const key = `terms_accept_v1_${user.id}`;
+    const accepted = localStorage.getItem(key) === 'true';
+    if (!accepted) {
+      setIsTermsOpen(true);
+    }
+  }, [user?.id]);
+
+  const handleAcceptTerms = () => {
+    if (!user?.id) return;
+    const key = `terms_accept_v1_${user.id}`;
+    localStorage.setItem(key, 'true');
+    setIsTermsOpen(false);
+  };
 
   const handleChangePassword = async () => {
     if (!user?.id) return;
@@ -199,6 +217,37 @@ export default function Layout({ children }: LayoutProps) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPwdOpen(false)}>Cancelar</Button>
             <Button onClick={handleChangePassword} disabled={savingPwd}>{savingPwd ? 'Salvando...' : 'Salvar'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Termos e Condições (primeiro login) */}
+      <Dialog open={isTermsOpen} onOpenChange={(_open) => { /* bloqueado até aceitar ou sair */ }}>
+        <DialogContent className="sm:max-w-[720px]">
+          <DialogHeader>
+            <DialogTitle>Termos e Condições de Uso</DialogTitle>
+            <DialogDescription>
+              Leia com atenção e aceite para continuar utilizando a plataforma.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto space-y-4 text-sm leading-relaxed">
+            <p>
+              A reprodução, distribuição, exibição pública ou qualquer outra forma de utilização não autorizada do conteúdo audiovisual apresentado nesta plataforma é estritamente proibida, conforme o código de ética e conduta assinado pelo integrante. Todos os vídeos, materiais e conteúdos disponíveis são de propriedade intelectual da Micro Centro Diagnóstico e estão protegidos pela legislação vigente, incluindo, mas não se limitando à Lei de Direitos Autorais (Lei 9.610/98).
+            </p>
+            <p>
+              Além disso, todos os usuários desta plataforma concordam em cumprir com as disposições da Lei Geral de Proteção de Dados Pessoais (LGPD - Lei 13.709/18), comprometendo-se a não realizar qualquer coleta, armazenamento ou tratamento indevido de dados pessoais. Qualquer violação relacionada à privacidade e proteção de dados pessoais será tratada de acordo com as disposições legais e poderá resultar em penalidades, conforme previsto pela LGPD.
+            </p>
+            <p>
+              A Micro Centro Diagnóstico se reserva o direito de tomar as medidas necessárias para garantir a proteção de seus direitos autorais e a conformidade com a LGPD.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 pt-2">
+            <input id="terms-accept" type="checkbox" checked={termsChecked} onChange={(e) => setTermsChecked(e.target.checked)} />
+            <Label htmlFor="terms-accept">Li e concordo com os Termos e Condições de Uso</Label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={logout}>Sair</Button>
+            <Button onClick={handleAcceptTerms} disabled={!termsChecked}>Aceitar e continuar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

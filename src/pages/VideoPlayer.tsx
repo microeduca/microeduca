@@ -39,6 +39,7 @@ import {
 } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
 import VimeoPlayer from '@/components/VimeoPlayer';
+import PdfViewer from '@/components/PdfViewer';
 
 function extractVimeoId(url?: string | null): string | undefined {
   if (!url) return undefined;
@@ -119,11 +120,70 @@ export default function VideoPlayer() {
   const [editThumbnail, setEditThumbnail] = useState<string | undefined>(undefined);
   const thumbInputRef = useRef<HTMLInputElement>(null);
 
+  // Auto Next
+  const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
+  const [autoNextTarget, setAutoNextTarget] = useState<any | null>(null);
+
+  const computeNextVideo = () => {
+    if (!video) return null;
+    const sameCat = videos.filter(v => v.categoryId === video.categoryId && v.id !== video.id);
+    return sameCat.length > 0 ? sameCat[0] : null;
+  };
+
+  const startAutoNext = (seconds = 8) => {
+    const next = computeNextVideo();
+    if (!next) return;
+    setAutoNextTarget(next);
+    setAutoNextCountdown(Math.max(1, seconds));
+  };
+
+  const cancelAutoNext = () => {
+    setAutoNextCountdown(null);
+    setAutoNextTarget(null);
+  };
+
+  const goToAutoNext = () => {
+    if (!autoNextTarget) return;
+    const id = autoNextTarget.id;
+    cancelAutoNext();
+    navigate(`/video/${id}`);
+  };
+
+  useEffect(() => {
+    if (autoNextCountdown === null) return;
+    if (autoNextCountdown <= 0) {
+      goToAutoNext();
+      return;
+    }
+    const t = setTimeout(() => setAutoNextCountdown((s) => (s === null ? s : s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [autoNextCountdown]);
+
   const category = categories.find(c => c.id === video?.categoryId);
   const relatedVideos = videos.filter(v => v.categoryId === video?.categoryId && v.id !== video?.id);
   const vimeoIdFromUrl = extractVimeoId(video?.videoUrl);
-  const isPdf = (video?.videoUrl || '').endsWith('.pdf') || (video?.videoUrl || '').includes('/api/files') && /application\/pdf/i.test('');
-  const isImage = (video?.videoUrl || '').match(/\.(jpg|jpeg|png)$/i);
+
+  // Detectar Content-Type da URL (útil para /api/files/:id)
+  const [contentType, setContentType] = useState<string | null>(null);
+  useEffect(() => {
+    setContentType(null);
+    const url = video?.videoUrl || '';
+    if (!url) return;
+    let aborted = false;
+    (async () => {
+      try {
+        const resp = await fetch(url, { method: 'HEAD' });
+        if (!aborted) {
+          setContentType(resp.headers.get('content-type'));
+        }
+      } catch {}
+    })();
+    return () => { aborted = true; };
+  }, [video?.videoUrl]);
+
+  const lowerUrl = String(video?.videoUrl || '').toLowerCase();
+  const isPdf = (contentType?.startsWith('application/pdf') || lowerUrl.endsWith('.pdf')) || false;
+  const isImage = (contentType?.startsWith('image/') || /\.(jpg|jpeg|png)$/i.test(lowerUrl)) || false;
 
   useEffect(() => {
     if (!user) {
@@ -223,6 +283,8 @@ export default function VideoPlayer() {
           title: "Vídeo concluído!",
           description: "Parabéns por completar este vídeo.",
         });
+        // Iniciar contagem para próximo
+        startAutoNext();
       }
     };
 
@@ -393,7 +455,7 @@ export default function VideoPlayer() {
             <Card className="overflow-hidden">
               <div className="relative bg-black aspect-video">
                 {isPdf ? (
-                  <iframe src={video.videoUrl} className="absolute inset-0 w-full h-full" title={video.title} />
+                  <PdfViewer url={video.videoUrl} title={video.title} className="absolute inset-0 w-full h-full" />
                 ) : isImage ? (
                   <img src={video.videoUrl} alt={video.title} className="absolute inset-0 w-full h-full object-contain bg-black" />
                 ) : (video.vimeoEmbedUrl || video.vimeoId || vimeoIdFromUrl) ? (
@@ -556,6 +618,19 @@ export default function VideoPlayer() {
             {/* Video Info */}
             <Card>
               <CardHeader>
+                {autoNextTarget && autoNextCountdown !== null && (
+                  <div className="mb-3">
+                    <div className="rounded-md bg-primary/10 border border-primary/20 p-3 flex items-center justify-between">
+                      <div className="text-sm">
+                        Próximo vídeo em {autoNextCountdown}s: <span className="font-medium">{autoNextTarget.title}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={cancelAutoNext}>Cancelar</Button>
+                        <Button size="sm" onClick={goToAutoNext}>Ir agora</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-start justify-between">
                   <div className="flex-1 pr-4">
                     {isEditing && user?.role === 'admin' ? (

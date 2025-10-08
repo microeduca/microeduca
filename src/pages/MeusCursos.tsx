@@ -18,8 +18,9 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
-import { getCategories, getVideos, getViewHistory } from '@/lib/storage';
+import { getCategories, getVideos, getViewHistory, getModules } from '@/lib/storage';
 import { Category, Video as VideoType } from '@/types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function MeusCursos() {
   const navigate = useNavigate();
@@ -27,6 +28,9 @@ export default function MeusCursos() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [videos, setVideos] = useState<VideoType[]>([]);
   const [viewHistory, setViewHistory] = useState<any[]>([]);
+  const [modulesByCategory, setModulesByCategory] = useState<Record<string, any[]>>({});
+  const [detailsCategoryId, setDetailsCategoryId] = useState<string | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   useEffect(() => {
     (async () => {
       const [c, v, vh] = await Promise.all([
@@ -40,6 +44,27 @@ export default function MeusCursos() {
     })();
   }, [user?.id]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // Carregar módulos por categoria do usuário
+  useEffect(() => {
+    const load = async () => {
+      if (!user) return;
+      const cats = user?.assignedCategories 
+        ? categories.filter(cat => user.assignedCategories.includes(cat.id))
+        : [];
+      if (cats.length === 0) {
+        setModulesByCategory({});
+        return;
+      }
+      const entries = await Promise.all(
+        cats.map(async (c) => [c.id, await getModules(c.id)] as const)
+      );
+      const map: Record<string, any[]> = {};
+      for (const [cid, mods] of entries) map[cid] = mods || [];
+      setModulesByCategory(map);
+    };
+    load();
+  }, [user?.assignedCategories, categories]);
 
   // Redirecionar se não estiver logado
   useEffect(() => {
@@ -132,6 +157,189 @@ export default function MeusCursos() {
 
   const handleVideoClick = (videoId: string) => {
     navigate(`/video/${videoId}`);
+  };
+
+  const getResumeVideoForCategory = (categoryId: string): VideoType | null => {
+    const categoryVideos = videos.filter(v => {
+      const ids = (v as any).categoryIds || (v as any).category_ids || [v.categoryId].filter(Boolean);
+      return ids.includes(categoryId);
+    });
+    if (categoryVideos.length === 0) return null;
+    const idSet = new Set(categoryVideos.map(v => v.id));
+    const inProgress = viewHistory
+      .filter(h => idSet.has(h.videoId) && !h.completed)
+      .sort((a, b) => new Date(b.lastWatchedAt).getTime() - new Date(a.lastWatchedAt).getTime());
+    const recentAny = viewHistory
+      .filter(h => idSet.has(h.videoId))
+      .sort((a, b) => new Date(b.lastWatchedAt).getTime() - new Date(a.lastWatchedAt).getTime());
+    const pick = (inProgress[0]?.videoId) || (recentAny[0]?.videoId) || categoryVideos[0]?.id;
+    return categoryVideos.find(v => v.id === pick) || null;
+  };
+
+  const renderModuleProgress = (moduleId: string | undefined, categoryVideos: VideoType[]) => {
+    const vids = categoryVideos.filter(v => (v as any).moduleId === moduleId || (v as any).module_id === moduleId);
+    const total = vids.length;
+    if (total === 0) return { total: 0, completed: 0, percentage: 0 };
+    const completed = vids.filter(v => !!viewHistory.find(h => h.videoId === v.id && h.completed)).length;
+    const percentage = Math.round((completed / total) * 100);
+    return { total, completed, percentage };
+  };
+
+  const renderCategoryDetails = (categoryId: string) => {
+    const categoryVideos = videos.filter(v => {
+      const ids = (v as any).categoryIds || (v as any).category_ids || [v.categoryId].filter(Boolean);
+      return ids.includes(categoryId);
+    });
+    const mods = (modulesByCategory[categoryId] || []) as Array<{ id: string; title: string; parentId?: string | null; order?: number }>; 
+    const roots = mods.filter(m => !m.parentId)
+      .sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
+    const childOf = (pid: string) => mods.filter(m => m.parentId === pid)
+      .sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
+    const vidsByModule = (mid?: string) => categoryVideos.filter(v => (v as any).moduleId === mid || (v as any).module_id === mid);
+
+    const hasModules = mods.length > 0;
+    if (!hasModules) {
+      return (
+        <div className="space-y-2">
+          {categoryVideos.map(video => {
+            const history = viewHistory.find(h => h.videoId === video.id);
+            return (
+              <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
+                <div className="flex items-center gap-3">
+                  {history?.completed ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : history && history.watchedDuration > 0 ? (
+                    <PlayCircle className="h-4 w-4 text-primary" />
+                  ) : (
+                    <PlayCircle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <div>
+                    <p className="font-medium text-sm">{video.title}</p>
+                    <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm">Assistir</Button>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-5">
+        {roots.map(root => {
+          const rootVids = vidsByModule(root.id);
+          const children = childOf(root.id);
+          const groups = children.map(ch => ({ ch, list: vidsByModule(ch.id) }));
+          const hasAny = rootVids.length > 0 || groups.some(g => g.list.length > 0);
+          if (!hasAny) return null;
+          const rootStats = renderModuleProgress(root.id, categoryVideos);
+          return (
+            <div key={root.id}>
+              <div className="flex items-center justify-between mb-2">
+                <h5 className="text-sm font-semibold">{root.title}</h5>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{rootStats.completed}/{rootStats.total}</span>
+                </div>
+              </div>
+              <Progress value={rootStats.percentage} className="h-1 mb-2" />
+              {rootVids.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {rootVids.map(video => {
+                    const history = viewHistory.find(h => h.videoId === video.id);
+                    return (
+                      <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
+                        <div className="flex items-center gap-3">
+                          {history?.completed ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          ) : history && history.watchedDuration > 0 ? (
+                            <PlayCircle className="h-4 w-4 text-primary" />
+                          ) : (
+                            <PlayCircle className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <div>
+                            <p className="font-medium text-sm">{video.title}</p>
+                            <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="sm">Assistir</Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {groups.map(({ ch, list }) => list.length === 0 ? null : (
+                <div key={ch.id} className="ml-2 mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-medium">{ch.title}</div>
+                    {(() => {
+                      const st = renderModuleProgress(ch.id, categoryVideos);
+                      return <span className="text-[10px] text-muted-foreground">{st.completed}/{st.total}</span>;
+                    })()}
+                  </div>
+                  {(() => {
+                    const st = renderModuleProgress(ch.id, categoryVideos);
+                    return <Progress value={st.percentage} className="h-1 mb-2" />;
+                  })()}
+                  <div className="space-y-2">
+                    {list.map(video => {
+                      const history = viewHistory.find(h => h.videoId === video.id);
+                      return (
+                        <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
+                          <div className="flex items-center gap-3">
+                            {history?.completed ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            ) : history && history.watchedDuration > 0 ? (
+                              <PlayCircle className="h-4 w-4 text-primary" />
+                            ) : (
+                              <PlayCircle className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <div>
+                              <p className="font-medium text-sm">{video.title}</p>
+                              <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="sm">Assistir</Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+        {categoryVideos.filter(v => !(v as any).moduleId && !(v as any).module_id).length > 0 && (
+          <div>
+            <h5 className="text-sm font-semibold mb-2">Outros</h5>
+            <div className="space-y-2">
+              {categoryVideos.filter(v => !(v as any).moduleId && !(v as any).module_id).map(video => {
+                const history = viewHistory.find(h => h.videoId === video.id);
+                return (
+                  <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
+                    <div className="flex items-center gap-3">
+                      {history?.completed ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : history && history.watchedDuration > 0 ? (
+                        <PlayCircle className="h-4 w-4 text-primary" />
+                      ) : (
+                        <PlayCircle className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <div>
+                        <p className="font-medium text-sm">{video.title}</p>
+                        <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm">Assistir</Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (!user) {
@@ -265,7 +473,7 @@ export default function MeusCursos() {
                     <Card 
                       key={category.id} 
                       className="hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
-                      onClick={() => handleCategoryClick(category.id)}
+                      onClick={() => { setIsDetailsOpen(true); setDetailsCategoryId(category.id); }}
                     >
                       <div className="h-2 bg-gradient-to-r from-primary/20 to-primary/10" />
                       <CardHeader>
@@ -328,6 +536,28 @@ export default function MeusCursos() {
                   );
                 })}
               </div>
+
+              {/* Modal de detalhes por módulos */}
+              <Dialog open={isDetailsOpen} onOpenChange={(open) => { setIsDetailsOpen(open); if (!open) setDetailsCategoryId(null); }}>
+                <DialogContent className="max-w-4xl">
+                  <DialogHeader>
+                    <DialogTitle>Conteúdo do Curso</DialogTitle>
+                  </DialogHeader>
+                  {detailsCategoryId && (() => {
+                    const resume = getResumeVideoForCategory(detailsCategoryId);
+                    return resume ? (
+                      <div className="flex justify-end mb-3">
+                        <Button onClick={() => navigate(`/video/${resume.id}`)}>
+                          Continuar do último vídeo
+                        </Button>
+                      </div>
+                    ) : null;
+                  })()}
+                  <div className="max-h-[70vh] overflow-y-auto">
+                    {detailsCategoryId ? renderCategoryDetails(detailsCategoryId) : null}
+                  </div>
+                </DialogContent>
+              </Dialog>
             </TabsContent>
 
             {/* List View */}
@@ -370,6 +600,12 @@ export default function MeusCursos() {
                               Indisponível
                             </Button>
                           )}
+                          <Button 
+                            variant="outline"
+                            onClick={() => setSelectedCategory(prev => prev === category.id ? null : category.id)}
+                          >
+                            Ver detalhes
+                          </Button>
                         </div>
                       </div>
                     </CardHeader>
@@ -392,42 +628,148 @@ export default function MeusCursos() {
                           </div>
                         </div>
 
-                        {/* Lista de vídeos do curso */}
+                        {/* Detalhes por Módulos/Submódulos */}
                         {selectedCategory === category.id && (
                           <div className="mt-4 pt-4 border-t">
-                            <h4 className="font-medium mb-3">Vídeos do Curso:</h4>
-                            <div className="space-y-2">
-                              {categoryVideos.map(video => {
-                                const history = viewHistory.find(h => h.videoId === video.id);
-                                
+                            <h4 className="font-medium mb-3">Conteúdo do Curso por Módulos</h4>
+                            {(() => {
+                              const mods = (modulesByCategory[category.id] || []) as Array<{ id: string; title: string; parentId?: string | null; order?: number }>; 
+                              const roots = mods.filter(m => !m.parentId)
+                                .sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                              const childOf = (pid: string) => mods.filter(m => m.parentId === pid)
+                                .sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                              const vids = categoryVideos;
+                              const vidsByModule = (mid?: string) => vids.filter(v => (v as any).moduleId === mid || (v as any).module_id === mid);
+                              const hasModules = mods.length > 0;
+
+                              if (hasModules) {
                                 return (
-                                  <div 
-                                    key={video.id}
-                                    className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors"
-                                    onClick={() => handleVideoClick(video.id)}
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      {history?.completed ? (
-                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                      ) : history && history.watchedDuration > 0 ? (
-                                        <PlayCircle className="h-4 w-4 text-primary" />
-                                      ) : (
-                                        <PlayCircle className="h-4 w-4 text-muted-foreground" />
-                                      )}
+                                  <div className="space-y-5">
+                                    {roots.map(root => {
+                                      const rootVids = vidsByModule(root.id);
+                                      const children = childOf(root.id);
+                                      const groups = children.map(ch => ({ ch, list: vidsByModule(ch.id) }));
+                                      const hasAny = rootVids.length > 0 || groups.some(g => g.list.length > 0);
+                                      if (!hasAny) return null;
+                                      return (
+                                        <div key={root.id}>
+                                          <h5 className="text-sm font-semibold mb-2">{root.title}</h5>
+                                          {rootVids.length > 0 && (
+                                            <div className="space-y-2 mb-3">
+                                              {rootVids.map(video => {
+                                                const history = viewHistory.find(h => h.videoId === video.id);
+                                                return (
+                                                  <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
+                                                    <div className="flex items-center gap-3">
+                                                      {history?.completed ? (
+                                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                      ) : history && history.watchedDuration > 0 ? (
+                                                        <PlayCircle className="h-4 w-4 text-primary" />
+                                                      ) : (
+                                                        <PlayCircle className="h-4 w-4 text-muted-foreground" />
+                                                      )}
+                                                      <div>
+                                                        <p className="font-medium text-sm">{video.title}</p>
+                                                        <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                                                      </div>
+                                                    </div>
+                                                    <Button variant="ghost" size="sm">Assistir</Button>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                          {groups.map(({ ch, list }) => list.length === 0 ? null : (
+                                            <div key={ch.id} className="ml-2 mb-3">
+                                              <div className="text-xs font-medium mb-2">{ch.title}</div>
+                                              <div className="space-y-2">
+                                                {list.map(video => {
+                                                  const history = viewHistory.find(h => h.videoId === video.id);
+                                                  return (
+                                                    <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
+                                                      <div className="flex items-center gap-3">
+                                                        {history?.completed ? (
+                                                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                        ) : history && history.watchedDuration > 0 ? (
+                                                          <PlayCircle className="h-4 w-4 text-primary" />
+                                                        ) : (
+                                                          <PlayCircle className="h-4 w-4 text-muted-foreground" />
+                                                        )}
+                                                        <div>
+                                                          <p className="font-medium text-sm">{video.title}</p>
+                                                          <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                                                        </div>
+                                                      </div>
+                                                      <Button variant="ghost" size="sm">Assistir</Button>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      );
+                                    })}
+                                    {/* Fallback: vídeos sem módulo */}
+                                    {vids.filter(v => !(v as any).moduleId && !(v as any).module_id).length > 0 && (
                                       <div>
-                                        <p className="font-medium text-sm">{video.title}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {formatDuration(video.duration)}
-                                        </p>
+                                        <h5 className="text-sm font-semibold mb-2">Outros</h5>
+                                        <div className="space-y-2">
+                                          {vids.filter(v => !(v as any).moduleId && !(v as any).module_id).map(video => {
+                                            const history = viewHistory.find(h => h.videoId === video.id);
+                                            return (
+                                              <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
+                                                <div className="flex items-center gap-3">
+                                                  {history?.completed ? (
+                                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                                  ) : history && history.watchedDuration > 0 ? (
+                                                    <PlayCircle className="h-4 w-4 text-primary" />
+                                                  ) : (
+                                                    <PlayCircle className="h-4 w-4 text-muted-foreground" />
+                                                  )}
+                                                  <div>
+                                                    <p className="font-medium text-sm">{video.title}</p>
+                                                    <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                                                  </div>
+                                                </div>
+                                                <Button variant="ghost" size="sm">Assistir</Button>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
                                       </div>
-                                    </div>
-                                    <Button variant="ghost" size="sm">
-                                      Assistir
-                                    </Button>
+                                    )}
                                   </div>
                                 );
-                              })}
-                            </div>
+                              }
+
+                              // Sem módulos: lista simples (comportamento antigo)
+                              return (
+                                <div className="space-y-2">
+                                  {vids.map(video => {
+                                    const history = viewHistory.find(h => h.videoId === video.id);
+                                    return (
+                                      <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
+                                        <div className="flex items-center gap-3">
+                                          {history?.completed ? (
+                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                          ) : history && history.watchedDuration > 0 ? (
+                                            <PlayCircle className="h-4 w-4 text-primary" />
+                                          ) : (
+                                            <PlayCircle className="h-4 w-4 text-muted-foreground" />
+                                          )}
+                                          <div>
+                                            <p className="font-medium text-sm">{video.title}</p>
+                                            <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                                          </div>
+                                        </div>
+                                        <Button variant="ghost" size="sm">Assistir</Button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>

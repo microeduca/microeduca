@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Clock, Play, Search, Calendar, Filter, BarChart3 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
-import { getViewHistory, getVideos, getCategories, getModules } from "@/lib/storage";
+import { getViewHistory, getVideos, getCategories, getModules, getVideoProgress as getVideoProgressApi } from "@/lib/storage";
 import { ViewHistory, Video, Category } from "@/types";
 
 export default function History() {
@@ -19,6 +19,7 @@ export default function History() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [modulesByCategory, setModulesByCategory] = useState<Record<string, any[]>>({});
+  const [videoProgressById, setVideoProgressById] = useState<Record<string, { duration: number; currentTime: number; completed: boolean }>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -46,6 +47,28 @@ export default function History() {
           modMap[c.id] = mods;
         }
         setModulesByCategory(modMap);
+
+        // Carregar progresso/duração para vídeos com duração desconhecida (0)
+        const unknownDurationVideoIds = Array.from(new Set(userHistory
+          .map(h => h.videoId)
+          .filter(vid => (videosList.find(v => v.id === vid)?.duration || 0) <= 0)));
+        if (unknownDurationVideoIds.length > 0) {
+          const entries = await Promise.all(unknownDurationVideoIds.map(async (vid) => {
+            try {
+              const vp = await getVideoProgressApi(vid);
+              return [vid, vp] as const;
+            } catch {
+              return [vid, null] as const;
+            }
+          }));
+          const map: Record<string, { duration: number; currentTime: number; completed: boolean }> = {};
+          for (const [vid, vp] of entries) {
+            if (vp) {
+              map[vid] = { duration: Math.max(0, vp.duration || 0), currentTime: Math.max(0, vp.currentTime || 0), completed: !!vp.completed };
+            }
+          }
+          setVideoProgressById(map);
+        }
       } catch (_e) {
         setHistory([]);
         setVideos([]);
@@ -321,8 +344,10 @@ export default function History() {
             filteredAndSortedHistory.map((item) => {
               const video = getVideo(item.videoId);
               const category = video ? getCategory(video.categoryId) : null;
-              const progressPercentage = video && video.duration > 0
-                ? Math.min((item.watchedDuration / video.duration) * 100, 100)
+              const fallback = videoProgressById[item.videoId];
+              const effectiveDuration = (video && video.duration > 0) ? video.duration : (fallback?.duration || 0);
+              const progressPercentage = effectiveDuration > 0
+                ? Math.min((item.watchedDuration / effectiveDuration) * 100, 100)
                 : (item.completed ? 100 : 0);
 
               if (!video) return null;
@@ -394,7 +419,7 @@ export default function History() {
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">
-                              {formatDuration(item.watchedDuration)} de {formatDuration(video.duration)}
+                              {formatDuration(item.watchedDuration)} de {formatDuration(effectiveDuration || video.duration)}
                             </span>
                             <span className="font-medium">
                               {progressPercentage.toFixed(0)}%

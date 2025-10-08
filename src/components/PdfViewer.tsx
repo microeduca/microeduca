@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+// Vite: importar o worker como URL para evitar warnings/erros em produção
+// Em pdfjs-dist >=5 existe o arquivo .mjs; usamos ?url para obter a URL final
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, ExternalLink, Download, Printer } from 'lucide-react';
 
@@ -9,8 +12,10 @@ type PdfViewerProps = {
   className?: string;
 };
 
-// Configurar worker do PDF.js para Vite
-pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.js', import.meta.url).toString();
+// Configurar worker do PDF.js (de forma compatível com Vite/produção)
+if (typeof window !== 'undefined' && pdfjs?.GlobalWorkerOptions) {
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl as unknown as string;
+}
 
 export default function PdfViewer({ url, title, className }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);

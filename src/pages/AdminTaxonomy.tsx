@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, FolderOpen, FolderTree, Pencil, Trash2, ArrowUp, ArrowDown, Search, GripVertical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getCategories, addCategory } from '@/lib/supabase';
+import { getCategories, addCategory, updateCategory, deleteCategory } from '@/lib/supabase';
 import { getModules, addModule, updateModule, deleteModule } from '@/lib/storage';
 
 export default function AdminTaxonomy() {
@@ -21,6 +21,9 @@ export default function AdminTaxonomy() {
   const [editingTitle, setEditingTitle] = useState<string>('');
   const [newCatName, setNewCatName] = useState('');
   const [newCatDesc, setNewCatDesc] = useState('');
+  const [editingCatId, setEditingCatId] = useState<string>('');
+  const [editingCatName, setEditingCatName] = useState<string>('');
+  const [editingCatDesc, setEditingCatDesc] = useState<string>('');
 
   useEffect(() => {
     (async () => {
@@ -153,6 +156,52 @@ export default function AdminTaxonomy() {
     catch { toast({ title: 'Não foi possível remover (verifique filhos/vídeos).', variant: 'destructive' }); }
   };
 
+  // Funções para categorias
+  const refreshCategories = async () => {
+    const cats = await getCategories();
+    setCategories(cats);
+  };
+
+  const handleEditCategory = (cat: { id: string; name: string; description?: string }) => {
+    setEditingCatId(cat.id);
+    setEditingCatName(cat.name);
+    setEditingCatDesc(cat.description || '');
+  };
+
+  const saveCategoryEdit = async () => {
+    if (!editingCatName.trim()) return;
+    try {
+      await updateCategory(editingCatId, { 
+        name: editingCatName.trim(), 
+        description: editingCatDesc.trim() 
+      });
+      await refreshCategories();
+      setEditingCatId('');
+      setEditingCatName('');
+      setEditingCatDesc('');
+      toast({ title: 'Categoria atualizada' });
+    } catch {
+      toast({ title: 'Erro ao editar categoria', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteCategory = async (id: string, name: string) => {
+    if (!confirm(`Tem certeza que deseja deletar a categoria "${name}"?\n\nIsso também removerá todos os módulos e vídeos associados a esta categoria.`)) return;
+    try {
+      await deleteCategory(id);
+      await refreshCategories();
+      // Se a categoria deletada era a selecionada, selecionar a primeira disponível
+      if (selectedCategoryId === id) {
+        const remainingCats = categories.filter(c => c.id !== id);
+        setSelectedCategoryId(remainingCats[0]?.id || '');
+      }
+      toast({ title: 'Categoria deletada' });
+    } catch (error) {
+      console.error('Erro ao deletar categoria:', error);
+      toast({ title: 'Não foi possível deletar a categoria (verifique se não há vídeos associados)', variant: 'destructive' });
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -191,14 +240,73 @@ export default function AdminTaxonomy() {
               </div>
               <div className="max-h-[420px] overflow-auto divide-y rounded border">
                 {filteredCategories.map(c => (
-                  <button
+                  <div
                     key={c.id}
-                    onClick={() => setSelectedCategoryId(c.id)}
-                    className={`w-full text-left px-3 py-2 hover:bg-accent ${selectedCategoryId === c.id ? 'bg-accent' : ''}`}
+                    className={`flex items-center justify-between px-3 py-2 hover:bg-accent ${selectedCategoryId === c.id ? 'bg-accent' : ''}`}
                   >
-                    <div className="font-medium">{c.name}</div>
-                    <div className="text-xs text-muted-foreground line-clamp-1">{c.description || '—'}</div>
-                  </button>
+                    <button
+                      onClick={() => setSelectedCategoryId(c.id)}
+                      className="flex-1 text-left"
+                    >
+                      {editingCatId === c.id ? (
+                        <div className="space-y-2">
+                          <Input 
+                            value={editingCatName} 
+                            onChange={(e) => setEditingCatName(e.target.value)} 
+                            className="h-8" 
+                            placeholder="Nome da categoria"
+                          />
+                          <Input 
+                            value={editingCatDesc} 
+                            onChange={(e) => setEditingCatDesc(e.target.value)} 
+                            className="h-8" 
+                            placeholder="Descrição (opcional)"
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="font-medium">{c.name}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-1">{c.description || '—'}</div>
+                        </div>
+                      )}
+                    </button>
+                    <div className="flex items-center gap-1 ml-2">
+                      {editingCatId === c.id ? (
+                        <>
+                          <Button size="sm" onClick={saveCategoryEdit} disabled={!editingCatName.trim()}>
+                            Salvar
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => { setEditingCatId(''); setEditingCatName(''); setEditingCatDesc(''); }}
+                          >
+                            Cancelar
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            onClick={() => handleEditCategory(c)}
+                            title="Editar categoria"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteCategory(c.id, c.name)}
+                            title="Deletar categoria"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 ))}
                 {filteredCategories.length === 0 && (
                   <div className="px-3 py-8 text-center text-muted-foreground">Nenhuma categoria</div>

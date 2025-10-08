@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 // Usar o worker que vem com react-pdf para garantir compatibilidade de versões
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, ExternalLink, Download, Printer, RefreshCw } from 'lucide-react';
 
@@ -12,13 +10,10 @@ type PdfViewerProps = {
   className?: string;
 };
 
-// Configurar worker do PDF.js usando o que vem com react-pdf
+// Configurar worker do PDF.js usando CDN para evitar problemas de build
 if (typeof window !== 'undefined' && pdfjs?.GlobalWorkerOptions) {
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.js',
-    import.meta.url,
-  ).toString();
-  console.log('PDF.js worker configured with react-pdf version');
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+  console.log('PDF.js worker configured with CDN version');
 }
 
 export default function PdfViewer({ url, title, className }: PdfViewerProps) {

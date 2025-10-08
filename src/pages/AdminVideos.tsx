@@ -16,6 +16,7 @@ import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHi
 import { getModules, addModule } from '@/lib/storage';
 import { uploadSupportFile } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
+import PdfViewer from '@/components/PdfViewer';
 import VimeoUpload from '@/components/admin/VimeoUpload';
 
 // Tipos locais para remover any e contemplar snake/camel case vindos do backend
@@ -94,6 +95,33 @@ export default function AdminVideos() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Após carregar a lista, tentar preencher duração/thumbnail de vídeos do Vimeo ainda sem dados
+  useEffect(() => {
+    const fillMissingVimeoData = async () => {
+      const pending = videos.filter(v => (v.duration || 0) === 0 || !v.thumbnail);
+      for (const v of pending) {
+        // extrair possível vimeoId
+        const fromEmbed = (v?.vimeo_embed_url || v?.vimeoEmbedUrl)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
+        const fromUrl = (v?.video_url || v?.videoUrl)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
+        const vimeoId: string | undefined = (v as unknown as { vimeo_id?: string; vimeoId?: string }).vimeo_id || (v as unknown as { vimeo_id?: string; vimeoId?: string }).vimeoId || fromEmbed || fromUrl;
+        if (!vimeoId) continue;
+        try {
+          const resp = await fetch(`/api/vimeo-thumbnail/${encodeURIComponent(String(vimeoId))}`);
+          if (!resp.ok) continue;
+          const data = await resp.json() as { duration?: number; thumbnail?: string | null; embedUrl?: string | null };
+          const next: Partial<AdminVideoRow> & { vimeo_embed_url?: string } = {};
+          if ((data?.duration ?? 0) > 0) next.duration = Math.floor(data.duration);
+          if (data?.thumbnail && !v.thumbnail) next.thumbnail = String(data.thumbnail);
+          if (data?.embedUrl) next.vimeo_embed_url = String(data.embedUrl);
+          if (Object.keys(next).length > 0) {
+            try { await updateVideo(v.id, next as unknown as AdminVideoRow); } catch {/* ignore */}
+          }
+        } catch {/* ignore */}
+      }
+    };
+    if (videos.length > 0) fillMissingVimeoData();
+  }, [videos]);
 
   const loadData = async () => {
     setLoading(true);
@@ -1306,22 +1334,34 @@ export default function AdminVideos() {
                 Incorporação do player do Vimeo
               </DialogDescription>
             </DialogHeader>
-            <div className="relative aspect-video bg-black rounded-md overflow-hidden">
-              {computeVimeoEmbed(previewVideo) ? (
-                <iframe
-                  src={computeVimeoEmbed(previewVideo) as string}
-                  className="absolute inset-0 w-full h-full"
-                  frameBorder="0"
-                  allow="autoplay; fullscreen; picture-in-picture"
-                  allowFullScreen
-                  title={previewVideo.title}
-                />
-              ) : (
-                <div className="flex items-center justify-center text-muted-foreground h-full">
-                  Sem embed do Vimeo
+            {(() => {
+              const url = String((previewVideo as unknown as { video_url?: string; videoUrl?: string }).video_url || (previewVideo as unknown as { video_url?: string; videoUrl?: string }).videoUrl || '');
+              const lower = url.toLowerCase();
+              const isPdf = lower.endsWith('.pdf') || lower.includes('/api/files/');
+              const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(lower);
+              const vimeo = computeVimeoEmbed(previewVideo);
+              return (
+                <div className="relative aspect-video bg-black rounded-md overflow-hidden">
+                  {isPdf ? (
+                    <PdfViewer url={url} title={previewVideo?.title} className="absolute inset-0 w-full h-full" />
+                  ) : isImg ? (
+                    <img src={url} alt={previewVideo?.title || 'Imagem'} className="absolute inset-0 w-full h-full object-contain bg-black" />
+                  ) : vimeo ? (
+                    <iframe
+                      src={vimeo as string}
+                      className="absolute inset-0 w-full h-full"
+                      frameBorder={0}
+                      allow="autoplay; fullscreen; picture-in-picture"
+                      title={previewVideo?.title || 'Vimeo player'}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center text-muted-foreground h-full">
+                      Sem pré-visualização disponível
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
             <DialogFooter>
               <Button variant="outline" onClick={() => setPreviewVideo(null)}>Fechar</Button>
               <Button onClick={() => navigate(`/video/${previewVideo?.id}`)}>Abrir página do vídeo</Button>

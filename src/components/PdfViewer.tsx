@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-// Vite: importar o worker como URL para evitar warnings/erros em produção
-// Em pdfjs-dist >=5 existe o arquivo .mjs; usamos ?url para obter a URL final
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Usar o worker que vem com react-pdf para garantir compatibilidade de versões
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, ExternalLink, Download, Printer, RefreshCw } from 'lucide-react';
 
@@ -12,10 +12,13 @@ type PdfViewerProps = {
   className?: string;
 };
 
-// Configurar worker do PDF.js (de forma compatível com Vite/produção)
+// Configurar worker do PDF.js usando o que vem com react-pdf
 if (typeof window !== 'undefined' && pdfjs?.GlobalWorkerOptions) {
-  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl as unknown as string;
-  console.log('PDF.js worker configured:', pdfjsWorkerUrl);
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.js',
+    import.meta.url,
+  ).toString();
+  console.log('PDF.js worker configured with react-pdf version');
 }
 
 export default function PdfViewer({ url, title, className }: PdfViewerProps) {

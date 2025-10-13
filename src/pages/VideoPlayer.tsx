@@ -23,7 +23,8 @@ import {
   MessageCircle,
   Clock,
   User,
-  Send
+  Send,
+  FileText
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { 
@@ -40,6 +41,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import VimeoPlayer from '@/components/VimeoPlayer';
 import PdfViewer from '@/components/PdfViewer';
+import { isActualVideo, isSupportMaterial } from '@/lib/utils';
 
 function extractVimeoId(url?: string | null): string | undefined {
   if (!url) return undefined;
@@ -134,19 +136,6 @@ export default function VideoPlayer() {
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
   const [autoNextTarget, setAutoNextTarget] = useState<any | null>(null);
 
-  // Função auxiliar para identificar se um item é um vídeo real (não PDF ou imagem)
-  const isActualVideo = (v: any) => {
-    const url = String(v?.videoUrl || '').toLowerCase();
-    // Se tem vimeoId ou vimeoEmbedUrl, é vídeo
-    if (v.vimeoId || v.vimeoEmbedUrl) return true;
-    // Se termina em .pdf ou é imagem, não é vídeo
-    if (url.endsWith('.pdf') || /\.(jpg|jpeg|png|gif|webp)$/i.test(url)) return false;
-    // Se inclui /api/files/, provavelmente é PDF ou material de apoio
-    if (url.includes('/api/files/')) return false;
-    // Se tem video_url mas não é PDF/imagem, considera como vídeo
-    return !!v.videoUrl;
-  };
-
   const computeNextVideo = () => {
     if (!video) return null;
     // Filtrar apenas vídeos reais da mesma categoria, excluindo o vídeo atual
@@ -208,6 +197,13 @@ export default function VideoPlayer() {
   const category = categories.find(c => c.id === video?.categoryId);
   const relatedVideos = videos
     .filter(v => v.categoryId === video?.categoryId && v.id !== video?.id && isActualVideo(v))
+    .sort((a, b) => {
+      const dateA = new Date(a.uploadedAt || 0).getTime();
+      const dateB = new Date(b.uploadedAt || 0).getTime();
+      return dateA - dateB;
+    });
+  const supportMaterials = videos
+    .filter(v => v.categoryId === video?.categoryId && isSupportMaterial(v))
     .sort((a, b) => {
       const dateA = new Date(a.uploadedAt || 0).getTime();
       const dateB = new Date(b.uploadedAt || 0).getTime();
@@ -972,6 +968,34 @@ export default function VideoPlayer() {
                 ))}
               </CardContent>
             </Card>
+
+            {/* Support Materials */}
+            {supportMaterials.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Materiais de Apoio</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {supportMaterials.map(material => (
+                    <div 
+                      key={material.id}
+                      className="flex gap-3 cursor-pointer hover:bg-accent/50 p-2 rounded-md transition-colors"
+                      onClick={() => navigate(`/video/${material.id}`)}
+                    >
+                      <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-orange-500/20 to-orange-500/10 flex items-center justify-center rounded">
+                        <FileText className="h-6 w-6 text-orange-500/70" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium line-clamp-2">{material.title}</h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          PDF
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

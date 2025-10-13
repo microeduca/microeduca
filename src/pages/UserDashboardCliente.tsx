@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Play, Clock, CheckCircle, BookOpen, TrendingUp } from 'lucide-react';
+import { Play, Clock, CheckCircle, BookOpen, TrendingUp, FileText } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { getCategories, getVideos, getViewHistory, getWelcomeVideo, getModules } from '@/lib/storage';
 import VideoCard from '@/components/VideoCard';
@@ -14,6 +14,7 @@ import ModuleBadge from '@/components/ModuleBadge';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useNavigate } from 'react-router-dom';
 import { useFavorites } from '@/hooks/useFavorites';
+import { isActualVideo, isSupportMaterial } from '@/lib/utils';
 
 export default function UserDashboardCliente() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('cliente');
@@ -32,13 +33,22 @@ export default function UserDashboardCliente() {
   // Permissões por categorias OU módulos
   const allowedCategories = new Set<string>(user?.assignedCategories || []);
   const allowedModules = new Set<string>(user?.assignedModules || []);
+  
+  // Filtrar apenas vídeos reais (excluir PDFs e materiais de apoio)
   const visibleVideos = videos.filter(v => {
     const categoryIds: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
     const moduleId: string | undefined = (v as any).moduleId || (v as any).module_id;
     const byCategory = categoryIds.some(id => allowedCategories.has(id));
     const byModule = moduleId ? allowedModules.has(moduleId) : false;
     const byModuleFilter = selectedModules.length === 0 ? true : (moduleId ? selectedModules.includes(moduleId) : false);
-    return (byCategory || byModule) && byModuleFilter;
+    return (byCategory || byModule) && byModuleFilter && isActualVideo(v);
+  });
+
+  // Filtrar materiais de apoio das categorias permitidas
+  const supportMaterials = videos.filter(v => {
+    const categoryIds: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
+    const byCategory = categoryIds.some(id => allowedCategories.has(id));
+    return byCategory && isSupportMaterial(v);
   });
 
   useEffect(() => {
@@ -217,6 +227,52 @@ export default function UserDashboardCliente() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Support Materials Section */}
+        {supportMaterials.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Materiais de Apoio</CardTitle>
+              <CardDescription>PDFs e documentos complementares</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {supportMaterials.map(material => {
+                  const category = categories.find(c => c.id === material.categoryId);
+                  return (
+                    <Card 
+                      key={material.id} 
+                      className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => navigate(`/video/${material.id}`)}
+                    >
+                      <div className="aspect-video relative bg-gradient-to-br from-orange-500/20 to-orange-500/10 flex items-center justify-center">
+                        <FileText className="h-16 w-16 text-orange-500/70" />
+                      </div>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base line-clamp-2">{material.title}</CardTitle>
+                        {material.description && (
+                          <CardDescription className="line-clamp-2 text-xs">
+                            {material.description}
+                          </CardDescription>
+                        )}
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-xs text-muted-foreground">PDF</span>
+                          {category && (
+                            <Badge variant="secondary" className="text-xs">
+                              {category.name}
+                            </Badge>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </Layout>
   );

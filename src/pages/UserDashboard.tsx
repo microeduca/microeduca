@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Play, Clock, CheckCircle, BookOpen, TrendingUp, Grid, List, Search } from 'lucide-react';
+import { Play, Clock, CheckCircle, BookOpen, TrendingUp, Grid, List, Search, FileText } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { getCategories, getVideos, getViewHistory, getWelcomeVideo, getModules } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +16,7 @@ import VideoCard from '@/components/VideoCard';
 import ModuleBadge from '@/components/ModuleBadge';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useFavorites } from '@/hooks/useFavorites';
+import { isActualVideo, isSupportMaterial } from '@/lib/utils';
 
 export default function UserDashboard() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('user');
@@ -60,7 +61,9 @@ export default function UserDashboard() {
   const isAdmin = user?.role === 'admin';
   const allowedCategoryIds = isAdmin ? null : new Set<string>(user?.assignedCategories || []);
   const allowedModuleIds = isAdmin ? null : new Set<string>(user?.assignedModules || []);
-  const visibleVideos = isAdmin
+  
+  // Filtrar apenas vídeos reais (excluir PDFs e materiais de apoio)
+  const visibleVideos = (isAdmin
     ? videos
     : videos.filter(v => {
         const categoryIds: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
@@ -68,7 +71,16 @@ export default function UserDashboard() {
         const inAllowedCategories = categoryIds.some(id => (allowedCategoryIds as Set<string>).has(id));
         const inAllowedModules = moduleId ? (allowedModuleIds as Set<string>).has(moduleId) : false;
         return inAllowedCategories || inAllowedModules;
-      });
+      })).filter(v => isActualVideo(v));
+
+  // Filtrar materiais de apoio das categorias permitidas
+  const supportMaterials = (isAdmin
+    ? videos
+    : videos.filter(v => {
+        const categoryIds: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
+        return categoryIds.some(id => (allowedCategoryIds as Set<string>)?.has(id) || isAdmin);
+      })).filter(v => isSupportMaterial(v));
+
   const visibleCategories = isAdmin
     ? categories
     : categories.filter(c => (allowedCategoryIds as Set<string>).has(c.id));
@@ -674,6 +686,52 @@ export default function UserDashboard() {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Support Materials Section */}
+        {supportMaterials.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Materiais de Apoio</CardTitle>
+              <CardDescription>PDFs e documentos complementares das suas categorias</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {supportMaterials.map(material => {
+                  const category = categories.find(c => c.id === material.categoryId);
+                  return (
+                    <Card 
+                      key={material.id} 
+                      className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => navigate(`/video/${material.id}`)}
+                    >
+                      <div className="aspect-video relative bg-gradient-to-br from-orange-500/20 to-orange-500/10 flex items-center justify-center">
+                        <FileText className="h-16 w-16 text-orange-500/70" />
+                      </div>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base line-clamp-2">{material.title}</CardTitle>
+                        {material.description && (
+                          <CardDescription className="line-clamp-2 text-xs">
+                            {material.description}
+                          </CardDescription>
+                        )}
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-xs text-muted-foreground">PDF</span>
+                          {category && (
+                            <Badge variant="secondary" className="text-xs">
+                              {category.name}
+                            </Badge>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         </ErrorBoundary>
       </div>
     </Layout>

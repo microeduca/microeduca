@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useParams } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
@@ -23,6 +23,12 @@ import AdminMaterialUpload from "./pages/AdminMaterialUpload";
 import History from "./pages/History";
 
 const queryClient = new QueryClient();
+
+// Wrapper para forçar remontagem do VideoPlayer quando o ID mudar
+const VideoPlayerWrapper = () => {
+  const { videoId } = useParams();
+  return <VideoPlayer key={videoId} />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -47,7 +53,7 @@ const App = () => (
           <Route path="/dashboard" element={<UserDashboard />} />
           <Route path="/cliente" element={<UserDashboardCliente />} />
           <Route path="/meus-cursos" element={<MeusCursos />} />
-          <Route path="/video/:videoId" element={<VideoPlayer />} />
+          <Route path="/video/:videoId" element={<VideoPlayerWrapper />} />
           <Route path="/history" element={<History />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

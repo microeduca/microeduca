@@ -61,7 +61,17 @@ export default function VideoPlayer() {
   const [comments, setComments] = useState<any[]>([]);
   useEffect(() => {
     (async () => {
+      // Limpar estados anteriores ao trocar de vídeo
+      setVideo(null);
       setIsLoading(true);
+      setIsCompleted(false);
+      setMaxProgress(0);
+      setProgress(0);
+      setCurrentTime(0);
+      setComments([]);
+      setAutoNextCountdown(null);
+      setAutoNextTarget(null);
+      
       const [vList, cList] = await Promise.all([getVideos(), getCategories()]);
       setVideos(vList);
       setCategories(cList);

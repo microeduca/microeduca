@@ -341,8 +341,10 @@ export default function VideoPlayer() {
           title: "Vídeo concluído!",
           description: "Parabéns por completar este vídeo.",
         });
-        // Iniciar contagem para próximo
-        startAutoNext();
+        // Iniciar contagem para próximo vídeo (somente se for vídeo real)
+        if (isActualVideo(video)) {
+          startAutoNext();
+        }
       }
     };
 
@@ -575,6 +577,10 @@ export default function VideoPlayer() {
                           title: "Vídeo concluído!",
                           description: "Parabéns por completar este vídeo.",
                         });
+                        // Iniciar contagem para próximo vídeo (somente se for vídeo real)
+                        if (isActualVideo(video)) {
+                          startAutoNext();
+                        }
                       }
                     }}
                     onPlay={() => {
@@ -678,7 +684,8 @@ export default function VideoPlayer() {
             {/* Video Info */}
             <Card>
               <CardHeader>
-                {autoNextTarget && autoNextCountdown !== null && (
+                {/* Banner de auto-next - só aparece para vídeos reais */}
+                {autoNextTarget && autoNextCountdown !== null && isActualVideo(video) && (
                   <div className="mb-3">
                     <div className="rounded-md bg-primary/10 border border-primary/20 p-3 flex items-center justify-between">
                       <div className="text-sm">
@@ -790,23 +797,25 @@ export default function VideoPlayer() {
                   <span>
                     Enviado em {new Date(video.uploadedAt).toLocaleDateString('pt-BR')}
                   </span>
-                  {/* Botão Próximo vídeo */}
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      const next = computeNextVideo();
-                      if (next) {
-                        navigate(`/video/${next.id}`);
-                      } else {
-                        toast({
-                          title: "Fim da sequência",
-                          description: "Não há mais vídeos nesta categoria.",
-                        });
-                      }
-                    }}
-                  >
-                    Próximo vídeo
-                  </Button>
+                  {/* Botão Próximo vídeo - só aparece para vídeos reais, não para PDFs */}
+                  {isActualVideo(video) && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const next = computeNextVideo();
+                        if (next) {
+                          navigate(`/video/${next.id}`);
+                        } else {
+                          toast({
+                            title: "Fim da sequência",
+                            description: "Não há mais vídeos nesta categoria.",
+                          });
+                        }
+                      }}
+                    >
+                      Próximo vídeo
+                    </Button>
+                  )}
                   {user?.role === 'admin' && isEditing && (
                     <div className="ml-auto flex items-center gap-3">
                       <input

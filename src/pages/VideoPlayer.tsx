@@ -134,10 +134,46 @@ export default function VideoPlayer() {
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
   const [autoNextTarget, setAutoNextTarget] = useState<any | null>(null);
 
+  // Função auxiliar para identificar se um item é um vídeo real (não PDF ou imagem)
+  const isActualVideo = (v: any) => {
+    const url = String(v?.videoUrl || '').toLowerCase();
+    // Se tem vimeoId ou vimeoEmbedUrl, é vídeo
+    if (v.vimeoId || v.vimeoEmbedUrl) return true;
+    // Se termina em .pdf ou é imagem, não é vídeo
+    if (url.endsWith('.pdf') || /\.(jpg|jpeg|png|gif|webp)$/i.test(url)) return false;
+    // Se inclui /api/files/, provavelmente é PDF ou material de apoio
+    if (url.includes('/api/files/')) return false;
+    // Se tem video_url mas não é PDF/imagem, considera como vídeo
+    return !!v.videoUrl;
+  };
+
   const computeNextVideo = () => {
     if (!video) return null;
-    const sameCat = videos.filter(v => v.categoryId === video.categoryId && v.id !== video.id);
-    return sameCat.length > 0 ? sameCat[0] : null;
+    // Filtrar apenas vídeos reais da mesma categoria, excluindo o vídeo atual
+    const videosInCategory = videos
+      .filter(v => v.categoryId === video.categoryId && v.id !== video.id && isActualVideo(v))
+      .sort((a, b) => {
+        // Ordenar por uploadedAt (mais antigos primeiro para seguir ordem de curso)
+        const dateA = new Date(a.uploadedAt || 0).getTime();
+        const dateB = new Date(b.uploadedAt || 0).getTime();
+        return dateA - dateB;
+      });
+    
+    // Encontrar o índice do vídeo atual
+    const allVideosOrdered = [video, ...videosInCategory].sort((a, b) => {
+      const dateA = new Date(a.uploadedAt || 0).getTime();
+      const dateB = new Date(b.uploadedAt || 0).getTime();
+      return dateA - dateB;
+    });
+    
+    const currentIndex = allVideosOrdered.findIndex(v => v.id === video.id);
+    
+    // Retornar o próximo vídeo na sequência
+    if (currentIndex >= 0 && currentIndex < allVideosOrdered.length - 1) {
+      return allVideosOrdered[currentIndex + 1];
+    }
+    
+    return null;
   };
 
   const startAutoNext = (seconds = 8) => {
@@ -170,7 +206,13 @@ export default function VideoPlayer() {
   }, [autoNextCountdown]);
 
   const category = categories.find(c => c.id === video?.categoryId);
-  const relatedVideos = videos.filter(v => v.categoryId === video?.categoryId && v.id !== video?.id);
+  const relatedVideos = videos
+    .filter(v => v.categoryId === video?.categoryId && v.id !== video?.id && isActualVideo(v))
+    .sort((a, b) => {
+      const dateA = new Date(a.uploadedAt || 0).getTime();
+      const dateB = new Date(b.uploadedAt || 0).getTime();
+      return dateA - dateB;
+    });
   const vimeoIdFromUrl = extractVimeoId(video?.videoUrl);
 
   // Detectar Content-Type da URL (útil para /api/files/:id)
@@ -756,10 +798,14 @@ export default function VideoPlayer() {
                   <Button
                     size="sm"
                     onClick={() => {
-                      const sameCat = videos.filter(v => v.categoryId === video.categoryId && v.id !== video.id);
-                      if (sameCat.length > 0) {
-                        const next = sameCat[0];
+                      const next = computeNextVideo();
+                      if (next) {
                         navigate(`/video/${next.id}`);
+                      } else {
+                        toast({
+                          title: "Fim da sequência",
+                          description: "Não há mais vídeos nesta categoria.",
+                        });
                       }
                     }}
                   >

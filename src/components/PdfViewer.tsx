@@ -27,6 +27,15 @@ export default function PdfViewer({ url, title, className }: PdfViewerProps) {
   const [useFallback, setUseFallback] = useState<boolean>(false);
   const [loadingError, setLoadingError] = useState<string | null>(null);
 
+  // Debug logs
+  console.log('PdfViewer Debug:', {
+    url,
+    title,
+    className,
+    useFallback,
+    loadingError
+  });
+
   // Ajustar largura conforme o container (responsivo)
   useEffect(() => {
     const el = containerRef.current;
@@ -134,14 +143,14 @@ export default function PdfViewer({ url, title, className }: PdfViewerProps) {
   // Fallback: usar iframe se react-pdf falhar
   if (useFallback) {
     return (
-      <div ref={containerRef} className={[className, 'bg-gray-100 relative'].filter(Boolean).join(' ')}>
+      <div ref={containerRef} className={[className, 'bg-gray-100 relative w-full h-full'].filter(Boolean).join(' ')}>
         {toolbar}
-        <div className="pt-10 h-full">
+        <div className="pt-10 h-full w-full">
           <iframe
             src={url}
             className="w-full h-full border-0"
             title={title || 'Documento PDF'}
-            style={{ minHeight: '600px' }}
+            style={{ minHeight: '600px', width: '100%', height: '100%' }}
           />
         </div>
       </div>
@@ -149,9 +158,9 @@ export default function PdfViewer({ url, title, className }: PdfViewerProps) {
   }
 
   return (
-    <div ref={containerRef} className={[className, 'bg-black relative overflow-auto'].filter(Boolean).join(' ')}>
+    <div ref={containerRef} className={[className, 'bg-black relative overflow-auto w-full h-full'].filter(Boolean).join(' ')}>
       {toolbar}
-      <div className="pt-10 pb-4 flex justify-center">
+      <div className="pt-10 pb-4 flex justify-center min-h-full">
         <Document 
           file={url} 
           onLoadSuccess={onDocumentLoadSuccess}

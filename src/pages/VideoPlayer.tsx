@@ -192,8 +192,18 @@ export default function VideoPlayer() {
   }, [video?.videoUrl]);
 
   const lowerUrl = String(video?.videoUrl || '').toLowerCase();
-  const isPdf = (contentType?.startsWith('application/pdf') || lowerUrl.endsWith('.pdf')) || false;
+  const isPdf = (contentType?.startsWith('application/pdf') || lowerUrl.endsWith('.pdf') || lowerUrl.includes('/api/files/')) || false;
   const isImage = (contentType?.startsWith('image/') || /\.(jpg|jpeg|png)$/i.test(lowerUrl)) || false;
+  
+  // Debug logs para PDF
+  console.log('VideoPlayer Debug:', {
+    videoId,
+    videoUrl: video?.videoUrl,
+    contentType,
+    lowerUrl,
+    isPdf,
+    isImage
+  });
 
   useEffect(() => {
     if (!user) {
@@ -465,7 +475,9 @@ export default function VideoPlayer() {
             <Card className="overflow-hidden">
               <div className="relative bg-black aspect-video">
                 {isPdf ? (
-                  <PdfViewer url={video.videoUrl} title={video.title} className="absolute inset-0 w-full h-full" />
+                  <div className="absolute inset-0 w-full h-full">
+                    <PdfViewer url={video.videoUrl} title={video.title} className="w-full h-full" />
+                  </div>
                 ) : isImage ? (
                   <img src={video.videoUrl} alt={video.title} className="absolute inset-0 w-full h-full object-contain bg-black" />
                 ) : (video.vimeoEmbedUrl || video.vimeoId || vimeoIdFromUrl) ? (

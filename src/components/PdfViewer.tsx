@@ -10,12 +10,14 @@ type PdfViewerProps = {
   className?: string;
 };
 
-// Configurar worker do PDF.js - desabilitar worker para evitar problemas de CORS
+// Configurar worker do PDF.js - usar worker local para evitar problemas de CORS
 if (typeof window !== 'undefined' && pdfjs?.GlobalWorkerOptions) {
-  // Desabilitar worker para evitar problemas de CORS e CDN
-  // Isso fará o processamento ser feito inline (mais lento mas mais confiável)
-  pdfjs.GlobalWorkerOptions.workerSrc = '';
-  console.log('PDF.js worker disabled, using inline processing for reliability');
+  // Usar worker local do react-pdf para evitar problemas de CORS
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.js',
+    import.meta.url
+  ).toString();
+  console.log('PDF.js worker configured:', pdfjs.GlobalWorkerOptions.workerSrc);
 }
 
 export default function PdfViewer({ url, title, className }: PdfViewerProps) {
@@ -56,7 +58,7 @@ export default function PdfViewer({ url, title, className }: PdfViewerProps) {
     console.error('PDF load error:', error, { url });
     
     // Se o erro for relacionado ao worker, tentar fallback imediatamente
-    if (error.message.includes('worker') || error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+    if (error.message.includes('worker') || error.message.includes('CORS') || error.message.includes('Failed to fetch') || error.message.includes('GlobalWorkerOptions')) {
       console.log('Worker-related error detected, using iframe fallback');
       setUseFallback(true);
       setLoadingError('Erro no processador PDF, usando visualizador alternativo');

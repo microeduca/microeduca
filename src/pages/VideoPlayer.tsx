@@ -138,9 +138,10 @@ export default function VideoPlayer() {
 
   const computeNextVideo = () => {
     if (!video) return null;
-    // Filtrar apenas vídeos reais da mesma categoria, excluindo o vídeo atual
-    const videosInCategory = videos
-      .filter(v => v.categoryId === video.categoryId && v.id !== video.id && isActualVideo(v))
+    
+    // Filtrar apenas vídeos reais da mesma categoria e ordenar por data de upload
+    const allVideosInCategory = videos
+      .filter(v => v.categoryId === video.categoryId && isActualVideo(v))
       .sort((a, b) => {
         // Ordenar por uploadedAt (mais antigos primeiro para seguir ordem de curso)
         const dateA = new Date(a.uploadedAt || 0).getTime();
@@ -148,21 +149,16 @@ export default function VideoPlayer() {
         return dateA - dateB;
       });
     
-    // Encontrar o índice do vídeo atual
-    const allVideosOrdered = [video, ...videosInCategory].sort((a, b) => {
-      const dateA = new Date(a.uploadedAt || 0).getTime();
-      const dateB = new Date(b.uploadedAt || 0).getTime();
-      return dateA - dateB;
-    });
+    // Encontrar o índice do vídeo atual na lista ordenada
+    const currentIndex = allVideosInCategory.findIndex(v => v.id === video.id);
     
-    const currentIndex = allVideosOrdered.findIndex(v => v.id === video.id);
-    
-    // Retornar o próximo vídeo na sequência
-    if (currentIndex >= 0 && currentIndex < allVideosOrdered.length - 1) {
-      return allVideosOrdered[currentIndex + 1];
+    // Se não encontrou o vídeo atual ou é o último, retornar null
+    if (currentIndex < 0 || currentIndex >= allVideosInCategory.length - 1) {
+      return null;
     }
     
-    return null;
+    // Retornar o próximo vídeo na sequência
+    return allVideosInCategory[currentIndex + 1];
   };
 
   const startAutoNext = (seconds = 8) => {

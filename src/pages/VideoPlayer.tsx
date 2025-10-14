@@ -139,9 +139,25 @@ export default function VideoPlayer() {
   const computeNextVideo = () => {
     if (!video) return null;
     
-    // Filtrar apenas vídeos reais da mesma categoria e ordenar por data de upload
-    const allVideosInCategory = videos
-      .filter(v => v.categoryId === video.categoryId && isActualVideo(v))
+    // Obter o moduleId do vídeo atual
+    const currentModuleId = (video as any).moduleId || (video as any).module_id;
+    
+    // Filtrar apenas vídeos reais do mesmo módulo e ordenar por data de upload
+    // Se não houver módulo, usar categoria como fallback
+    const allVideosInModule = videos
+      .filter(v => {
+        if (!isActualVideo(v)) return false;
+        
+        const vModuleId = (v as any).moduleId || (v as any).module_id;
+        
+        // Se o vídeo atual tem módulo, filtrar pelo mesmo módulo
+        if (currentModuleId) {
+          return vModuleId === currentModuleId;
+        }
+        
+        // Fallback: se não tem módulo, usar categoria
+        return v.categoryId === video.categoryId && !vModuleId;
+      })
       .sort((a, b) => {
         // Ordenar por uploadedAt (mais antigos primeiro para seguir ordem de curso)
         const dateA = new Date(a.uploadedAt || 0).getTime();
@@ -150,15 +166,15 @@ export default function VideoPlayer() {
       });
     
     // Encontrar o índice do vídeo atual na lista ordenada
-    const currentIndex = allVideosInCategory.findIndex(v => v.id === video.id);
+    const currentIndex = allVideosInModule.findIndex(v => v.id === video.id);
     
     // Se não encontrou o vídeo atual ou é o último, retornar null
-    if (currentIndex < 0 || currentIndex >= allVideosInCategory.length - 1) {
+    if (currentIndex < 0 || currentIndex >= allVideosInModule.length - 1) {
       return null;
     }
     
     // Retornar o próximo vídeo na sequência
-    return allVideosInCategory[currentIndex + 1];
+    return allVideosInModule[currentIndex + 1];
   };
 
   const startAutoNext = (seconds = 8) => {
@@ -191,20 +207,52 @@ export default function VideoPlayer() {
   }, [autoNextCountdown]);
 
   const category = categories.find(c => c.id === video?.categoryId);
+  
+  // Obter moduleId do vídeo atual
+  const currentModuleId = (video as any)?.moduleId || (video as any)?.module_id;
+  
+  // Vídeos relacionados do mesmo módulo (ou categoria se não houver módulo)
   const relatedVideos = videos
-    .filter(v => v.categoryId === video?.categoryId && v.id !== video?.id && isActualVideo(v))
+    .filter(v => {
+      if (v.id === video?.id || !isActualVideo(v)) return false;
+      
+      const vModuleId = (v as any).moduleId || (v as any).module_id;
+      
+      // Se o vídeo atual tem módulo, filtrar pelo mesmo módulo
+      if (currentModuleId) {
+        return vModuleId === currentModuleId;
+      }
+      
+      // Fallback: usar categoria
+      return v.categoryId === video?.categoryId && !vModuleId;
+    })
     .sort((a, b) => {
       const dateA = new Date(a.uploadedAt || 0).getTime();
       const dateB = new Date(b.uploadedAt || 0).getTime();
       return dateA - dateB;
     });
+  
+  // Materiais de apoio do mesmo módulo (ou categoria se não houver módulo)
   const supportMaterials = videos
-    .filter(v => v.categoryId === video?.categoryId && isSupportMaterial(v))
+    .filter(v => {
+      if (!isSupportMaterial(v)) return false;
+      
+      const vModuleId = (v as any).moduleId || (v as any).module_id;
+      
+      // Se o vídeo atual tem módulo, filtrar pelo mesmo módulo
+      if (currentModuleId) {
+        return vModuleId === currentModuleId;
+      }
+      
+      // Fallback: usar categoria
+      return v.categoryId === video?.categoryId;
+    })
     .sort((a, b) => {
       const dateA = new Date(a.uploadedAt || 0).getTime();
       const dateB = new Date(b.uploadedAt || 0).getTime();
       return dateA - dateB;
     });
+  
   const vimeoIdFromUrl = extractVimeoId(video?.videoUrl);
 
   // Detectar Content-Type da URL (útil para /api/files/:id)

@@ -20,7 +20,7 @@ export default function Login() {
     if (user) {
       toast({
         title: 'Login realizado com sucesso!',
-        description: `Bem-vindo de volta, ${user.name}!`,
+        description: `Bem-vindo(a) de volta, ${user.name}!`,
       });
       
       if (user.role === 'admin') {
@@ -46,9 +46,9 @@ export default function Login() {
           <div className="flex justify-center mb-4">
             <BookOpen className="h-12 w-12 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-poppins">Portal de Treinamento</CardTitle>
+          <CardTitle className="text-2xl font-poppins">Portal de Treinamento – MicroEduca</CardTitle>
           <CardDescription>
-            Acesso exclusivo para colaboradores
+            Área exclusiva para Equipe e Cliente Micro.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -191,7 +191,7 @@ export default function UserDashboard() {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-poppins font-bold mb-2">
-            Bem-vindo de volta, {user?.name}!
+            Bem-vindo(a) de volta, {user?.name}!
           </h1>
           <p className="text-muted-foreground">
             Continue aprendendo e desenvolvendo suas habilidades

@@ -30,26 +30,11 @@ const Index = () => {
               Micro - Centro Diagnóstico
             </h1>
             <p className="text-xl mb-8 opacity-95">
-              Plataforma de Treinamento e Capacitação Profissional 
-              para nossos colaboradores
+              A Plataforma de Capacitação Profissional da Micro – Centro Diagnóstico: feita para desenvolver nossa Equipe e encantar nossos Clientes.
             </p>
-            <div className="flex gap-4 justify-center">
-              <Button 
-                size="lg"
-                onClick={() => navigate('/login')}
-                className="bg-background text-primary hover:bg-secondary"
-              >
-                Começar Agora
-              </Button>
-              <Button 
-                size="lg"
-                variant="outline"
-                onClick={() => navigate('/login')}
-                className="border-primary-foreground text-primary-foreground bg-transparent hover:bg-primary-foreground hover:text-primary"
-              >
-                Fazer Login
-              </Button>
-            </div>
+            <p className="text-lg opacity-90">
+              Aprendizado, inovação e conexão em um só lugar — afinal nosso propósito é buscar e evoluir com o conhecimento!
+            </p>
           </div>
         </div>
       </div>
@@ -57,7 +42,7 @@ const Index = () => {
       {/* Features Section */}
       <div className="container mx-auto px-4 py-16">
         <h2 className="text-3xl font-poppins font-bold text-center mb-12">
-          Recursos da Plataforma
+          O que você encontra na plataforma?
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -67,7 +52,7 @@ const Index = () => {
             </div>
             <h3 className="text-xl font-semibold mb-2">Material de Treinamento</h3>
             <p className="text-muted-foreground">
-              Vídeos e materiais específicos para cada área de atuação
+              Conteúdo em vídeo e PDF para diversas áreas de atuação.
             </p>
           </div>
           
@@ -77,7 +62,7 @@ const Index = () => {
             </div>
             <h3 className="text-xl font-semibold mb-2">Acesso Personalizado</h3>
             <p className="text-muted-foreground">
-              Cada colaborador acessa apenas o conteúdo de sua área
+              Cada usuário acessa conteúdos específicos de acordo com seu perfil.
             </p>
           </div>
           
@@ -87,7 +72,7 @@ const Index = () => {
             </div>
             <h3 className="text-xl font-semibold mb-2">Acompanhamento</h3>
             <p className="text-muted-foreground">
-              Histórico completo e tracking de progresso em cada vídeo
+              Histórico de uso e progresso nos treinamentos
             </p>
           </div>
         </div>
@@ -97,7 +82,7 @@ const Index = () => {
       <div className="bg-secondary/20 py-16">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl font-poppins font-bold mb-4">
-            Pronto para começar?
+            Pronto para evoluir com a gente?
           </h2>
           <p className="text-xl text-muted-foreground mb-8">
             Acesse o portal de treinamento exclusivo para colaboradores

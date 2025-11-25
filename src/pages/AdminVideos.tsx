@@ -553,6 +553,85 @@ export default function AdminVideos() {
       });
     };
 
+    // Função recursiva para renderizar módulos e seus filhos
+    const renderModuleRecursive = (
+      module: { id: string; title: string; parentId?: string | null },
+      level: number,
+      categoryVideos: AdminVideoRow[],
+      allModules: Array<{ id: string; title: string; parentId?: string | null }>
+    ) => {
+      const moduleVideos = sortVideosByOrder(
+        categoryVideos.filter(v => (v.moduleId || v.module_id) === module.id)
+      );
+      const childModules = allModules
+        .filter(m => m.parentId === module.id)
+        .sort((a, b) => {
+          const aOrder = (a as ModuleWithOrder).order || 0;
+          const bOrder = (b as ModuleWithOrder).order || 0;
+          return Number(aOrder) - Number(bOrder) || String(a.title).localeCompare(String(b.title));
+        });
+
+      const hasContent = moduleVideos.length > 0 || childModules.length > 0;
+      if (!hasContent) return null;
+
+      const isModuleCollapsed = collapsedModules.has(module.id);
+      const indentStyle = { marginLeft: `${level * 2}rem` };
+
+      return (
+        <div key={module.id} style={indentStyle} className={level > 0 ? 'mt-2' : ''}>
+          {/* Cabeçalho do Módulo */}
+          <div 
+            className={`flex items-center gap-3 p-3 border-b cursor-pointer hover:bg-gray-50 ${level > 0 ? 'border-l-2 border-gray-200 pl-4' : 'bg-white'}`}
+            onClick={() => toggleModule(module.id)}
+          >
+            {isModuleCollapsed ? (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" style={{ marginLeft: level > 0 ? '0.5rem' : '1rem' }} />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" style={{ marginLeft: level > 0 ? '0.5rem' : '1rem' }} />
+            )}
+            <Folder className={`h-4 w-4 ${level === 0 ? 'text-green-600' : level === 1 ? 'text-orange-600' : 'text-purple-600'}`} />
+            <div className="flex-1">
+              <h4 className={`font-medium ${level > 0 ? 'text-sm' : ''}`}>{module.title}</h4>
+              <p className="text-xs text-muted-foreground">
+                {moduleVideos.length + childModules.reduce((acc, child) => {
+                  const childVideos = categoryVideos.filter(v => (v.moduleId || v.module_id) === child.id);
+                  return acc + childVideos.length;
+                }, 0)} vídeos
+              </p>
+            </div>
+          </div>
+
+          {/* Conteúdo do Módulo */}
+          {!isModuleCollapsed && (
+            <div>
+              {/* Vídeos do módulo */}
+              {moduleVideos.length > 0 && (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(e) => handleDragEnd(e, moduleVideos)}
+                >
+                  <SortableContext
+                    items={moduleVideos.map(v => v.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div>
+                      {moduleVideos.map(video => (
+                        <SortableVideoRow key={video.id} video={video} />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+
+              {/* Submódulos recursivos */}
+              {childModules.map(child => renderModuleRecursive(child, level + 1, categoryVideos, allModules))}
+            </div>
+          )}
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-4">
         {categories.map(category => {
@@ -595,97 +674,7 @@ export default function AdminVideos() {
               {!isCategoryCollapsed && (
                 <div className="divide-y">
                   {roots.length > 0 ? (
-                    roots.map(root => {
-                      const children = mods.filter(m => m.parentId === root.id)
-                        .sort((a, b) => (Number((a as ModuleWithOrder).order || 0) - Number((b as ModuleWithOrder).order || 0)) || String(a.title).localeCompare(String(b.title)));
-                      
-                      const rootVideos = categoryVideos.filter(v => (v.moduleId || v.module_id) === root.id);
-                      const childGroups = children.map(child => ({ 
-                        child, 
-                        videos: categoryVideos.filter(v => (v.moduleId || v.module_id) === child.id) 
-                      }));
-                      
-                      const hasAny = rootVideos.length > 0 || childGroups.some(g => g.videos.length > 0);
-                      if (!hasAny) return null;
-
-                      const isModuleCollapsed = collapsedModules.has(root.id);
-
-                      return (
-                        <div key={root.id} className="bg-white">
-                          {/* Cabeçalho do Módulo Raiz */}
-                          <div 
-                            className="flex items-center gap-3 p-3 border-b cursor-pointer hover:bg-gray-50"
-                            onClick={() => toggleModule(root.id)}
-                          >
-                            {isModuleCollapsed ? (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground ml-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground ml-4" />
-                            )}
-                            <Folder className="h-4 w-4 text-green-600" />
-                            <div className="flex-1">
-                              <h4 className="font-medium">{root.title}</h4>
-                              <p className="text-xs text-muted-foreground">
-                                {rootVideos.length + childGroups.reduce((acc, g) => acc + g.videos.length, 0)} vídeos
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Conteúdo do Módulo */}
-                          {!isModuleCollapsed && (
-                            <div>
-                              {/* Vídeos do módulo raiz */}
-                              {rootVideos.length > 0 && (
-                                <DndContext
-                                  sensors={sensors}
-                                  collisionDetection={closestCenter}
-                                  onDragEnd={(e) => handleDragEnd(e, sortVideosByOrder(rootVideos))}
-                                >
-                                  <SortableContext
-                                    items={sortVideosByOrder(rootVideos).map(v => v.id)}
-                                    strategy={verticalListSortingStrategy}
-                                  >
-                                    <div>
-                                      {sortVideosByOrder(rootVideos).map(video => (
-                                        <SortableVideoRow key={video.id} video={video} />
-                                      ))}
-                                    </div>
-                                  </SortableContext>
-                                </DndContext>
-                              )}
-
-                              {/* Submódulos */}
-                              {childGroups.map(({ child, videos: childVideos }) => {
-                                if (childVideos.length === 0) return null;
-                                return (
-                                  <div key={child.id} className="ml-8 border-l-2 border-gray-100">
-                                    <div className="flex items-center gap-2 p-3 bg-gray-25">
-                                      <Folder className="h-4 w-4 text-orange-600" />
-                                      <h5 className="font-medium text-sm">{child.title}</h5>
-                                      <span className="text-xs text-muted-foreground">({childVideos.length} vídeos)</span>
-                                    </div>
-                                    <DndContext
-                                      sensors={sensors}
-                                      collisionDetection={closestCenter}
-                                      onDragEnd={(e) => handleDragEnd(e, sortVideosByOrder(childVideos))}
-                                    >
-                                      <SortableContext
-                                        items={sortVideosByOrder(childVideos).map(v => v.id)}
-                                        strategy={verticalListSortingStrategy}
-                                      >
-                                        {sortVideosByOrder(childVideos).map(video => (
-                                          <SortableVideoRow key={video.id} video={video} />
-                                        ))}
-                                      </SortableContext>
-                                    </DndContext>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
+                    roots.map(root => renderModuleRecursive(root, 0, categoryVideos, mods))
                   ) : (
                     /* Vídeos sem módulo específico */
                     (() => {
@@ -708,38 +697,6 @@ export default function AdminVideos() {
                         </DndContext>
                       );
                     })()
-                  )}
-
-                  {/* Vídeos sem módulo */}
-                  {categoryVideos.filter(v => !v.moduleId && !v.module_id).length > 0 && (
-                    <div className="ml-8 border-l-2 border-gray-100">
-                      <div className="flex items-center gap-2 p-3 bg-gray-25">
-                        <Video className="h-4 w-4 text-gray-600" />
-                        <h5 className="font-medium text-sm">Vídeos sem módulo específico</h5>
-                        <span className="text-xs text-muted-foreground">
-                          ({categoryVideos.filter(v => !v.moduleId && !v.module_id).length} vídeos)
-                        </span>
-                      </div>
-                      {(() => {
-                        const videosWithoutModule = sortVideosByOrder(categoryVideos.filter(v => !v.moduleId && !v.module_id));
-                        return (
-                          <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={(e) => handleDragEnd(e, videosWithoutModule)}
-                          >
-                            <SortableContext
-                              items={videosWithoutModule.map(v => v.id)}
-                              strategy={verticalListSortingStrategy}
-                            >
-                              {videosWithoutModule.map(video => (
-                                <SortableVideoRow key={video.id} video={video} />
-                              ))}
-                            </SortableContext>
-                          </DndContext>
-                        );
-                      })()}
-                    </div>
                   )}
                 </div>
               )}

@@ -536,21 +536,29 @@ export default function UserDashboard() {
                     <h2 className="text-xl font-poppins font-semibold">{category.name}</h2>
                     <p className="text-sm text-muted-foreground">{category.description}</p>
                   </div>
-                  {/* Por módulo raiz */}
-                  {mods.filter(m => !m.parentId)
-                    .sort((a, b) => (a.order - b.order) || String(a.title).localeCompare(String(b.title)))
-                    .map(root => {
-                      const children = mods.filter(m => m.parentId === root.id).sort((a, b) => (a.order - b.order) || String(a.title).localeCompare(String(b.title)));
-                      const rootVideos = categoryVideos.filter(v => (v.moduleId || (v as any).module_id) === root.id);
-                      const childGroups = children.map(child => ({ child, vids: categoryVideos.filter(v => (v.moduleId || (v as any).module_id) === child.id) }));
-                      const hasAny = rootVideos.length > 0 || childGroups.some(g => g.vids.length > 0);
-                      if (!hasAny) return null;
+                  {/* Função recursiva para renderizar módulos */}
+                  {(() => {
+                    const renderModuleRecursive = (
+                      module: { id: string; title: string; parentId?: string | null },
+                      level: number
+                    ) => {
+                      const moduleVideos = categoryVideos.filter(v => (v.moduleId || (v as any).module_id) === module.id);
+                      const childModules = mods
+                        .filter(m => m.parentId === module.id)
+                        .sort((a, b) => (a.order - b.order) || String(a.title).localeCompare(String(b.title)));
+                      
+                      const hasContent = moduleVideos.length > 0 || childModules.length > 0;
+                      if (!hasContent) return null;
+
+                      const headingClass = level === 0 ? 'text-lg font-semibold' : level === 1 ? 'text-base font-medium' : 'text-sm font-medium';
+                      const indentStyle = level > 0 ? { marginLeft: `${level * 1}rem` } : {};
+
                       return (
-                        <div key={root.id} className="mb-6">
-                          <h3 className="text-lg font-semibold mb-2">{root.title}</h3>
-                          {rootVideos.length > 0 && (
+                        <div key={module.id} style={indentStyle} className="mb-6">
+                          <h3 className={`${headingClass} mb-2`}>{module.title}</h3>
+                          {moduleVideos.length > 0 && (
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-4">
-                              {rootVideos.map(video => (
+                              {moduleVideos.map(video => (
                                 <Card key={video.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleVideoClick(video.id)}>
                                   <div className="aspect-video relative">
                                     {video.thumbnail ? (
@@ -568,34 +576,16 @@ export default function UserDashboard() {
                               ))}
                             </div>
                           )}
-                          {childGroups.map(({ child, vids }) => (
-                            vids.length === 0 ? null : (
-                              <div key={child.id} className="mb-4 ml-2">
-                                <h4 className="text-sm font-medium mb-2">{child.title}</h4>
-                                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                  {vids.map(video => (
-                                    <Card key={video.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleVideoClick(video.id)}>
-                                      <div className="aspect-video relative">
-                                        {video.thumbnail ? (
-                                          <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
-                                        ) : (
-                                          <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                                            <Play className="h-12 w-12 text-primary/50" />
-                                          </div>
-                                        )}
-                                      </div>
-                                      <CardHeader className="pb-3">
-                                        <CardTitle className="text-base line-clamp-1">{video.title}</CardTitle>
-                                      </CardHeader>
-                                    </Card>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          ))}
+                          {childModules.map(child => renderModuleRecursive(child, level + 1))}
                         </div>
                       );
-                    })}
+                    };
+
+                    return mods
+                      .filter(m => !m.parentId)
+                      .sort((a, b) => (a.order - b.order) || String(a.title).localeCompare(String(b.title)))
+                      .map(root => renderModuleRecursive(root, 0));
+                  })()}
                   {/* Fallback: vídeos sem módulo */}
                   {categoryVideos.filter(v => !(v.moduleId || (v as any).module_id)).length > 0 && (
                     <div>

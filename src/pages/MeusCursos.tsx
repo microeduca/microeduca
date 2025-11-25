@@ -226,90 +226,62 @@ export default function MeusCursos() {
       );
     }
 
+    // Função recursiva para renderizar módulos
+    const renderModuleRecursive = (
+      module: { id: string; title: string; parentId?: string | null },
+      level: number
+    ) => {
+      const moduleVideos = vidsByModule(module.id);
+      const childModules = childOf(module.id);
+      const hasAny = moduleVideos.length > 0 || childModules.length > 0;
+      if (!hasAny) return null;
+
+      const moduleStats = renderModuleProgress(module.id, categoryVideos);
+      const headingClass = level === 0 ? 'text-sm font-semibold' : level === 1 ? 'text-xs font-medium' : 'text-[10px] font-medium';
+      const indentStyle = level > 0 ? { marginLeft: `${level * 0.5}rem` } : {};
+
+      return (
+        <div key={module.id} style={indentStyle} className="mb-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className={headingClass}>{module.title}</div>
+            <span className={`text-xs text-muted-foreground ${level > 1 ? 'text-[10px]' : ''}`}>
+              {moduleStats.completed}/{moduleStats.total}
+            </span>
+          </div>
+          <Progress value={moduleStats.percentage} className="h-1 mb-2" />
+          {moduleVideos.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {moduleVideos.map(video => {
+                const history = viewHistory.find(h => h.videoId === video.id);
+                return (
+                  <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
+                    <div className="flex items-center gap-3">
+                      {history?.completed ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : history && history.watchedDuration > 0 ? (
+                        <PlayCircle className="h-4 w-4 text-primary" />
+                      ) : (
+                        <PlayCircle className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <div>
+                        <p className="font-medium text-sm">{video.title}</p>
+                        <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm">Assistir</Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {childModules.map(child => renderModuleRecursive(child, level + 1))}
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-5">
-        {roots.map(root => {
-          const rootVids = vidsByModule(root.id);
-          const children = childOf(root.id);
-          const groups = children.map(ch => ({ ch, list: vidsByModule(ch.id) }));
-          const hasAny = rootVids.length > 0 || groups.some(g => g.list.length > 0);
-          if (!hasAny) return null;
-          const rootStats = renderModuleProgress(root.id, categoryVideos);
-          return (
-            <div key={root.id}>
-              <div className="flex items-center justify-between mb-2">
-                <h5 className="text-sm font-semibold">{root.title}</h5>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{rootStats.completed}/{rootStats.total}</span>
-                </div>
-              </div>
-              <Progress value={rootStats.percentage} className="h-1 mb-2" />
-              {rootVids.length > 0 && (
-                <div className="space-y-2 mb-3">
-                  {rootVids.map(video => {
-                    const history = viewHistory.find(h => h.videoId === video.id);
-                    return (
-                      <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
-                        <div className="flex items-center gap-3">
-                          {history?.completed ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          ) : history && history.watchedDuration > 0 ? (
-                            <PlayCircle className="h-4 w-4 text-primary" />
-                          ) : (
-                            <PlayCircle className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          <div>
-                            <p className="font-medium text-sm">{video.title}</p>
-                            <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="sm">Assistir</Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {groups.map(({ ch, list }) => list.length === 0 ? null : (
-                <div key={ch.id} className="ml-2 mb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs font-medium">{ch.title}</div>
-                    {(() => {
-                      const st = renderModuleProgress(ch.id, categoryVideos);
-                      return <span className="text-[10px] text-muted-foreground">{st.completed}/{st.total}</span>;
-                    })()}
-                  </div>
-                  {(() => {
-                    const st = renderModuleProgress(ch.id, categoryVideos);
-                    return <Progress value={st.percentage} className="h-1 mb-2" />;
-                  })()}
-                  <div className="space-y-2">
-                    {list.map(video => {
-                      const history = viewHistory.find(h => h.videoId === video.id);
-                      return (
-                        <div key={video.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors" onClick={() => handleVideoClick(video.id)}>
-                          <div className="flex items-center gap-3">
-                            {history?.completed ? (
-                              <CheckCircle2 className="h-4 w-4 text-green-500" />
-                            ) : history && history.watchedDuration > 0 ? (
-                              <PlayCircle className="h-4 w-4 text-primary" />
-                            ) : (
-                              <PlayCircle className="h-4 w-4 text-muted-foreground" />
-                            )}
-                            <div>
-                              <p className="font-medium text-sm">{video.title}</p>
-                              <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
-                            </div>
-                          </div>
-                          <Button variant="ghost" size="sm">Assistir</Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })}
+        {roots.map(root => renderModuleRecursive(root, 0))}
         {categoryVideos.filter(v => !(v as any).moduleId && !(v as any).module_id).length > 0 && (
           <div>
             <h5 className="text-sm font-semibold mb-2">Outros</h5>

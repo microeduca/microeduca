@@ -4,11 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Plus, FolderTree, Folder, ArrowUp, ArrowDown, Pencil, Trash2, Subscript } from 'lucide-react';
+import { Plus, FolderTree } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getCategories, getModules, addModule, updateModule, deleteModule } from '@/lib/storage';
 import type { Category, Module } from '@/types';
+import { ModuleTree } from '@/components/ModuleTree';
 
 export default function AdminModules() {
   const { toast } = useToast();
@@ -53,6 +53,11 @@ export default function AdminModules() {
   const childrenOf = (parentId: string) => modules
     .filter(m => m.parentId === parentId)
     .sort((a, b) => (a.order - b.order) || a.title.localeCompare(b.title));
+
+  const getSiblings = (module: Module) => {
+    if (!module.parentId) return roots;
+    return childrenOf(module.parentId);
+  };
 
   const refresh = async () => {
     if (!selectedCategoryId) return;
@@ -169,7 +174,7 @@ export default function AdminModules() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><FolderTree className="h-5 w-5" /> Estrutura</CardTitle>
             <CardDescription>
-              Clique para renomear, adicionar submódulos, reordenar e remover. Submódulos são limitados a um nível.
+              Clique para renomear, adicionar submódulos, reordenar e remover. Você pode criar pastas dentro de pastas sem limite de profundidade.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -180,62 +185,22 @@ export default function AdminModules() {
             ) : (
               <div className="space-y-4">
                 {roots.map(root => (
-                  <div key={root.id} className="border rounded p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Folder className="h-4 w-4 text-muted-foreground" />
-                        {editingId === root.id ? (
-                          <div className="flex items-center gap-2">
-                            <Input value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)} className="h-8" />
-                            <Button size="sm" onClick={() => saveRename(root)}>Salvar</Button>
-                            <Button size="sm" variant="outline" onClick={() => { setEditingId(''); setEditingTitle(''); }}>Cancelar</Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{root.title}</span>
-                            <Badge variant="outline">ordem: {root.order}</Badge>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button size="icon" variant="ghost" onClick={() => moveWithinSiblings(root, 'up')}><ArrowUp className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => moveWithinSiblings(root, 'down')}><ArrowDown className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => handleRename(root)}><Pencil className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => handleAddChild(root)}><Subscript className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDelete(root)}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </div>
-                    {/* children */}
-                    {childrenOf(root.id).length > 0 && (
-                      <div className="mt-3 ml-6 space-y-2">
-                        {childrenOf(root.id).map(child => (
-                          <div key={child.id} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground">↳</span>
-                              {editingId === child.id ? (
-                                <div className="flex items-center gap-2">
-                                  <Input value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)} className="h-8" />
-                                  <Button size="sm" onClick={() => saveRename(child)}>Salvar</Button>
-                                  <Button size="sm" variant="outline" onClick={() => { setEditingId(''); setEditingTitle(''); }}>Cancelar</Button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2">
-                                  <span>{child.title}</span>
-                                  <Badge variant="outline">ordem: {child.order}</Badge>
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button size="icon" variant="ghost" onClick={() => moveWithinSiblings(child, 'up')}><ArrowUp className="h-4 w-4" /></Button>
-                              <Button size="icon" variant="ghost" onClick={() => moveWithinSiblings(child, 'down')}><ArrowDown className="h-4 w-4" /></Button>
-                              <Button size="icon" variant="ghost" onClick={() => handleRename(child)}><Pencil className="h-4 w-4" /></Button>
-                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDelete(child)}><Trash2 className="h-4 w-4" /></Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <ModuleTree
+                    key={root.id}
+                    module={root}
+                    allModules={modules}
+                    level={0}
+                    editingId={editingId}
+                    editingTitle={editingTitle}
+                    onEdit={handleRename}
+                    onSaveEdit={saveRename}
+                    onCancelEdit={() => { setEditingId(''); setEditingTitle(''); }}
+                    onTitleChange={setEditingTitle}
+                    onMove={moveWithinSiblings}
+                    onAddChild={handleAddChild}
+                    onDelete={handleDelete}
+                    getSiblings={getSiblings}
+                  />
                 ))}
               </div>
             )}

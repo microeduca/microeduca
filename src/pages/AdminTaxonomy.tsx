@@ -4,10 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, FolderOpen, FolderTree, Pencil, Trash2, ArrowUp, ArrowDown, Search, GripVertical } from 'lucide-react';
+import { Plus, FolderOpen, FolderTree, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getCategories, addCategory, updateCategory, deleteCategory } from '@/lib/supabase';
 import { getModules, addModule, updateModule, deleteModule } from '@/lib/storage';
+import { ModuleTree } from '@/components/ModuleTree';
+import type { Module } from '@/types';
 
 export default function AdminTaxonomy() {
   const { toast } = useToast();
@@ -52,6 +54,22 @@ export default function AdminTaxonomy() {
 
   const roots = useMemo(() => allMods.filter(m => !m.parentId).sort((a, b) => (a.order - b.order) || a.title.localeCompare(b.title)), [allMods]);
   const childrenOf = (pid: string) => allMods.filter(m => m.parentId === pid).sort((a, b) => (a.order - b.order) || a.title.localeCompare(b.title));
+
+  const getSiblings = (module: { id: string; parentId?: string | null }) => {
+    if (!module.parentId) return roots;
+    return childrenOf(module.parentId);
+  };
+
+  // Converter para formato Module para usar com ModuleTree
+  const modulesAsModuleType = useMemo(() => {
+    return allMods.map(m => ({
+      id: m.id,
+      categoryId: selectedCategoryId,
+      parentId: m.parentId,
+      title: m.title,
+      order: m.order,
+    } as Module));
+  }, [allMods, selectedCategoryId]);
 
   const refreshModules = async () => {
     const list = await getModules(selectedCategoryId);
@@ -141,19 +159,23 @@ export default function AdminTaxonomy() {
     } catch { toast({ title: 'Erro ao reordenar', variant: 'destructive' }); }
   };
 
-  const handleRename = (m: { id: string; title: string }) => { setEditingId(m.id); setEditingTitle(m.title); };
-  const saveRename = async (id: string) => {
+  const handleRename = (m: Module) => { setEditingId(m.id); setEditingTitle(m.title); };
+  const saveRename = async (m: Module) => {
     try {
-      await updateModule(id, { title: editingTitle.trim() || editingTitle });
+      await updateModule(m.id, { title: editingTitle.trim() || m.title });
       setEditingId(''); setEditingTitle('');
       await refreshModules();
     } catch { toast({ title: 'Erro ao renomear', variant: 'destructive' }); }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (m: Module) => {
     if (!confirm('Remover este módulo?')) return;
-    try { await deleteModule(id); await refreshModules(); toast({ title: 'Módulo removido' }); }
+    try { await deleteModule(m.id); await refreshModules(); toast({ title: 'Módulo removido' }); }
     catch { toast({ title: 'Não foi possível remover (verifique filhos/vídeos).', variant: 'destructive' }); }
+  };
+
+  const handleMove = async (mod: Module, dir: 'up' | 'down') => {
+    await moveWithinSiblings(mod, dir);
   };
 
   // Funções para categorias
@@ -337,71 +359,28 @@ export default function AdminTaxonomy() {
                   <div className="space-y-3 max-h-[460px] overflow-auto">
                     {roots.length === 0 ? (
                       <div className="text-muted-foreground">Nenhum módulo nesta categoria.</div>
-                    ) : roots.map(root => (
-                      <div
-                        key={root.id}
-                        className="border rounded p-2"
-                        draggable
-                        onDragStart={(e) => onDragStart(e, root.id)}
-                        onDragOver={onDragOver}
-                        onDrop={(e) => onDropReorder(e, root)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <GripVertical className="h-4 w-4 text-muted-foreground" />
-                            {editingId === root.id ? (
-                              <div className="flex items-center gap-2">
-                                <Input value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)} className="h-8" />
-                                <Button size="sm" onClick={() => saveRename(root.id)}>Salvar</Button>
-                                <Button size="sm" variant="outline" onClick={() => { setEditingId(''); setEditingTitle(''); }}>Cancelar</Button>
-                              </div>
-                            ) : (
-                              <div className="font-medium">{root.title}</div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button size="icon" variant="ghost" onClick={() => moveWithinSiblings(root, 'up')}><ArrowUp className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" onClick={() => moveWithinSiblings(root, 'down')}><ArrowDown className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" onClick={() => handleRename(root)}><Pencil className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" onClick={() => handleAddChild(root.id)}><Plus className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDelete(root.id)}><Trash2 className="h-4 w-4" /></Button>
-                          </div>
-                        </div>
-                        {childrenOf(root.id).length > 0 && (
-                          <div className="mt-2 ml-4 space-y-1">
-                            {childrenOf(root.id).map(child => (
-                              <div
-                                key={child.id}
-                                className="flex items-center justify-between"
-                                draggable
-                                onDragStart={(e) => onDragStart(e, child.id)}
-                                onDragOver={onDragOver}
-                                onDrop={(e) => onDropReorder(e, child)}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                  {editingId === child.id ? (
-                                    <div className="flex items-center gap-2">
-                                      <Input value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)} className="h-8" />
-                                      <Button size="sm" onClick={() => saveRename(child.id)}>Salvar</Button>
-                                      <Button size="sm" variant="outline" onClick={() => { setEditingId(''); setEditingTitle(''); }}>Cancelar</Button>
-                                    </div>
-                                  ) : (
-                                    <div>↳ {child.title}</div>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Button size="icon" variant="ghost" onClick={() => moveWithinSiblings(child, 'up')}><ArrowUp className="h-4 w-4" /></Button>
-                                  <Button size="icon" variant="ghost" onClick={() => moveWithinSiblings(child, 'down')}><ArrowDown className="h-4 w-4" /></Button>
-                                  <Button size="icon" variant="ghost" onClick={() => handleRename(child)}><Pencil className="h-4 w-4" /></Button>
-                                  <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDelete(child.id)}><Trash2 className="h-4 w-4" /></Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    ) : roots.map(root => {
+                      const rootModule = modulesAsModuleType.find(m => m.id === root.id);
+                      if (!rootModule) return null;
+                      return (
+                        <ModuleTree
+                          key={root.id}
+                          module={rootModule}
+                          allModules={modulesAsModuleType}
+                          level={0}
+                          editingId={editingId}
+                          editingTitle={editingTitle}
+                          onEdit={handleRename}
+                          onSaveEdit={saveRename}
+                          onCancelEdit={() => { setEditingId(''); setEditingTitle(''); }}
+                          onTitleChange={setEditingTitle}
+                          onMove={handleMove}
+                          onAddChild={(parent) => handleAddChild(parent.id)}
+                          onDelete={handleDelete}
+                          getSiblings={(m) => getSiblings(m)}
+                        />
+                      );
+                    })}
                   </div>
                 </>
               )}

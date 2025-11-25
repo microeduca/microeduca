@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle, ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle, ChevronDown, ChevronRight, Folder, FolderOpen, GripVertical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHistory, getProfiles, addCategory } from '@/lib/supabase';
 import { getModules, addModule } from '@/lib/storage';
@@ -18,6 +18,23 @@ import { uploadSupportFile } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import PdfViewer from '@/components/PdfViewer';
 import VimeoUpload from '@/components/admin/VimeoUpload';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // Tipos locais para remover any e contemplar snake/camel case vindos do backend
 interface CategoryRow {
@@ -46,6 +63,7 @@ interface AdminVideoRow {
   uploadedBy?: string;
   module_id?: string;
   moduleId?: string;
+  order?: number;
 }
 
 interface ModuleWithOrder {
@@ -102,6 +120,56 @@ export default function AdminVideos() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [showNewAdvanced, setShowNewAdvanced] = useState(false);
 
+  // Sensores para drag-and-drop
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Função para atualizar ordem dos vídeos após drag
+  const handleDragEnd = async (event: DragEndEvent, videoGroup: AdminVideoRow[]) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = videoGroup.findIndex(v => v.id === active.id);
+    const newIndex = videoGroup.findIndex(v => v.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reorderedVideos = arrayMove(videoGroup, oldIndex, newIndex);
+    
+    // Atualizar ordem no banco de dados
+    try {
+      const updates = reorderedVideos.map((video, index) => ({
+        id: video.id,
+        order: index + 1,
+      }));
+
+      // Atualizar todos os vídeos do grupo em paralelo
+      await Promise.all(
+        updates.map(update => 
+          updateVideo(update.id, { order: update.order })
+        )
+      );
+
+      // Recarregar dados para garantir sincronização
+      await loadData();
+
+      toast({
+        title: 'Ordem atualizada',
+        description: 'A ordem dos vídeos foi atualizada com sucesso.',
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar ordem:', error);
+      toast({
+        title: 'Erro ao atualizar ordem',
+        description: 'Ocorreu um erro ao salvar a nova ordem.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Funções para controlar seções colapsáveis
   const toggleCategory = (categoryId: string) => {
     const newCollapsed = new Set(collapsedCategories);
@@ -123,7 +191,277 @@ export default function AdminVideos() {
     setCollapsedModules(newCollapsed);
   };
 
-  // Função para renderizar vídeo individual
+  // Componente Sortable para vídeo na visualização hierárquica
+  const SortableVideoRow = ({ video, onVideoClick }: { video: AdminVideoRow; onVideoClick?: () => void }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: video.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`flex items-center gap-3 p-3 border-b border-gray-100 hover:bg-gray-50 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+      >
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <input 
+          type="checkbox" 
+          checked={selectedIds.includes(video.id)} 
+          onChange={() => toggleSelect(video.id)} 
+          aria-label="Selecionar" 
+          onClick={(e) => e.stopPropagation()}
+        />
+        <div className="flex-shrink-0">
+          {video.thumbnail ? (
+            <img src={video.thumbnail} alt={video.title} className="h-12 w-16 object-cover rounded" loading="lazy" />
+          ) : (
+            getVimeoThumbFallback(video) ? (
+              <img src={getVimeoThumbFallback(video) as string} alt={video.title} className="h-12 w-16 object-cover rounded" loading="lazy" />
+            ) : (
+              <div className="h-12 w-16 bg-muted rounded flex items-center justify-center">
+                <Video className="h-6 w-6 text-muted-foreground" />
+              </div>
+            )
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm truncate">
+            {editingTitleId === video.id ? (
+              <input
+                value={tempTitle}
+                onChange={(e) => setTempTitle(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') { await updateVideo(video.id, { title: tempTitle }); setEditingTitleId(''); await loadData(); }
+                  if (e.key === 'Escape') { setEditingTitleId(''); }
+                }}
+                autoFocus
+                className="w-full border rounded px-2 py-1"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <button className="text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
+            <Clock className="h-3 w-3" />
+            {Math.floor(video.duration / 60)}:{String(video.duration % 60).padStart(2, '0')}
+            <span>•</span>
+            <Eye className="h-3 w-3" />
+            {viewsMap[video.id] || 0} views
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setPreviewVideo(video)}>
+            <Eye className="h-4 w-4" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => { setEditingVideo(video); setIsEditDialogOpen(true); }}>
+                <Edit2 className="h-4 w-4 mr-2" />
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setPreviewVideo(video)}>
+                <Play className="h-4 w-4 mr-2" />
+                Visualizar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDeleteVideo(video.id)} className="text-red-600">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    );
+  };
+
+  // Componente Sortable para linha da tabela
+  const SortableTableRow = ({ video }: { video: AdminVideoRow }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: video.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+      <TableRow
+        ref={setNodeRef}
+        style={style}
+        className={isDragging ? 'cursor-grabbing' : 'cursor-grab'}
+      >
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded"
+            >
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <input 
+              type="checkbox" 
+              checked={selectedIds.includes(video.id)} 
+              onChange={() => toggleSelect(video.id)} 
+              aria-label="Selecionar" 
+            />
+          </div>
+        </TableCell>
+        <TableCell>
+          {video.thumbnail ? (
+            <img src={video.thumbnail} alt={video.title} className="h-10 w-16 object-cover rounded" loading="lazy" />
+          ) : (
+            getVimeoThumbFallback(video) ? (
+              <img src={getVimeoThumbFallback(video) as string} alt={video.title} className="h-10 w-16 object-cover rounded" loading="lazy" />
+            ) : (
+              <div className="h-10 w-16 bg-muted rounded" />
+            )
+          )}
+        </TableCell>
+        <TableCell className="font-medium">
+          {editingTitleId === video.id ? (
+            <input
+              value={tempTitle}
+              onChange={(e) => setTempTitle(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter') { await updateVideo(video.id, { title: tempTitle }); setEditingTitleId(''); await loadData(); }
+                if (e.key === 'Escape') { setEditingTitleId(''); }
+              }}
+              autoFocus
+              className="w-full border rounded px-2 py-1"
+            />
+          ) : (
+            <button className="text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
+          )}
+        </TableCell>
+        <TableCell className="hidden sm:table-cell">
+          <div className="flex flex-wrap gap-1">
+            {editingCatsId === video.id ? (
+              <>
+                {categories.map((c: { id: string; name: string }) => {
+                  const checked = tempCats.includes(c.id);
+                  return (
+                    <label key={c.id} className="text-xs flex items-center gap-1">
+                      <input type="checkbox" checked={checked} onChange={(e) => setTempCats(prev => e.target.checked ? Array.from(new Set([...prev, c.id])) : prev.filter(id => id !== c.id))} />{c.name}
+                    </label>
+                  );
+                })}
+              </>
+            ) : (
+              ((video as unknown as { category_ids?: string[]; category_id?: string }).category_ids || [video.categoryId || (video as unknown as { category_id?: string }).category_id]).filter(Boolean).slice(0,3).map((cid) => (
+                <Badge key={cid} variant="secondary">
+                  {getCategoryName(cid)}
+                </Badge>
+              ))
+            )}
+            {(((video as unknown as { category_ids?: string[] }).category_ids?.length) || 0) > 3 && (
+              <Badge variant="outline" className="text-xs">+{((video as unknown as { category_ids?: string[] }).category_ids!.length) - 3}</Badge>
+            )}
+          </div>
+          {editingCatsId === video.id ? (
+            <div className="mt-1 flex gap-2">
+              <Button size="sm" onClick={async () => { const next = tempCats; await updateVideo(video.id, { category_id: next[0], category_ids: next }); setEditingCatsId(''); await loadData(); }}>Salvar</Button>
+              <Button size="sm" variant="outline" onClick={() => setEditingCatsId('')}>Cancelar</Button>
+            </div>
+          ) : (
+            <button className="text-xs underline mt-1" onClick={() => { const current = ((video as unknown as { category_ids?: string[] }).category_ids) || (video.categoryId ? [video.categoryId] : []); setEditingCatsId(video.id); setTempCats(current); }}>editar</button>
+          )}
+        </TableCell>
+        <TableCell className="hidden md:table-cell">{formatDuration(video.duration)}</TableCell>
+        <TableCell className="hidden lg:table-cell">{getUploaderName(video)}</TableCell>
+        <TableCell className="hidden lg:table-cell">{viewsMap[video.id] || 0}</TableCell>
+        <TableCell className="hidden md:table-cell">
+          {isProcessing(video) ? (
+            <Badge variant="outline" className="text-xs">Processando</Badge>
+          ) : video.vimeoId ? (
+            <Badge className="bg-primary/10 text-primary">Vimeo</Badge>
+          ) : (
+            <Badge variant="outline">URL</Badge>
+          )}
+        </TableCell>
+        <TableCell className="hidden lg:table-cell text-muted-foreground">
+          {safeFormatDate(video.uploadedAt || video.created_at)}
+        </TableCell>
+        <TableCell className="text-right">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => setPreviewVideo(video)}
+              >
+                <Play className="mr-2 h-4 w-4" />
+                Pré-visualizar
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingVideo(video);
+                  setIsEditDialogOpen(true);
+                }}
+              >
+                <Edit2 className="mr-2 h-4 w-4" />
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={async () => {
+                  const alsoVimeo = window.confirm('Apagar também no Vimeo?');
+                  const vId: string | undefined = (video as AdminVideoRow).vimeo_id || (video as AdminVideoRow).vimeoId;
+                  if (alsoVimeo && vId) {
+                    try {
+                      await fetch(`${location.origin}/api/vimeo/${encodeURIComponent(vId)}`, { method: 'DELETE' });
+                    } catch (e) {
+                      console.error('Falha ao apagar no Vimeo', e);
+                    }
+                  }
+                  handleDeleteVideo(video.id);
+                }}
+                className="text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
+  // Função para renderizar vídeo individual (versão não-sortable para compatibilidade)
   const renderVideoRow = (video: AdminVideoRow) => (
     <div key={video.id} className="flex items-center gap-3 p-3 border-b border-gray-100 hover:bg-gray-50">
       <input 
@@ -205,6 +543,15 @@ export default function AdminVideos() {
       (filterCategory && filterCategory !== 'all' ? (v.categoryId || v.category_id) === filterCategory : true) &&
       (search ? (v.title || '').toLowerCase().includes(search.toLowerCase()) : true)
     );
+
+    // Função auxiliar para ordenar vídeos por ordem
+    const sortVideosByOrder = (videosList: AdminVideoRow[]) => {
+      return [...videosList].sort((a, b) => {
+        const orderA = a.order ?? (a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0);
+        const orderB = b.order ?? (b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0);
+        return orderA - orderB;
+      });
+    };
 
     return (
       <div className="space-y-4">
@@ -289,9 +636,22 @@ export default function AdminVideos() {
                             <div>
                               {/* Vídeos do módulo raiz */}
                               {rootVideos.length > 0 && (
-                                <div>
-                                  {rootVideos.map(renderVideoRow)}
-                                </div>
+                                <DndContext
+                                  sensors={sensors}
+                                  collisionDetection={closestCenter}
+                                  onDragEnd={(e) => handleDragEnd(e, sortVideosByOrder(rootVideos))}
+                                >
+                                  <SortableContext
+                                    items={sortVideosByOrder(rootVideos).map(v => v.id)}
+                                    strategy={verticalListSortingStrategy}
+                                  >
+                                    <div>
+                                      {sortVideosByOrder(rootVideos).map(video => (
+                                        <SortableVideoRow key={video.id} video={video} />
+                                      ))}
+                                    </div>
+                                  </SortableContext>
+                                </DndContext>
                               )}
 
                               {/* Submódulos */}
@@ -304,7 +664,20 @@ export default function AdminVideos() {
                                       <h5 className="font-medium text-sm">{child.title}</h5>
                                       <span className="text-xs text-muted-foreground">({childVideos.length} vídeos)</span>
                                     </div>
-                                    {childVideos.map(renderVideoRow)}
+                                    <DndContext
+                                      sensors={sensors}
+                                      collisionDetection={closestCenter}
+                                      onDragEnd={(e) => handleDragEnd(e, sortVideosByOrder(childVideos))}
+                                    >
+                                      <SortableContext
+                                        items={sortVideosByOrder(childVideos).map(v => v.id)}
+                                        strategy={verticalListSortingStrategy}
+                                      >
+                                        {sortVideosByOrder(childVideos).map(video => (
+                                          <SortableVideoRow key={video.id} video={video} />
+                                        ))}
+                                      </SortableContext>
+                                    </DndContext>
                                   </div>
                                 );
                               })}
@@ -315,7 +688,26 @@ export default function AdminVideos() {
                     })
                   ) : (
                     /* Vídeos sem módulo específico */
-                    categoryVideos.filter(v => !v.moduleId && !v.module_id).map(renderVideoRow)
+                    (() => {
+                      const videosWithoutModule = sortVideosByOrder(categoryVideos.filter(v => !v.moduleId && !v.module_id));
+                      if (videosWithoutModule.length === 0) return null;
+                      return (
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(e) => handleDragEnd(e, videosWithoutModule)}
+                        >
+                          <SortableContext
+                            items={videosWithoutModule.map(v => v.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {videosWithoutModule.map(video => (
+                              <SortableVideoRow key={video.id} video={video} />
+                            ))}
+                          </SortableContext>
+                        </DndContext>
+                      );
+                    })()
                   )}
 
                   {/* Vídeos sem módulo */}
@@ -328,7 +720,25 @@ export default function AdminVideos() {
                           ({categoryVideos.filter(v => !v.moduleId && !v.module_id).length} vídeos)
                         </span>
                       </div>
-                      {categoryVideos.filter(v => !v.moduleId && !v.module_id).map(renderVideoRow)}
+                      {(() => {
+                        const videosWithoutModule = sortVideosByOrder(categoryVideos.filter(v => !v.moduleId && !v.module_id));
+                        return (
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={(e) => handleDragEnd(e, videosWithoutModule)}
+                          >
+                            <SortableContext
+                              items={videosWithoutModule.map(v => v.id)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {videosWithoutModule.map(video => (
+                                <SortableVideoRow key={video.id} video={video} />
+                              ))}
+                            </SortableContext>
+                          </DndContext>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -379,7 +789,13 @@ export default function AdminVideos() {
       getViewHistory(),
       getProfiles(),
     ]);
-    setVideos(videosData);
+    // Ordenar vídeos por ordem (já vem ordenado do backend, mas garantimos aqui também)
+    const sortedVideos = [...videosData].sort((a, b) => {
+      const orderA = (a as AdminVideoRow).order ?? (a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0);
+      const orderB = (b as AdminVideoRow).order ?? (b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0);
+      return orderA - orderB;
+    });
+    setVideos(sortedVideos);
     setCategories(categoriesData);
     // Carregar módulos por categoria
     const modMap: Record<string, Array<{ id: string; title: string; parentId?: string | null }>> = {};
@@ -770,155 +1186,53 @@ export default function AdminVideos() {
             {viewMode === 'hierarchical' ? (
               renderHierarchicalView()
             ) : (
-              <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>
-                    <input type="checkbox" onChange={(e) => setSelectedIds(e.target.checked ? videos.map(v => v.id) : [])} checked={selectedIds.length > 0 && selectedIds.length === videos.length} aria-label="Selecionar todos" />
-                  </TableHead>
-                  <TableHead>Thumb</TableHead>
-                  <TableHead>Título</TableHead>
-                  <TableHead className="hidden sm:table-cell">Categoria</TableHead>
-                  <TableHead className="hidden md:table-cell">Duração</TableHead>
-                  <TableHead className="hidden lg:table-cell">Enviado por</TableHead>
-                  <TableHead className="hidden lg:table-cell">Views</TableHead>
-                  <TableHead className="hidden md:table-cell">Status</TableHead>
-                  <TableHead className="hidden lg:table-cell">Upload</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {videos
+              (() => {
+                const filteredVideosList = videos
                   .filter(v => (filterCategory && filterCategory !== 'all' ? (v.categoryId || v.category_id) === filterCategory : true))
                   .filter(v => (search ? (v.title || '').toLowerCase().includes(search.toLowerCase()) : true))
-                  .map(video => (
-                  <TableRow key={video.id}>
-                    <TableCell>
-                      <input type="checkbox" checked={selectedIds.includes(video.id)} onChange={() => toggleSelect(video.id)} aria-label="Selecionar" />
-                    </TableCell>
-                    <TableCell>
-                      {video.thumbnail ? (
-                        <img src={video.thumbnail} alt={video.title} className="h-10 w-16 object-cover rounded" loading="lazy" />
-                      ) : (
-                        getVimeoThumbFallback(video) ? (
-                          <img src={getVimeoThumbFallback(video) as string} alt={video.title} className="h-10 w-16 object-cover rounded" loading="lazy" />
-                        ) : (
-                          <div className="h-10 w-16 bg-muted rounded" />
-                        )
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {editingTitleId === video.id ? (
-                        <input
-                          value={tempTitle}
-                          onChange={(e) => setTempTitle(e.target.value)}
-                          onKeyDown={async (e) => {
-                            if (e.key === 'Enter') { await updateVideo(video.id, { title: tempTitle }); setEditingTitleId(''); await loadData(); }
-                            if (e.key === 'Escape') { setEditingTitleId(''); }
-                          }}
-                          autoFocus
-                          className="w-full border rounded px-2 py-1"
-                        />
-                      ) : (
-                        <button className="text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <div className="flex flex-wrap gap-1">
-                        {editingCatsId === video.id ? (
-                          <>
-                            {categories.map((c: { id: string; name: string }) => {
-                              const checked = tempCats.includes(c.id);
-                              return (
-                                <label key={c.id} className="text-xs flex items-center gap-1">
-                                  <input type="checkbox" checked={checked} onChange={(e) => setTempCats(prev => e.target.checked ? Array.from(new Set([...prev, c.id])) : prev.filter(id => id !== c.id))} />{c.name}
-                                </label>
-                              );
-                            })}
-                          </>
-                        ) : (
-                          ((video as unknown as { category_ids?: string[]; category_id?: string }).category_ids || [video.categoryId || (video as unknown as { category_id?: string }).category_id]).filter(Boolean).slice(0,3).map((cid) => (
-                            <Badge key={cid} variant="secondary">
-                              {getCategoryName(cid)}
-                            </Badge>
-                          ))
-                        )}
-                        {(((video as unknown as { category_ids?: string[] }).category_ids?.length) || 0) > 3 && (
-                          <Badge variant="outline" className="text-xs">+{((video as unknown as { category_ids?: string[] }).category_ids!.length) - 3}</Badge>
-                        )}
-                      </div>
-                      {editingCatsId === video.id ? (
-                        <div className="mt-1 flex gap-2">
-                          <Button size="sm" onClick={async () => { const next = tempCats; await updateVideo(video.id, { category_id: next[0], category_ids: next }); setEditingCatsId(''); await loadData(); }}>Salvar</Button>
-                          <Button size="sm" variant="outline" onClick={() => setEditingCatsId('')}>Cancelar</Button>
-                        </div>
-                      ) : (
-                        <button className="text-xs underline mt-1" onClick={() => { const current = ((video as unknown as { category_ids?: string[] }).category_ids) || (video.categoryId ? [video.categoryId] : []); setEditingCatsId(video.id); setTempCats(current); }}>editar</button>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">{formatDuration(video.duration)}</TableCell>
-                    <TableCell className="hidden lg:table-cell">{getUploaderName(video)}</TableCell>
-                    <TableCell className="hidden lg:table-cell">{viewsMap[video.id] || 0}</TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {isProcessing(video) ? (
-                        <Badge variant="outline" className="text-xs">Processando</Badge>
-                      ) : video.vimeoId ? (
-                        <Badge className="bg-primary/10 text-primary">Vimeo</Badge>
-                      ) : (
-                        <Badge variant="outline">URL</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell text-muted-foreground">
-                      {safeFormatDate(video.uploadedAt || video.created_at)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => setPreviewVideo(video)}
-                          >
-                            <Play className="mr-2 h-4 w-4" />
-                            Pré-visualizar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditingVideo(video);
-                              setIsEditDialogOpen(true);
-                            }}
-                          >
-                            <Edit2 className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={async () => {
-                              const alsoVimeo = window.confirm('Apagar também no Vimeo?');
-                              const vId: string | undefined = (video as AdminVideoRow).vimeo_id || (video as AdminVideoRow).vimeoId;
-                              if (alsoVimeo && vId) {
-                                try {
-                                  await fetch(`${location.origin}/api/vimeo/${encodeURIComponent(vId)}`, { method: 'DELETE' });
-                                } catch (e) {
-                                  console.error('Falha ao apagar no Vimeo', e);
-                                }
-                              }
-                              handleDeleteVideo(video.id);
-                            }}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                  .sort((a, b) => {
+                    const orderA = a.order ?? (a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0);
+                    const orderB = b.order ?? (b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0);
+                    return orderA - orderB;
+                  });
+
+                return (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(e) => handleDragEnd(e, filteredVideosList)}
+                  >
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>
+                            <input type="checkbox" onChange={(e) => setSelectedIds(e.target.checked ? videos.map(v => v.id) : [])} checked={selectedIds.length > 0 && selectedIds.length === videos.length} aria-label="Selecionar todos" />
+                          </TableHead>
+                          <TableHead>Thumb</TableHead>
+                          <TableHead>Título</TableHead>
+                          <TableHead className="hidden sm:table-cell">Categoria</TableHead>
+                          <TableHead className="hidden md:table-cell">Duração</TableHead>
+                          <TableHead className="hidden lg:table-cell">Enviado por</TableHead>
+                          <TableHead className="hidden lg:table-cell">Views</TableHead>
+                          <TableHead className="hidden md:table-cell">Status</TableHead>
+                          <TableHead className="hidden lg:table-cell">Upload</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <SortableContext
+                        items={filteredVideosList.map(v => v.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <TableBody>
+                          {filteredVideosList.map(video => (
+                            <SortableTableRow key={video.id} video={video} />
+                          ))}
+                        </TableBody>
+                      </SortableContext>
+                    </Table>
+                  </DndContext>
+                );
+              })()
             )}
           </CardContent>
         </Card>

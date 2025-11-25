@@ -343,7 +343,10 @@ app.delete('/api/modules/:id', async (req, res) => {
 // Videos
 app.get('/api/videos', async (_req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM public.videos ORDER BY created_at DESC');
+    const { rows } = await pool.query(`
+      SELECT * FROM public.videos 
+      ORDER BY COALESCE("order", 0) ASC, uploaded_at ASC
+    `);
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -369,11 +372,12 @@ app.post('/api/videos', async (req, res) => {
     // ensure optional array column exists
     try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
 
+    const order = req.body.order !== undefined ? req.body.order : null;
     const { rows } = await pool.query(
-      `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, module_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now(), $9, $10)
+      `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, module_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url, "order")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now(), $9, $10, $11)
        RETURNING *`,
-      [title, description, video_url, thumbnail, category_id, module_id || null, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url]
+      [title, description, video_url, thumbnail, category_id, module_id || null, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url, order]
     );
     const inserted = rows[0];
     if (Array.isArray(category_ids) && category_ids.length > 0) {
@@ -392,7 +396,7 @@ app.put('/api/videos/:id', async (req, res) => {
     // ensure optional array column exists
     try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
 
-    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','module_id','duration','vimeo_id','vimeo_embed_url'];
+    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','module_id','duration','vimeo_id','vimeo_embed_url','order'];
     const updates = [];
     const values = [];
     let idx = 1;
@@ -400,6 +404,9 @@ app.put('/api/videos/:id', async (req, res) => {
       if (req.body[f] !== undefined) {
         if (f === 'category_ids') {
           updates.push(`"${f}" = $${idx++}::uuid[]`);
+          values.push(req.body[f]);
+        } else if (f === 'order') {
+          updates.push(`"${f}" = $${idx++}`);
           values.push(req.body[f]);
         } else {
           updates.push(`"${f}" = $${idx++}`);

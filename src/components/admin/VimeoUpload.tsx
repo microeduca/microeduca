@@ -405,15 +405,35 @@ export default function VimeoUpload() {
                     {(() => {
                       const all = modules.filter(m => (moduleSearch ? (m.title || '').toLowerCase().includes(moduleSearch.toLowerCase()) : true));
                       const roots = all.filter((m) => !m.parentId).sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || String(a.title).localeCompare(String(b.title)));
+                      
+                      // Função recursiva para renderizar módulos
+                      const renderModuleOption = (module: Pick<Module, 'id' | 'title' | 'parentId'>, level: number): JSX.Element[] => {
+                        const children = all
+                          .filter(m => m.parentId === module.id)
+                          .sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || String(a.title).localeCompare(String(b.title)));
+                        
+                        const indent = '↳ '.repeat(level);
+                        const padding = level * 1;
+                        
+                        const result: JSX.Element[] = [
+                          <SelectItem key={module.id} value={module.id}>
+                            <span style={{ paddingLeft: `${padding * 0.5}rem` }}>{indent}{module.title}</span>
+                          </SelectItem>
+                        ];
+
+                        children.forEach(child => {
+                          result.push(...renderModuleOption(child, level + 1));
+                        });
+
+                        return result;
+                      };
+
                       return (
                         <div className="max-h-64 overflow-auto">
                           {roots.map((root) => (
                             <div key={root.id}>
                               <div className="px-2 py-1 text-xs text-muted-foreground uppercase">{root.title}</div>
-                              <SelectItem value={root.id}>{root.title}</SelectItem>
-                              {all.filter(m => m.parentId === root.id).map(child => (
-                                <SelectItem key={child.id} value={child.id}>↳ {child.title}</SelectItem>
-                              ))}
+                              {renderModuleOption(root, 0)}
                             </div>
                           ))}
                         </div>

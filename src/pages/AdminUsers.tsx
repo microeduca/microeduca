@@ -525,40 +525,35 @@ export default function AdminUsers() {
                             {roots.length === 0 && (
                               <div className="text-xs text-muted-foreground">Nenhum módulo nesta categoria.</div>
                             )}
-                            {roots.map(root => (
-                              <div key={root.id} className="space-y-2">
-                                <div className="flex items-start space-x-2">
-                                  <Checkbox
-                                    id={`new-mod-${root.id}`}
-                                    checked={newUser.assignedModules.includes(root.id)}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        setNewUser({ ...newUser, assignedModules: [...newUser.assignedModules, root.id] });
-                                      } else {
-                                        setNewUser({ ...newUser, assignedModules: newUser.assignedModules.filter(id => id !== root.id) });
-                                      }
-                                    }}
-                                  />
-                                  <label htmlFor={`new-mod-${root.id}`} className="text-sm cursor-pointer">{root.title}</label>
-                                </div>
-                                {childrenOf(root.id).map(child => (
-                                  <div key={child.id} className="flex items-start space-x-2 ml-6">
-                                    <Checkbox
-                                      id={`new-mod-${child.id}`}
-                                      checked={newUser.assignedModules.includes(child.id)}
-                                      onCheckedChange={(checked) => {
-                                        if (checked) {
-                                          setNewUser({ ...newUser, assignedModules: [...newUser.assignedModules, child.id] });
-                                        } else {
-                                          setNewUser({ ...newUser, assignedModules: newUser.assignedModules.filter(id => id !== child.id) });
-                                        }
-                                      }}
-                                    />
-                                    <label htmlFor={`new-mod-${child.id}`} className="text-sm cursor-pointer">{child.title}</label>
-                                  </div>
-                                ))}
-                              </div>
-                            ))}
+                              {(() => {
+                                // Função recursiva para renderizar módulos
+                                const renderModuleCheckbox = (module: { id: string; title: string; parentId?: string | null }, level: number): JSX.Element => {
+                                  const children = childrenOf(module.id);
+                                  const indentStyle = { marginLeft: `${level * 1.5}rem` };
+                                  
+                                  return (
+                                    <div key={module.id} style={indentStyle} className="space-y-2">
+                                      <div className="flex items-start space-x-2">
+                                        <Checkbox
+                                          id={`new-mod-${module.id}`}
+                                          checked={newUser.assignedModules.includes(module.id)}
+                                          onCheckedChange={(checked) => {
+                                            if (checked) {
+                                              setNewUser({ ...newUser, assignedModules: [...newUser.assignedModules, module.id] });
+                                            } else {
+                                              setNewUser({ ...newUser, assignedModules: newUser.assignedModules.filter(id => id !== module.id) });
+                                            }
+                                          }}
+                                        />
+                                        <label htmlFor={`new-mod-${module.id}`} className="text-sm cursor-pointer">{module.title}</label>
+                                      </div>
+                                      {children.map(child => renderModuleCheckbox(child, level + 1))}
+                                    </div>
+                                  );
+                                };
+
+                                return roots.map(root => renderModuleCheckbox(root, 0));
+                              })()}
                           </div>
                         );
                       })}
@@ -740,42 +735,36 @@ export default function AdminUsers() {
                               {roots.length === 0 && (
                                 <div className="text-xs text-muted-foreground">Nenhum módulo nesta categoria.</div>
                               )}
-                              {roots.map(root => (
-                                <div key={root.id} className="space-y-2">
-                                  <div className="flex items-start space-x-2">
-                                    <Checkbox
-                                      id={`edit-mod-${root.id}`}
-                                      checked={(editingUser.assignedModules || []).includes(root.id)}
-                                      onCheckedChange={(checked) => {
-                                        const current = editingUser.assignedModules || [];
-                                        if (checked) {
-                                          setEditingUser({ ...editingUser, assignedModules: [...current, root.id] });
-                                        } else {
-                                          setEditingUser({ ...editingUser, assignedModules: current.filter(id => id !== root.id) });
-                                        }
-                                      }}
-                                    />
-                                    <label htmlFor={`edit-mod-${root.id}`} className="text-sm cursor-pointer">{root.title}</label>
-                                  </div>
-                                  {childrenOf(root.id).map(child => (
-                                    <div key={child.id} className="flex items-start space-x-2 ml-6">
-                                      <Checkbox
-                                        id={`edit-mod-${child.id}`}
-                                        checked={(editingUser.assignedModules || []).includes(child.id)}
-                                        onCheckedChange={(checked) => {
-                                          const current = editingUser.assignedModules || [];
-                                          if (checked) {
-                                            setEditingUser({ ...editingUser, assignedModules: [...current, child.id] });
-                                          } else {
-                                            setEditingUser({ ...editingUser, assignedModules: current.filter(id => id !== child.id) });
-                                          }
-                                        }}
-                                      />
-                                      <label htmlFor={`edit-mod-${child.id}`} className="text-sm cursor-pointer">{child.title}</label>
+                              {(() => {
+                                // Função recursiva para renderizar módulos
+                                const renderModuleCheckbox = (module: { id: string; title: string; parentId?: string | null }, level: number): JSX.Element => {
+                                  const children = childrenOf(module.id);
+                                  const indentStyle = { marginLeft: `${level * 1.5}rem` };
+                                  
+                                  return (
+                                    <div key={module.id} style={indentStyle} className="space-y-2">
+                                      <div className="flex items-start space-x-2">
+                                        <Checkbox
+                                          id={`edit-mod-${module.id}`}
+                                          checked={(editingUser.assignedModules || []).includes(module.id)}
+                                          onCheckedChange={(checked) => {
+                                            const current = editingUser.assignedModules || [];
+                                            if (checked) {
+                                              setEditingUser({ ...editingUser, assignedModules: [...current, module.id] });
+                                            } else {
+                                              setEditingUser({ ...editingUser, assignedModules: current.filter(id => id !== module.id) });
+                                            }
+                                          }}
+                                        />
+                                        <label htmlFor={`edit-mod-${module.id}`} className="text-sm cursor-pointer">{module.title}</label>
+                                      </div>
+                                      {children.map(child => renderModuleCheckbox(child, level + 1))}
                                     </div>
-                                  ))}
-                                </div>
-                              ))}
+                                  );
+                                };
+
+                                return roots.map(root => renderModuleCheckbox(root, 0));
+                              })()}
                             </div>
                           );
                         })}

@@ -1455,28 +1455,46 @@ export default function AdminVideos() {
                       <SelectContent>
                         {(() => {
                           // União de módulos das categorias selecionadas
-                          const sets: Array<{ id: string; title: string; parentId?: string | null }> = [];
+                          const sets: Array<{ id: string; title: string; parentId?: string | null; order?: number }> = [];
                           for (const cid of (newVideo.categoryIds || [])) {
                             for (const m of (modulesByCategory[cid] || [])) {
                               sets.push(m);
                             }
                           }
                           const all = sets.filter((m) => (newModuleSearch ? (m.title || '').toLowerCase().includes(newModuleSearch.toLowerCase()) : true));
-                          const roots = all.filter(m => !m.parentId);
+                          const roots = all.filter(m => !m.parentId)
+                            .sort((a, b) => (Number((a as ModuleWithOrder).order || 0) - Number((b as ModuleWithOrder).order || 0)) || String(a.title).localeCompare(String(b.title)));
+
+                          // Função recursiva para renderizar módulos
+                          const renderModuleOption = (module: { id: string; title: string; parentId?: string | null }, level: number): JSX.Element[] => {
+                            const children = all
+                              .filter(m => m.parentId === module.id)
+                              .sort((a, b) => (Number((a as ModuleWithOrder).order || 0) - Number((b as ModuleWithOrder).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                            
+                            const indent = '↳ '.repeat(level);
+                            const padding = level * 1;
+                            
+                            const result: JSX.Element[] = [
+                              <SelectItem key={module.id} value={module.id}>
+                                <span style={{ paddingLeft: `${padding * 0.5}rem` }}>{indent}{module.title}</span>
+                              </SelectItem>
+                            ];
+
+                            children.forEach(child => {
+                              result.push(...renderModuleOption(child, level + 1));
+                            });
+
+                            return result;
+                          };
+
                           return (
                             <div className="max-h-64 overflow-auto">
-                              {roots.map(root => {
-                                const children = all.filter(m => m.parentId === root.id);
-                                return (
-                                  <div key={root.id}>
-                                    <div className="px-2 py-1 text-xs text-muted-foreground uppercase">{root.title}</div>
-                                    <SelectItem value={root.id}>{root.title}</SelectItem>
-                                    {children.map(child => (
-                                      <SelectItem key={child.id} value={child.id}><span className="pl-4 inline-block">↳ {child.title}</span></SelectItem>
-                                    ))}
-                                  </div>
-                                );
-                              })}
+                              {roots.map(root => (
+                                <div key={root.id}>
+                                  <div className="px-2 py-1 text-xs text-muted-foreground uppercase">{root.title}</div>
+                                  {renderModuleOption(root, 0)}
+                                </div>
+                              ))}
                               {/* Criar módulo inline */}
                               {newModuleSearch && !all.some(m => (m.title || '').toLowerCase() === newModuleSearch.toLowerCase()) && (
                                 <div className="px-2 py-1">
@@ -1812,22 +1830,37 @@ export default function AdminVideos() {
                         const all = (modulesByCategory[(editingVideo.category_id || editingVideo.categoryId || '')] || [])
                           .filter((m) => (editModuleSearch ? (m.title || '').toLowerCase().includes(editModuleSearch.toLowerCase()) : true));
                         const roots = all.filter((m) => !m.parentId).sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                        
+                        // Função recursiva para renderizar módulos
+                        const renderModuleOption = (module: { id: string; title: string; parentId?: string | null }, level: number): JSX.Element[] => {
+                          const children = all
+                            .filter(m => m.parentId === module.id)
+                            .sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                          
+                          const indent = '↳ '.repeat(level);
+                          const padding = level * 1;
+                          
+                          const result: JSX.Element[] = [
+                            <SelectItem key={module.id} value={module.id}>
+                              <span style={{ paddingLeft: `${padding * 0.5}rem` }}>{indent}{module.title}</span>
+                            </SelectItem>
+                          ];
+
+                          children.forEach(child => {
+                            result.push(...renderModuleOption(child, level + 1));
+                          });
+
+                          return result;
+                        };
+
                         return (
                           <div className="max-h-64 overflow-auto">
-                            {roots.map((root) => {
-                              const children = all.filter((m) => m.parentId === root.id).sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
-                              return (
-                                <div key={root.id}>
-                                  <div className="px-2 py-1 text-xs text-muted-foreground uppercase">{root.title}</div>
-                                  <SelectItem value={root.id}>{root.title}</SelectItem>
-                                  {children.map((child) => (
-                                    <SelectItem key={child.id} value={child.id}>
-                                      <span className="pl-4 inline-block">↳ {child.title}</span>
-                                    </SelectItem>
-                                  ))}
-                                </div>
-                              );
-                            })}
+                            {roots.map((root) => (
+                              <div key={root.id}>
+                                <div className="px-2 py-1 text-xs text-muted-foreground uppercase">{root.title}</div>
+                                {renderModuleOption(root, 0)}
+                              </div>
+                            ))}
                           </div>
                         );
                       })()}

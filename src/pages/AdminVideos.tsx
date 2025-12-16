@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle, ChevronDown, ChevronRight, Folder, FolderOpen, GripVertical } from 'lucide-react';
+import { Plus, Video, Play, Edit2, Trash2, MoreVertical, Upload, Film, Clock, Image, Cloud, Search, Eye, CheckCircle, XCircle, ChevronDown, ChevronRight, Folder, FolderOpen, GripVertical, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getVideos, addVideo, updateVideo, deleteVideo, getCategories, getViewHistory, getProfiles, addCategory } from '@/lib/supabase';
 import { getModules, addModule } from '@/lib/storage';
@@ -78,7 +78,7 @@ export default function AdminVideos() {
   const { toast } = useToast();
   const [videos, setVideos] = useState<AdminVideoRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
-  const [modulesByCategory, setModulesByCategory] = useState<Record<string, Array<{ id: string; title: string; parentId?: string | null }>>>({});
+  const [modulesByCategory, setModulesByCategory] = useState<Record<string, Array<{ id: string; title: string; parentId?: string | null; categoryId?: string }>>>({});
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isVimeoUploadOpen, setIsVimeoUploadOpen] = useState(false);
@@ -759,10 +759,10 @@ export default function AdminVideos() {
     setVideos(sortedVideos);
     setCategories(categoriesData);
     // Carregar módulos por categoria
-    const modMap: Record<string, Array<{ id: string; title: string; parentId?: string | null }>> = {};
+    const modMap: Record<string, Array<{ id: string; title: string; parentId?: string | null; categoryId?: string }>> = {};
     for (const c of categoriesData) {
       const list = await getModules(c.id);
-      modMap[c.id] = list.map(m => ({ id: m.id, title: m.title, parentId: m.parentId ?? null }));
+      modMap[c.id] = list.map(m => ({ id: m.id, title: m.title, parentId: m.parentId ?? null, categoryId: m.categoryId }));
     }
     setModulesByCategory(modMap);
     const pmap: Record<string, string> = {};
@@ -848,6 +848,32 @@ export default function AdminVideos() {
         toast({ title: 'Selecione a categoria principal', variant: 'destructive' });
         return;
       }
+
+      // Converter module_id vazio para null
+      const moduleId = editingVideo.module_id || editingVideo.moduleId;
+      const finalModuleId = (moduleId && moduleId.trim() !== '') ? moduleId : null;
+
+      // Validação: se module_id estiver definido, verificar se a categoria do módulo corresponde
+      if (finalModuleId) {
+        let moduleCategoryId = '';
+        for (const catId in modulesByCategory) {
+          const module = modulesByCategory[catId].find(m => m.id === finalModuleId);
+          if (module) {
+            moduleCategoryId = module.categoryId || catId;
+            break;
+          }
+        }
+        
+        // Se a categoria do módulo não corresponder à categoria do vídeo, atualizar automaticamente
+        if (moduleCategoryId && moduleCategoryId !== mainCat) {
+          const currentCategoryIds = editingVideo.category_ids || [mainCat];
+          const newCategoryIds = Array.from(new Set([moduleCategoryId, ...currentCategoryIds]));
+          editingVideo.category_id = moduleCategoryId;
+          editingVideo.categoryId = moduleCategoryId;
+          editingVideo.category_ids = newCategoryIds;
+        }
+      }
+
       await updateVideo(editingVideo.id, {
         title: editingVideo.title,
         description: editingVideo.description,
@@ -855,7 +881,7 @@ export default function AdminVideos() {
         thumbnail: editingVideo.thumbnail,
         category_id: editingVideo.category_id || editingVideo.categoryId,
         category_ids: editingVideo.category_ids,
-        module_id: editingVideo.module_id || editingVideo.moduleId,
+        module_id: finalModuleId,
         duration: editingVideo.duration,
       });
       
@@ -992,6 +1018,39 @@ export default function AdminVideos() {
     toast({ title: 'Vídeos atualizados', description: 'Categorias aplicadas' });
   };
 
+  const handleFixModuleCategorySync = async () => {
+    if (!confirm('Isso irá corrigir a sincronização entre módulos e categorias de todos os vídeos. Deseja continuar?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/videos/fix-module-category-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erro ao executar correção');
+      }
+      
+      const data = await response.json();
+      await loadData();
+      
+      toast({
+        title: 'Correção concluída',
+        description: data.message || `${data.videosFixed || 0} vídeo(s) corrigido(s).`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao corrigir',
+        description: 'Ocorreu um erro ao executar a correção de sincronização.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -1003,6 +1062,15 @@ export default function AdminVideos() {
             </p>
           </div>
           <div className="flex gap-3">
+            <Button 
+              onClick={handleFixModuleCategorySync}
+              variant="outline"
+              className="gap-2"
+              title="Corrigir sincronização entre módulos e categorias"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Corrigir Sincronização
+            </Button>
             <Button 
               onClick={() => setIsSelectTypeOpen(true)}
               className="gap-2"
@@ -1824,22 +1892,74 @@ export default function AdminVideos() {
                   </div>
                     <Select
                       value={editingVideo.module_id || editingVideo.moduleId || ''}
-                      onValueChange={(value) => setEditingVideo({ ...editingVideo, module_id: value, moduleId: value })}
+                      onValueChange={(value) => {
+                        if (value === '__none__') {
+                          // Remover módulo
+                          setEditingVideo({ ...editingVideo, module_id: null, moduleId: null });
+                        } else {
+                          // Buscar a categoria do módulo selecionado
+                          let moduleCategoryId = '';
+                          for (const catId in modulesByCategory) {
+                            const module = modulesByCategory[catId].find(m => m.id === value);
+                            if (module) {
+                              moduleCategoryId = module.categoryId || catId;
+                              break;
+                            }
+                          }
+                          
+                          // Atualizar categoria do vídeo para corresponder à categoria do módulo
+                          if (moduleCategoryId) {
+                            const currentCategoryIds = editingVideo.category_ids || (editingVideo.categoryId ? [editingVideo.categoryId] : []);
+                            const newCategoryIds = Array.from(new Set([moduleCategoryId, ...currentCategoryIds]));
+                            setEditingVideo({
+                              ...editingVideo,
+                              module_id: value,
+                              moduleId: value,
+                              category_id: moduleCategoryId,
+                              categoryId: moduleCategoryId,
+                              category_ids: newCategoryIds,
+                            });
+                          } else {
+                            setEditingVideo({ ...editingVideo, module_id: value, moduleId: value });
+                          }
+                        }
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um módulo (opcional)" />
                       </SelectTrigger>
                       <SelectContent>
                       {(() => {
-                        const all = (modulesByCategory[(editingVideo.category_id || editingVideo.categoryId || '')] || [])
-                          .filter((m) => (editModuleSearch ? (m.title || '').toLowerCase().includes(editModuleSearch.toLowerCase()) : true));
-                        const roots = all.filter((m) => !m.parentId).sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                        // Coletar todos os módulos de todas as categorias
+                        const allModules: Array<{ id: string; title: string; parentId?: string | null; categoryId?: string }> = [];
+                        for (const catId in modulesByCategory) {
+                          allModules.push(...modulesByCategory[catId]);
+                        }
+                        
+                        const filtered = allModules.filter((m) => 
+                          editModuleSearch ? (m.title || '').toLowerCase().includes(editModuleSearch.toLowerCase()) : true
+                        );
+                        
+                        // Agrupar por categoria
+                        const byCategory: Record<string, Array<{ id: string; title: string; parentId?: string | null; categoryId?: string }>> = {};
+                        for (const m of filtered) {
+                          const catId = m.categoryId || '';
+                          if (!byCategory[catId]) byCategory[catId] = [];
+                          byCategory[catId].push(m);
+                        }
+                        
+                        const rootsByCategory: Record<string, Array<{ id: string; title: string; parentId?: string | null; categoryId?: string }>> = {};
+                        for (const catId in byCategory) {
+                          rootsByCategory[catId] = byCategory[catId]
+                            .filter((m) => !m.parentId)
+                            .sort((a, b) => String(a.title).localeCompare(String(b.title)));
+                        }
                         
                         // Função recursiva para renderizar módulos
-                        const renderModuleOption = (module: { id: string; title: string; parentId?: string | null }, level: number): JSX.Element[] => {
-                          const children = all
+                        const renderModuleOption = (module: { id: string; title: string; parentId?: string | null; categoryId?: string }, level: number, categoryModules: Array<{ id: string; title: string; parentId?: string | null; categoryId?: string }>): JSX.Element[] => {
+                          const children = categoryModules
                             .filter(m => m.parentId === module.id)
-                            .sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
+                            .sort((a, b) => String(a.title).localeCompare(String(b.title)));
                           
                           const indent = '↳ '.repeat(level);
                           const padding = level * 1;
@@ -1851,7 +1971,7 @@ export default function AdminVideos() {
                           ];
 
                           children.forEach(child => {
-                            result.push(...renderModuleOption(child, level + 1));
+                            result.push(...renderModuleOption(child, level + 1, categoryModules));
                           });
 
                           return result;
@@ -1859,12 +1979,26 @@ export default function AdminVideos() {
 
                         return (
                           <div className="max-h-64 overflow-auto">
-                            {roots.map((root) => (
-                              <div key={root.id}>
-                                <div className="px-2 py-1 text-xs text-muted-foreground uppercase">{root.title}</div>
-                                {renderModuleOption(root, 0)}
-                              </div>
-                            ))}
+                            <SelectItem value="__none__">
+                              <span className="text-muted-foreground italic">Sem módulo</span>
+                            </SelectItem>
+                            {Object.keys(rootsByCategory).map(catId => {
+                              const category = categories.find(c => c.id === catId);
+                              const roots = rootsByCategory[catId];
+                              if (roots.length === 0) return null;
+                              return (
+                                <div key={catId}>
+                                  <div className="px-2 py-1 text-xs text-muted-foreground uppercase border-t mt-1">
+                                    {category?.name || 'Outros'}
+                                  </div>
+                                  {roots.map((root) => (
+                                    <div key={root.id}>
+                                      {renderModuleOption(root, 0, byCategory[catId])}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
                           </div>
                         );
                       })()}

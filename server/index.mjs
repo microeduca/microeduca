@@ -435,6 +435,54 @@ app.delete('/api/videos/:id', async (req, res) => {
   }
 });
 
+// Endpoint para corrigir sincronização de module_id e category_id
+app.post('/api/videos/fix-module-category-sync', async (req, res) => {
+  try {
+    await ensureModulesSchema();
+    
+    // Atualizar category_id para corresponder à categoria do módulo
+    const updateCategoryId = await pool.query(`
+      UPDATE public.videos v
+      SET 
+        category_id = m.category_id,
+        updated_at = now()
+      FROM public.modules m
+      WHERE v.module_id = m.id 
+        AND v.category_id IS DISTINCT FROM m.category_id
+      RETURNING v.id
+    `);
+    
+    // Atualizar category_ids para incluir a nova categoria principal
+    const updateCategoryIds = await pool.query(`
+      UPDATE public.videos v
+      SET 
+        category_ids = CASE 
+          WHEN v.category_ids IS NULL OR array_length(v.category_ids, 1) IS NULL THEN
+            ARRAY[m.category_id]
+          WHEN NOT (m.category_id = ANY(v.category_ids)) THEN
+            ARRAY[m.category_id] || v.category_ids
+          ELSE
+            v.category_ids
+        END,
+        updated_at = now()
+      FROM public.modules m
+      WHERE v.module_id = m.id 
+        AND v.module_id IS NOT NULL
+      RETURNING v.id
+    `);
+    
+    const totalFixed = updateCategoryId.rowCount || 0;
+    
+    res.json({
+      success: true,
+      videosFixed: totalFixed,
+      message: `${totalFixed} vídeo(s) corrigido(s) com sucesso.`
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Profiles (Users)
 app.get('/api/profiles', async (_req, res) => {
   try {

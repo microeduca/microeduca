@@ -571,9 +571,7 @@ export default function AdminVideos() {
           return Number(aOrder) - Number(bOrder) || String(a.title).localeCompare(String(b.title));
         });
 
-      const hasContent = moduleVideos.length > 0 || childModules.length > 0;
-      if (!hasContent) return null;
-
+      // Renderizar módulo mesmo sem vídeos para manter consistência com a página de Categorias & Módulos
       const isModuleCollapsed = collapsedModules.has(module.id);
       const indentStyle = { marginLeft: `${level * 2}rem` };
 
@@ -605,7 +603,7 @@ export default function AdminVideos() {
           {!isModuleCollapsed && (
             <div>
               {/* Vídeos do módulo */}
-              {moduleVideos.length > 0 && (
+              {moduleVideos.length > 0 ? (
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -622,6 +620,11 @@ export default function AdminVideos() {
                     </div>
                   </SortableContext>
                 </DndContext>
+              ) : childModules.length === 0 && (
+                // Mensagem quando o módulo não tem vídeos nem submódulos
+                <div className="p-4 text-center text-muted-foreground text-sm border-b">
+                  Este módulo ainda não possui vídeos. Adicione vídeos através do formulário de criação.
+                </div>
               )}
 
               {/* Submódulos recursivos */}
@@ -640,11 +643,12 @@ export default function AdminVideos() {
             return ids.includes(category.id);
           });
           
-          if (categoryVideos.length === 0) return null;
-
           const mods = modulesByCategory[category.id] || [];
           const roots = mods.filter(m => !m.parentId)
             .sort((a, b) => (Number((a as ModuleWithOrder).order || 0) - Number((b as ModuleWithOrder).order || 0)) || String(a.title).localeCompare(String(b.title)));
+
+          // Exibir categoria se tiver vídeos OU módulos (para manter consistência)
+          if (categoryVideos.length === 0 && roots.length === 0) return null;
 
           const isCategoryCollapsed = collapsedCategories.has(category.id);
 

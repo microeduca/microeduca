@@ -41,7 +41,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import VimeoPlayer from '@/components/VimeoPlayer';
 import PdfViewer from '@/components/PdfViewer';
-import { isActualVideo, isSupportMaterial } from '@/lib/utils';
+import { formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 
 function extractVimeoId(url?: string | null): string | undefined {
   if (!url) return undefined;
@@ -78,6 +78,21 @@ export default function VideoPlayer() {
       setVideos(vList);
       setCategories(cList);
       const v = vList.find(v => v.id === videoId);
+      if (v && user?.role !== 'admin') {
+        const categoryIds: string[] = (v as any).categoryIds || (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
+        const moduleId = (v as any).moduleId || (v as any).module_id;
+        const allowedByCategory = categoryIds.some((id) => (user?.assignedCategories || []).includes(id));
+        const allowedByModule = moduleId ? (user?.assignedModules || []).includes(moduleId) : false;
+        const categoriesReleased = categoryIds.some((id) => {
+          const category = cList.find((c) => c.id === id);
+          return !category || isReleased(category);
+        });
+        if (!isReleased(v) || !categoriesReleased || (!allowedByCategory && !allowedByModule)) {
+          setVideo(null);
+          setIsLoading(false);
+          return;
+        }
+      }
       setVideo(v || null);
       if (v) {
         setEditTitle(v.title || '');
@@ -274,18 +289,9 @@ export default function VideoPlayer() {
   }, [video?.videoUrl]);
 
   const lowerUrl = String(video?.videoUrl || '').toLowerCase();
-  const isPdf = (contentType?.startsWith('application/pdf') || lowerUrl.endsWith('.pdf') || lowerUrl.includes('/api/files/')) || false;
+  const isPdf = (contentType?.startsWith('application/pdf') || lowerUrl.endsWith('.pdf')) || false;
   const isImage = (contentType?.startsWith('image/') || /\.(jpg|jpeg|png)$/i.test(lowerUrl)) || false;
-  
-  // Debug logs para PDF
-  console.log('VideoPlayer Debug:', {
-    videoId,
-    videoUrl: video?.videoUrl,
-    contentType,
-    lowerUrl,
-    isPdf,
-    isImage
-  });
+  const isFileContent = (video?.contentType || (video as any)?.content_type) === 'file' || lowerUrl.includes('/api/files/');
 
   useEffect(() => {
     if (!user) {
@@ -564,6 +570,17 @@ export default function VideoPlayer() {
                   </div>
                 ) : isImage ? (
                   <img src={video.videoUrl} alt={video.title} className="absolute inset-0 w-full h-full object-contain bg-black" />
+                ) : isFileContent ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-muted text-center p-6">
+                    <FileText className="h-12 w-12 text-primary" />
+                    <div>
+                      <h3 className="font-semibold text-lg">Material disponível para consulta</h3>
+                      <p className="text-sm text-muted-foreground">Este tipo de arquivo deve ser aberto em uma nova aba.</p>
+                    </div>
+                    <Button asChild>
+                      <a href={video.videoUrl} target="_blank" rel="noreferrer">Abrir arquivo</a>
+                    </Button>
+                  </div>
                 ) : (video.vimeoEmbedUrl || video.vimeoId || vimeoIdFromUrl) ? (
                   <VimeoPlayer
                     vimeoId={video.vimeoId || vimeoIdFromUrl}
@@ -836,7 +853,7 @@ export default function VideoPlayer() {
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Clock className="h-4 w-4" />
-                    {Math.floor(video.duration / 60)} minutos
+                    {formatDurationLong(video.duration)}
                   </span>
                   <span>
                     Enviado em {new Date(video.uploadedAt).toLocaleDateString('pt-BR')}
@@ -885,6 +902,34 @@ export default function VideoPlayer() {
                 </div>
               </CardContent>
             </Card>
+
+            {Array.isArray(video.supportFiles || (video as any).support_files) && (video.supportFiles || (video as any).support_files).length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileText className="h-5 w-5" />
+                    Materiais de apoio
+                  </CardTitle>
+                  <CardDescription>Arquivos vinculados a esta aula</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {(video.supportFiles || (video as any).support_files).map((file: any) => (
+                      <a
+                        key={file.id}
+                        href={file.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                      >
+                        <span className="truncate">{file.filename}</span>
+                        <Badge variant="outline">{file.mimeType || 'arquivo'}</Badge>
+                      </a>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Comments Section */}
             <Card>

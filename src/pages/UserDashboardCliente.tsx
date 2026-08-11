@@ -14,7 +14,7 @@ import ModuleBadge from '@/components/ModuleBadge';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useNavigate } from 'react-router-dom';
 import { useFavorites } from '@/hooks/useFavorites';
-import { isActualVideo, isSupportMaterial } from '@/lib/utils';
+import { isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 
 export default function UserDashboardCliente() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('cliente');
@@ -33,6 +33,19 @@ export default function UserDashboardCliente() {
   // Permissões por categorias OU módulos
   const allowedCategories = new Set<string>(user?.assignedCategories || []);
   const allowedModules = new Set<string>(user?.assignedModules || []);
+  const findModule = (moduleId?: string) => {
+    if (!moduleId) return null;
+    return Object.values(modulesByCategoryLocal).flat().find((m: any) => m.id === moduleId) || null;
+  };
+  const isContentReleased = (v: any) => {
+    const categoryIds: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
+    const categoriesReleased = categoryIds.some((id) => {
+      const category = categories.find((c) => c.id === id);
+      return !category || isReleased(category);
+    });
+    const module = findModule((v as any).moduleId || (v as any).module_id);
+    return isReleased(v) && categoriesReleased && (!module || isReleased(module));
+  };
   
   // Filtrar apenas vídeos reais (excluir PDFs e materiais de apoio)
   const visibleVideos = videos.filter(v => {
@@ -41,14 +54,14 @@ export default function UserDashboardCliente() {
     const byCategory = categoryIds.some(id => allowedCategories.has(id));
     const byModule = moduleId ? allowedModules.has(moduleId) : false;
     const byModuleFilter = selectedModules.length === 0 ? true : (moduleId ? selectedModules.includes(moduleId) : false);
-    return (byCategory || byModule) && byModuleFilter && isActualVideo(v);
+    return (byCategory || byModule) && byModuleFilter && isActualVideo(v) && isContentReleased(v);
   });
 
   // Filtrar materiais de apoio das categorias permitidas
   const supportMaterials = videos.filter(v => {
     const categoryIds: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
     const byCategory = categoryIds.some(id => allowedCategories.has(id));
-    return byCategory && isSupportMaterial(v);
+    return byCategory && isSupportMaterial(v) && isContentReleased(v);
   });
 
   useEffect(() => {
@@ -277,5 +290,4 @@ export default function UserDashboardCliente() {
     </Layout>
   );
 }
-
 

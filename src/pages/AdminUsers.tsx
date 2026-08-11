@@ -136,7 +136,7 @@ export default function AdminUsers() {
     }
   };
 
-  const activeUsers = users.filter(u => u.role === 'user').length;
+  const activeUsers = users.filter(u => u.isActive !== false && u.role !== 'admin').length;
   const adminUsers = users.filter(u => u.role === 'admin').length;
   const recentUsers = users.filter(u => {
     const userDate = new Date(u.createdAt);
@@ -231,6 +231,7 @@ export default function AdminUsers() {
                   <TableHead>Nome</TableHead>
                   <TableHead>E-mail</TableHead>
                   <TableHead>Perfil</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Acessos</TableHead>
                   <TableHead>Cadastro</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -260,10 +261,21 @@ export default function AdminUsers() {
                         <Badge className="bg-gradient-primary text-primary-foreground">
                           Administrador
                         </Badge>
+                      ) : user.role === 'cliente' ? (
+                        <Badge variant="outline">
+                          Cliente
+                        </Badge>
                       ) : (
                         <Badge variant="secondary">
                           Usuário
                         </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {user.isActive === false ? (
+                        <Badge variant="destructive">Inativo</Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-green-500 text-green-700">Ativo</Badge>
                       )}
                     </TableCell>
                     <TableCell>
@@ -338,6 +350,25 @@ export default function AdminUsers() {
                             Editar
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            onClick={async () => {
+                              if (user.id === currentUser?.id) {
+                                toast({
+                                  title: 'Ação não permitida',
+                                  description: 'Você não pode inativar seu próprio usuário.',
+                                  variant: 'destructive',
+                                });
+                                return;
+                              }
+                              await updateUser({ ...user, isActive: user.isActive === false });
+                              setUsers(await getUsers());
+                              toast({ title: user.isActive === false ? 'Usuário ativado' : 'Usuário inativado' });
+                            }}
+                            disabled={user.id === currentUser?.id}
+                          >
+                            <UserX className="mr-2 h-4 w-4" />
+                            {user.isActive === false ? 'Ativar acesso' : 'Inativar acesso'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
                             onClick={() => handleDeleteUser(user.id)}
                             className="text-destructive"
                             disabled={user.id === currentUser?.id}
@@ -352,7 +383,7 @@ export default function AdminUsers() {
                 ))}
                 {users.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Nenhum usuário cadastrado ainda
                     </TableCell>
                   </TableRow>
@@ -626,6 +657,20 @@ export default function AdminUsers() {
                       <SelectItem value="cliente">Cliente</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="flex items-center space-x-2 rounded-md border p-3">
+                  <Checkbox
+                    id="edit-active"
+                    checked={editingUser.isActive !== false}
+                    disabled={editingUser.id === currentUser?.id}
+                    onCheckedChange={(checked) => setEditingUser({ ...editingUser, isActive: checked === true })}
+                  />
+                  <div className="grid gap-1">
+                    <Label htmlFor="edit-active">Usuário ativo</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Usuários inativos permanecem no histórico, mas não conseguem acessar o portal.
+                    </p>
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <Label>Categorias de Acesso</Label>

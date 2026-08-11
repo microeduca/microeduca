@@ -16,7 +16,7 @@ import VideoCard from '@/components/VideoCard';
 import ModuleBadge from '@/components/ModuleBadge';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useFavorites } from '@/hooks/useFavorites';
-import { isActualVideo, isSupportMaterial } from '@/lib/utils';
+import { isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 
 export default function UserDashboard() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('user');
@@ -61,6 +61,20 @@ export default function UserDashboard() {
   const isAdmin = user?.role === 'admin';
   const allowedCategoryIds = isAdmin ? null : new Set<string>(user?.assignedCategories || []);
   const allowedModuleIds = isAdmin ? null : new Set<string>(user?.assignedModules || []);
+  const findModule = (moduleId?: string) => {
+    if (!moduleId) return null;
+    return Object.values(modulesByCategory).flat().find((m: any) => m.id === moduleId) || null;
+  };
+  const isContentReleased = (v: any) => {
+    if (isAdmin) return true;
+    const categoryIds: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
+    const categoriesReleased = categoryIds.some((id) => {
+      const category = categories.find((c) => c.id === id);
+      return !category || isReleased(category);
+    });
+    const module = findModule((v as any).moduleId || (v as any).module_id);
+    return isReleased(v) && categoriesReleased && (!module || isReleased(module));
+  };
   
   // Filtrar apenas vídeos reais (excluir PDFs e materiais de apoio)
   const visibleVideos = (isAdmin
@@ -71,7 +85,7 @@ export default function UserDashboard() {
         const inAllowedCategories = categoryIds.some(id => (allowedCategoryIds as Set<string>).has(id));
         const inAllowedModules = moduleId ? (allowedModuleIds as Set<string>).has(moduleId) : false;
         return inAllowedCategories || inAllowedModules;
-      })).filter(v => isActualVideo(v));
+      })).filter(v => isActualVideo(v) && isContentReleased(v));
 
   // Filtrar materiais de apoio das categorias permitidas
   const supportMaterials = (isAdmin
@@ -79,11 +93,11 @@ export default function UserDashboard() {
     : videos.filter(v => {
         const categoryIds: string[] = (v as any).category_ids || [v.categoryId || (v as any).category_id].filter(Boolean);
         return categoryIds.some(id => (allowedCategoryIds as Set<string>)?.has(id) || isAdmin);
-      })).filter(v => isSupportMaterial(v));
+      })).filter(v => isSupportMaterial(v) && isContentReleased(v));
 
   const visibleCategories = isAdmin
     ? categories
-    : categories.filter(c => (allowedCategoryIds as Set<string>).has(c.id));
+    : categories.filter(c => (allowedCategoryIds as Set<string>).has(c.id) && isReleased(c));
 
   // Filtrar vídeos com base na busca
   const filteredVideos = useMemo(() => {

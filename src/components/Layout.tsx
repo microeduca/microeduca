@@ -34,6 +34,26 @@ export default function Layout({ children }: LayoutProps) {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const profiles = await api.getProfiles();
+        const current = Array.isArray(profiles)
+          ? profiles.find((p: { id?: string; is_active?: boolean }) => p.id === user.id)
+          : null;
+        if (!cancelled && current && current.is_active === false) {
+          toast({ title: 'Acesso inativo', description: 'Seu usuário foi inativado.', variant: 'destructive' });
+          logout();
+        }
+      } catch {
+        return;
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [toast, user?.id]);
+
   const handleAcceptTerms = () => {
     if (!user?.id) return;
     const key = `terms_accept_v1_${user.id}`;

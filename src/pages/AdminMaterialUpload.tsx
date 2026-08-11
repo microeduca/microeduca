@@ -51,8 +51,10 @@ export default function AdminMaterialUpload() {
       video_url: fileInfo.url,
       thumbnail: fileInfo.mimeType.startsWith('image/') ? fileInfo.url : undefined,
       category_id: categoryId,
+      category_ids: [categoryId],
       duration: 0,
       uploaded_by: 'admin',
+      content_type: 'file',
     } as any);
     toast({ title: 'Material cadastrado' });
     navigate('/admin/videos');
@@ -63,7 +65,7 @@ export default function AdminMaterialUpload() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-poppins font-bold">Enviar Arquivo</h1>
-          <p className="text-muted-foreground">Anexe um PDF ou imagem e publique como material</p>
+              <p className="text-muted-foreground">Anexe PDF, imagem, documento, planilha ou apresentação e publique como material</p>
         </div>
 
         <Card>
@@ -91,8 +93,8 @@ export default function AdminMaterialUpload() {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label>Arquivo (PDF/JPG/PNG) *</Label>
-              <Input type="file" accept="application/pdf,image/jpeg,image/png" ref={inputRef} onChange={onUpload} />
+              <Label>Arquivo *</Label>
+              <Input type="file" accept="application/pdf,image/jpeg,image/png,text/plain,text/csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx" ref={inputRef} onChange={onUpload} />
               {fileInfo?.url && (
                 <div className="text-sm text-muted-foreground">{fileInfo.filename}</div>
               )}
@@ -107,7 +109,6 @@ export default function AdminMaterialUpload() {
     </Layout>
   );
 }
-
 
 
 

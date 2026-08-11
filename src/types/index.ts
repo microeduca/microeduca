@@ -9,12 +9,21 @@ export interface User {
   isActive?: boolean;
 }
 
+export interface SupportFile {
+  id: string;
+  url: string;
+  filename: string;
+  mimeType: string;
+  size?: number;
+}
+
 export interface Category {
   id: string;
   name: string;
   description: string;
   thumbnail?: string;
   createdAt: Date;
+  releaseAt?: Date | null;
 }
 
 export interface Video {
@@ -31,6 +40,9 @@ export interface Video {
   vimeoId?: string;
   vimeoEmbedUrl?: string;
   moduleId?: string; // novo: vínculo ao módulo/submódulo
+  supportFiles?: SupportFile[];
+  releaseAt?: Date | null;
+  contentType?: 'video' | 'file';
 }
 
 export interface Comment {
@@ -66,5 +78,6 @@ export interface Module {
   order: number;
   createdAt?: Date;
   updatedAt?: Date;
+  releaseAt?: Date | null;
   children?: Module[];
 }

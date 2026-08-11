@@ -11,10 +11,12 @@ interface ModuleTreeProps {
   level: number;
   editingId: string;
   editingTitle: string;
+  editingReleaseAt?: string;
   onEdit: (module: Module) => void;
   onSaveEdit: (module: Module) => void;
   onCancelEdit: () => void;
   onTitleChange: (title: string) => void;
+  onReleaseAtChange?: (value: string) => void;
   onMove: (module: Module, direction: 'up' | 'down') => void;
   onAddChild: (parent: Module) => void;
   onDelete: (module: Module) => void;
@@ -27,10 +29,12 @@ export function ModuleTree({
   level,
   editingId,
   editingTitle,
+  editingReleaseAt = '',
   onEdit,
   onSaveEdit,
   onCancelEdit,
   onTitleChange,
+  onReleaseAtChange,
   onMove,
   onAddChild,
   onDelete,
@@ -50,7 +54,7 @@ export function ModuleTree({
           {level === 0 && <Folder className="h-4 w-4 text-muted-foreground" />}
           {level > 0 && <span className="text-muted-foreground">↳</span>}
           {isEditing ? (
-            <div className="flex items-center gap-2 flex-1">
+            <div className="flex flex-col gap-2 flex-1 md:flex-row md:items-center">
               <Input 
                 value={editingTitle} 
                 onChange={(e) => onTitleChange(e.target.value)} 
@@ -61,6 +65,13 @@ export function ModuleTree({
                 }}
                 autoFocus
               />
+              <Input
+                type="datetime-local"
+                value={editingReleaseAt}
+                onChange={(e) => onReleaseAtChange?.(e.target.value)}
+                className="h-8 md:w-[220px]"
+                title="Liberação programada"
+              />
               <Button size="sm" onClick={() => onSaveEdit(module)}>Salvar</Button>
               <Button size="sm" variant="outline" onClick={onCancelEdit}>Cancelar</Button>
             </div>
@@ -68,6 +79,11 @@ export function ModuleTree({
             <div className="flex items-center gap-2">
               <span className={level === 0 ? 'font-medium' : ''}>{module.title}</span>
               <Badge variant="outline" className="text-xs">ordem: {module.order}</Badge>
+              {module.releaseAt && (
+                <Badge variant="secondary" className="text-xs">
+                  libera {new Date(module.releaseAt).toLocaleString('pt-BR')}
+                </Badge>
+              )}
             </div>
           )}
         </div>
@@ -116,10 +132,12 @@ export function ModuleTree({
               level={level + 1}
               editingId={editingId}
               editingTitle={editingTitle}
+              editingReleaseAt={editingReleaseAt}
               onEdit={onEdit}
               onSaveEdit={onSaveEdit}
               onCancelEdit={onCancelEdit}
               onTitleChange={onTitleChange}
+              onReleaseAtChange={onReleaseAtChange}
               onMove={onMove}
               onAddChild={onAddChild}
               onDelete={onDelete}
@@ -131,4 +149,3 @@ export function ModuleTree({
     </div>
   );
 }
-

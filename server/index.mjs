@@ -4,12 +4,34 @@ import pkg from 'pg';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 
 const { Pool } = pkg;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envPath = path.join(__dirname, '..', '.env');
+
+if (fs.existsSync(envPath)) {
+  const envText = fs.readFileSync(envPath, 'utf8');
+  for (const line of envText.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const rawValue = trimmed.slice(eq + 1).trim();
+    if (!process.env[key]) {
+      process.env[key] = rawValue.replace(/^['"]|['"]$/g, '');
+    }
+  }
+}
 
 const PORT = process.env.PORT || 8787;
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:iPisgVqCjjDYXTPPrhJUvDJvDBqzKcZQ@metro.proxy.rlwy.net:19989/railway';
+const DATABASE_URL = process.env.DATABASE_URL;
 // Vimeo: ler do ambiente; os endpoints abaixo obtêm os valores por requisição
+
+if (!DATABASE_URL) {
+  throw new Error('DATABASE_URL is required');
+}
 
 const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
@@ -36,6 +58,18 @@ async function ensureProfilesAssignedModules() {
   } catch {}
 }
 ensureProfilesAssignedModules().catch(() => {});
+
+async function ensureContentEnhancementColumns() {
+  try { await pool.query('ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS release_at timestamptz'); } catch {}
+  try { await pool.query('ALTER TABLE public.modules ADD COLUMN IF NOT EXISTS release_at timestamptz'); } catch {}
+  try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS release_at timestamptz'); } catch {}
+  try { await pool.query("ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS support_files jsonb NOT NULL DEFAULT '[]'::jsonb"); } catch {}
+  try { await pool.query("ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS content_type text NOT NULL DEFAULT 'video'"); } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_videos_release_at ON public.videos(release_at)'); } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_modules_release_at ON public.modules(release_at)'); } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_categories_release_at ON public.categories(release_at)'); } catch {}
+}
+ensureContentEnhancementColumns().catch(() => {});
 
 async function setSetting(key, value) {
   await ensureSettingsTable();
@@ -70,6 +104,7 @@ async function ensureModulesSchema() {
   try { await pool.query('CREATE INDEX IF NOT EXISTS idx_modules_parent_id ON public.modules(parent_id)'); } catch {}
   try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS module_id uuid REFERENCES public.modules(id) ON DELETE SET NULL'); } catch {}
   try { await pool.query('CREATE INDEX IF NOT EXISTS idx_videos_module_id ON public.videos(module_id)'); } catch {}
+  try { await pool.query('ALTER TABLE public.modules ADD COLUMN IF NOT EXISTS release_at timestamptz'); } catch {}
 }
 
 // Ensure profiles.role allows 'cliente'
@@ -100,7 +135,19 @@ app.post('/api/files', async (req, res) => {
   try {
     const { filename, mimeType, dataBase64 } = req.body || {};
     if (!filename || !mimeType || !dataBase64) return res.status(400).json({ error: 'Missing fields' });
-    const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+    const allowed = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'text/plain',
+      'text/csv',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ];
     if (!allowed.includes(mimeType)) return res.status(400).json({ error: 'Unsupported mimeType' });
     const buf = Buffer.from(String(dataBase64).split(',').pop(), 'base64');
     await ensureFilesTable();
@@ -179,10 +226,12 @@ app.get('/api/vimeo-config', (req, res) => {
 // Simple auth endpoints (email + password)
 app.post('/api/login', async (req, res) => {
   try {
+    await ensureProfilesAssignedModules();
     const { email, password } = req.body || {};
     const { rows } = await pool.query('SELECT * FROM public.profiles WHERE email = $1 LIMIT 1', [email]);
     const user = rows[0];
     if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
+    if (user.is_active === false) return res.status(403).json({ error: 'Usuário inativo' });
     // Se o usuário não possui senha definida ainda, definir agora (primeiro acesso)
     if (!user.password_hash && password) {
       const newHash = await bcrypt.hash(password, 10);
@@ -199,6 +248,7 @@ app.post('/api/login', async (req, res) => {
       email: user.email,
       role: user.role,
       assignedCategories: user.assigned_categories || [],
+      assignedModules: user.assigned_modules || [],
       isActive: user.is_active,
       createdAt: user.created_at,
     });
@@ -219,10 +269,11 @@ app.get('/api/categories', async (_req, res) => {
 
 app.post('/api/categories', async (req, res) => {
   try {
-    const { name, description, thumbnail } = req.body || {};
+    await ensureContentEnhancementColumns();
+    const { name, description, thumbnail, release_at } = req.body || {};
     const { rows } = await pool.query(
-      'INSERT INTO public.categories (name, description, thumbnail) VALUES ($1,$2,$3) RETURNING *',
-      [name, description, thumbnail]
+      'INSERT INTO public.categories (name, description, thumbnail, release_at) VALUES ($1,$2,$3,$4) RETURNING *',
+      [name, description, thumbnail, release_at || null]
     );
     res.status(201).json(rows[0]);
   } catch (e) {
@@ -232,8 +283,9 @@ app.post('/api/categories', async (req, res) => {
 
 app.put('/api/categories/:id', async (req, res) => {
   try {
+    await ensureContentEnhancementColumns();
     const { id } = req.params;
-    const fields = ['name','description','thumbnail'];
+    const fields = ['name','description','thumbnail','release_at'];
     const updates = [];
     const values = [];
     let idx = 1;
@@ -286,12 +338,12 @@ app.get('/api/modules', async (req, res) => {
 app.post('/api/modules', async (req, res) => {
   try {
     await ensureModulesSchema();
-    const { category_id, parent_id, title, description, order } = req.body || {};
+    const { category_id, parent_id, title, description, order, release_at } = req.body || {};
     const { rows } = await pool.query(
-      `INSERT INTO public.modules (category_id, parent_id, title, description, "order")
-       VALUES ($1,$2,$3,$4,$5)
+      `INSERT INTO public.modules (category_id, parent_id, title, description, "order", release_at)
+       VALUES ($1,$2,$3,$4,$5,$6)
        RETURNING *`,
-      [category_id, parent_id || null, title, description || null, Number.isFinite(order) ? order : 0]
+      [category_id, parent_id || null, title, description || null, Number.isFinite(order) ? order : 0, release_at || null]
     );
     res.status(201).json(rows[0]);
   } catch (e) {
@@ -303,7 +355,7 @@ app.put('/api/modules/:id', async (req, res) => {
   try {
     await ensureModulesSchema();
     const { id } = req.params;
-    const fields = ['category_id','parent_id','title','description','order'];
+    const fields = ['category_id','parent_id','title','description','order','release_at'];
     const updates = [];
     const values = [];
     let idx = 1;
@@ -367,17 +419,21 @@ app.post('/api/videos', async (req, res) => {
       uploaded_by,
       vimeo_id,
       vimeo_embed_url,
+      release_at,
+      support_files,
+      content_type,
     } = req.body || {};
 
     // ensure optional array column exists
     try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
+    await ensureContentEnhancementColumns();
 
     const order = req.body.order !== undefined ? req.body.order : null;
     const { rows } = await pool.query(
-      `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, module_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url, "order")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now(), $9, $10, $11)
+      `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, module_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url, "order", release_at, support_files, content_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now(), $9, $10, $11, $12, $13::jsonb, $14)
        RETURNING *`,
-      [title, description, video_url, thumbnail, category_id, module_id || null, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url, order]
+      [title, description, video_url, thumbnail, category_id, module_id || null, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url, order, release_at || null, JSON.stringify(Array.isArray(support_files) ? support_files : []), content_type || 'video']
     );
     const inserted = rows[0];
     if (Array.isArray(category_ids) && category_ids.length > 0) {
@@ -395,8 +451,9 @@ app.put('/api/videos/:id', async (req, res) => {
     const { id } = req.params;
     // ensure optional array column exists
     try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
+    await ensureContentEnhancementColumns();
 
-    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','module_id','duration','vimeo_id','vimeo_embed_url','order'];
+    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','module_id','duration','vimeo_id','vimeo_embed_url','order','release_at','support_files','content_type'];
     const updates = [];
     const values = [];
     let idx = 1;
@@ -405,6 +462,9 @@ app.put('/api/videos/:id', async (req, res) => {
         if (f === 'category_ids') {
           updates.push(`"${f}" = $${idx++}::uuid[]`);
           values.push(req.body[f]);
+        } else if (f === 'support_files') {
+          updates.push(`"${f}" = $${idx++}::jsonb`);
+          values.push(JSON.stringify(Array.isArray(req.body[f]) ? req.body[f] : []));
         } else if (f === 'order') {
           updates.push(`"${f}" = $${idx++}`);
           values.push(req.body[f]);
@@ -1002,7 +1062,6 @@ app.listen(PORT, () => {
 // --- Static frontend (serve React build) ---
 // Em produção (Railway), servimos o build do Vite a partir de /dist
 // As rotas que começam com /api foram todas definidas acima
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.join(__dirname, '..', 'dist');
 app.use(express.static(distPath));
 // 404 JSON para rotas /api desconhecidas
@@ -1011,5 +1070,3 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 app.get(/^\/(?!api).*/, (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
-
-

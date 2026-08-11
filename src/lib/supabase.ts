@@ -45,12 +45,15 @@ export async function addVideo(video: {
 	thumbnail?: string;
 	category_id: string;
   category_ids?: string[];
-  module_id?: string;
+	module_id?: string;
 	duration: number;
 	uploaded_by?: string;
 	vimeo_id?: string;
 	vimeo_embed_url?: string;
 	order?: number;
+  release_at?: string | null;
+  support_files?: any[];
+  content_type?: string;
 }) {
 	return await api.addVideo(video);
 }
@@ -67,6 +70,9 @@ export async function updateVideo(id: string, updates: Partial<{
 	vimeo_id?: string;
 	vimeo_embed_url?: string;
 	order?: number;
+  release_at?: string | null;
+  support_files?: any[];
+  content_type?: string;
 }>) {
 	return await api.updateVideo(id, updates);
 }

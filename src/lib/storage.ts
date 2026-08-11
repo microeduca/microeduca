@@ -1,4 +1,4 @@
-import { Comment, VideoProgress, ViewHistory, User, Category, Video, Module } from '@/types';
+import { Comment, VideoProgress, ViewHistory, User, Category, Video, Module, SupportFile } from '@/types';
 import { api } from '@/lib/api';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -9,6 +9,7 @@ const mapCategory = (row: any): Category => ({
   description: row.description || '',
   thumbnail: row.thumbnail || undefined,
   createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+  releaseAt: row.release_at ? new Date(row.release_at) : null,
 });
 
 const mapVideo = (row: any): Video => ({
@@ -25,6 +26,9 @@ const mapVideo = (row: any): Video => ({
   vimeoId: row.vimeo_id || row.vimeoId || undefined,
   vimeoEmbedUrl: row.vimeo_embed_url || row.vimeoEmbedUrl || undefined,
   moduleId: row.module_id || row.moduleId || undefined,
+  supportFiles: Array.isArray(row.support_files || row.supportFiles) ? (row.support_files || row.supportFiles) : [],
+  releaseAt: row.release_at ? new Date(row.release_at) : (row.releaseAt ? new Date(row.releaseAt) : null),
+  contentType: row.content_type || row.contentType || undefined,
 });
 
 const toDbVideo = (v: Video) => ({
@@ -39,6 +43,9 @@ const toDbVideo = (v: Video) => ({
   vimeo_id: v.vimeoId,
   vimeo_embed_url: v.vimeoEmbedUrl,
   module_id: v.moduleId,
+  support_files: v.supportFiles || [],
+  release_at: v.releaseAt ? new Date(v.releaseAt).toISOString() : null,
+  content_type: v.contentType,
 });
 
 const mapUser = (row: any): User => ({
@@ -151,11 +158,21 @@ export const getCategories = async (): Promise<Category[]> => {
 };
 
 export const addCategory = async (category: Category): Promise<void> => {
-  await api.addCategory({ name: category.name, description: category.description, thumbnail: category.thumbnail });
+  await api.addCategory({
+    name: category.name,
+    description: category.description,
+    thumbnail: category.thumbnail,
+    release_at: category.releaseAt ? new Date(category.releaseAt).toISOString() : null,
+  });
 };
 
 export const updateCategory = async (updatedCategory: Category): Promise<void> => {
-  await api.updateCategory(updatedCategory.id, { name: updatedCategory.name, description: updatedCategory.description, thumbnail: updatedCategory.thumbnail });
+  await api.updateCategory(updatedCategory.id, {
+    name: updatedCategory.name,
+    description: updatedCategory.description,
+    thumbnail: updatedCategory.thumbnail,
+    release_at: updatedCategory.releaseAt ? new Date(updatedCategory.releaseAt).toISOString() : null,
+  });
 };
 
 export const deleteCategory = async (categoryId: string): Promise<void> => {
@@ -240,7 +257,19 @@ export const setWelcomeVideo = async (role: 'user' | 'cliente', value: { title?:
 };
 
 export const uploadSupportFile = async (file: File) => {
-  const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+  const allowed = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'text/plain',
+    'text/csv',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ];
   if (!allowed.includes(file.type)) throw new Error('Formato não suportado');
   const b64 = await new Promise<string>((resolve, reject) => {
     const r = new FileReader();
@@ -249,7 +278,7 @@ export const uploadSupportFile = async (file: File) => {
     r.readAsDataURL(file);
   });
   const res = await api.uploadFile({ filename: file.name, mimeType: file.type, dataBase64: b64 });
-  return res as { id: string; url: string; filename: string; mimeType: string; size: number };
+  return res as SupportFile;
 };
 
 // Modules
@@ -262,6 +291,7 @@ const mapModule = (row: any): Module => ({
   order: row.order || 0,
   createdAt: row.created_at ? new Date(row.created_at) : undefined,
   updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+  releaseAt: row.release_at ? new Date(row.release_at) : null,
 });
 
 export const getModules = async (categoryId?: string): Promise<Module[]> => {
@@ -276,6 +306,7 @@ export const addModule = async (module: Omit<Module, 'id' | 'createdAt' | 'updat
     title: module.title,
     description: module.description,
     order: module.order,
+    release_at: module.releaseAt ? new Date(module.releaseAt).toISOString() : null,
   });
   return mapModule(row);
 };
@@ -287,6 +318,7 @@ export const updateModule = async (id: string, updates: Partial<Omit<Module, 'id
     title: updates.title,
     description: updates.description,
     order: updates.order,
+    release_at: updates.releaseAt ? new Date(updates.releaseAt).toISOString() : updates.releaseAt === null ? null : undefined,
   });
   return mapModule(row);
 };

@@ -21,6 +21,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getCategories, getVideos, getViewHistory, getModules } from '@/lib/storage';
 import { Category, Video as VideoType } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { isReleased } from '@/lib/utils';
 
 export default function MeusCursos() {
   const navigate = useNavigate();
@@ -50,7 +51,7 @@ export default function MeusCursos() {
     const load = async () => {
       if (!user) return;
       const cats = user?.assignedCategories 
-        ? categories.filter(cat => user.assignedCategories.includes(cat.id))
+        ? categories.filter(cat => user.assignedCategories.includes(cat.id) && isReleased(cat))
         : [];
       if (cats.length === 0) {
         setModulesByCategory({});
@@ -75,20 +76,24 @@ export default function MeusCursos() {
 
   // Filtrar categorias que o usuário tem acesso
   const userCategories = user?.assignedCategories 
-    ? categories.filter(cat => user.assignedCategories.includes(cat.id))
+    ? categories.filter(cat => user.assignedCategories.includes(cat.id) && isReleased(cat))
     : [];
 
   // Filtrar vídeos das categorias do usuário
   const userVideos = videos.filter(video => {
     const ids = (video as any).categoryIds || (video as any).category_ids || [video.categoryId].filter(Boolean);
-    return (user?.assignedCategories || []).some((cid) => ids.includes(cid));
+    const moduleId = (video as any).moduleId || (video as any).module_id;
+    const module = moduleId ? Object.values(modulesByCategory).flat().find((m: any) => m.id === moduleId) : null;
+    return isReleased(video) && (!module || isReleased(module)) && (user?.assignedCategories || []).some((cid) => ids.includes(cid));
   });
 
   // Calcular estatísticas por categoria (agregando por vídeo e com fallback)
   const getCategoryStats = (categoryId: string) => {
     const categoryVideos = videos.filter(v => {
       const ids = (v as any).category_ids || [v.categoryId].filter(Boolean);
-      return ids.includes(categoryId);
+      const moduleId = (v as any).moduleId || (v as any).module_id;
+      const module = moduleId ? Object.values(modulesByCategory).flat().find((m: any) => m.id === moduleId) : null;
+      return ids.includes(categoryId) && isReleased(v) && (!module || isReleased(module));
     });
 
     const videoIdSet = new Set(categoryVideos.map(v => v.id));

@@ -12,6 +12,7 @@ import { getUsers, getVideos, getViewHistory, getRecentViews } from '@/lib/stora
 import AdminVideoManagement from '@/components/admin/AdminVideoManagement';
 import AdminUserManagement from '@/components/admin/AdminUserManagement';
 import AdminViewerHistory from '@/components/admin/AdminViewerHistory';
+import { formatDurationLong } from '@/lib/utils';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -43,11 +44,46 @@ export default function AdminDashboard() {
     totalUsers: users.filter(u => u.role !== 'admin').length,
     totalVideos: videos.length,
     totalViews: viewHistory.length,
+    totalWatchTime: viewHistory.reduce((acc, h) => acc + Math.max(0, Number(h.watchedDuration) || 0), 0),
     activeToday: users.filter(u => {
       const today = new Date().toDateString();
       return new Date(u.createdAt).toDateString() === today;
     }).length,
   };
+
+  const userRanking = users
+    .filter((u) => u.role !== 'admin')
+    .map((user) => {
+      const entries = viewHistory.filter((h) => h.userId === user.id);
+      return {
+        user,
+        views: entries.length,
+        completed: entries.filter((h) => h.completed).length,
+        watched: entries.reduce((acc, h) => acc + Math.max(0, Number(h.watchedDuration) || 0), 0),
+      };
+    })
+    .sort((a, b) => b.watched - a.watched || b.views - a.views)
+    .slice(0, 5);
+
+  const contentRanking = videos
+    .map((video) => {
+      const entries = viewHistory.filter((h) => h.videoId === video.id);
+      return {
+        video,
+        views: entries.length,
+        watched: entries.reduce((acc, h) => acc + Math.max(0, Number(h.watchedDuration) || 0), 0),
+      };
+    })
+    .sort((a, b) => b.views - a.views || b.watched - a.watched)
+    .slice(0, 5);
+
+  const dailyEvolution = Object.entries(
+    viewHistory.reduce((acc: Record<string, number>, h) => {
+      const key = new Date(h.lastWatchedAt).toLocaleDateString('pt-BR');
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {})
+  ).slice(-7);
 
   const getVimeoThumbFallback = (v: any): string | null => {
     const id = v?.vimeoId || v?.vimeo_id || (v?.videoUrl || v?.video_url)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
@@ -160,6 +196,66 @@ export default function AdminDashboard() {
               <p className="text-xs text-muted-foreground">
                 Novos usuários hoje
               </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Usuários mais ativos</CardTitle>
+              <CardDescription>Ranking por horas consumidas</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {userRanking.map((item, index) => (
+                <div key={item.user.id} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{index + 1}. {item.user.name}</p>
+                    <p className="text-xs text-muted-foreground">{item.views} acesso(s), {item.completed} concluído(s)</p>
+                  </div>
+                  <Badge variant="outline">{formatDurationLong(item.watched)}</Badge>
+                </div>
+              ))}
+              {userRanking.length === 0 && <p className="text-sm text-muted-foreground">Sem dados de uso ainda.</p>}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Conteúdos mais acessados</CardTitle>
+              <CardDescription>Ranking por visualizações</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {contentRanking.map((item, index) => (
+                <div key={item.video.id} className="flex items-center justify-between gap-3">
+                  <button className="min-w-0 text-left" onClick={() => navigate(`/video/${item.video.id}`)}>
+                    <p className="truncate text-sm font-medium hover:underline">{index + 1}. {item.video.title}</p>
+                    <p className="text-xs text-muted-foreground">{formatDurationLong(item.watched)} consumidos</p>
+                  </button>
+                  <Badge variant="secondary">{item.views} views</Badge>
+                </div>
+              ))}
+              {contentRanking.length === 0 && <p className="text-sm text-muted-foreground">Sem visualizações registradas.</p>}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Evolução de acessos</CardTitle>
+              <CardDescription>Últimos dias com atividade</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-md border p-3">
+                <p className="text-sm text-muted-foreground">Horas consumidas</p>
+                <p className="text-2xl font-bold">{formatDurationLong(stats.totalWatchTime)}</p>
+              </div>
+              {dailyEvolution.map(([day, count]) => (
+                <div key={day} className="flex items-center justify-between text-sm">
+                  <span>{day}</span>
+                  <Badge variant="outline">{count} acesso(s)</Badge>
+                </div>
+              ))}
+              {dailyEvolution.length === 0 && <p className="text-sm text-muted-foreground">Sem evolução disponível.</p>}
             </CardContent>
           </Card>
         </div>

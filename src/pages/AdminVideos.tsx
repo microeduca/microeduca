@@ -18,6 +18,7 @@ import { uploadSupportFile } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import PdfViewer from '@/components/PdfViewer';
 import VimeoUpload from '@/components/admin/VimeoUpload';
+import { formatDurationLong, fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
 import {
   DndContext,
   closestCenter,
@@ -64,6 +65,12 @@ interface AdminVideoRow {
   module_id?: string;
   moduleId?: string;
   order?: number;
+  release_at?: string | null;
+  releaseAt?: string | Date | null;
+  support_files?: Array<{ id: string; url: string; filename: string; mimeType: string; size?: number }>;
+  supportFiles?: Array<{ id: string; url: string; filename: string; mimeType: string; size?: number }>;
+  content_type?: string;
+  contentType?: string;
 }
 
 interface ModuleWithOrder {
@@ -104,6 +111,8 @@ export default function AdminVideos() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [collapsedModules, setCollapsedModules] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'list' | 'hierarchical'>('hierarchical');
+  const [listPage, setListPage] = useState(1);
+  const pageSize = 12;
   
   const [newVideo, setNewVideo] = useState({
     title: '',
@@ -113,7 +122,9 @@ export default function AdminVideos() {
     moduleId: '',
     categoryIds: [] as string[],
     duration: 0,
-    thumbnail: ''
+    thumbnail: '',
+    releaseAt: '',
+    supportFiles: [] as Array<{ id: string; url: string; filename: string; mimeType: string; size?: number }>,
   });
   const [newCatSearch, setNewCatSearch] = useState('');
   const [newModuleSearch, setNewModuleSearch] = useState('');
@@ -262,7 +273,7 @@ export default function AdminVideos() {
           </div>
           <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
             <Clock className="h-3 w-3" />
-            {Math.floor(video.duration / 60)}:{String(video.duration % 60).padStart(2, '0')}
+            {formatDuration(video.duration)}
             <span>•</span>
             <Eye className="h-3 w-3" />
             {viewsMap[video.id] || 0} views
@@ -404,10 +415,12 @@ export default function AdminVideos() {
         <TableCell className="hidden md:table-cell">
           {isProcessing(video) ? (
             <Badge variant="outline" className="text-xs">Processando</Badge>
+          ) : isScheduled(video) ? (
+            <Badge variant="outline" className="text-xs">Programado</Badge>
           ) : video.vimeoId ? (
             <Badge className="bg-primary/10 text-primary">Vimeo</Badge>
           ) : (
-            <Badge variant="outline">URL</Badge>
+            <Badge variant="outline">{(video.content_type || video.contentType) === 'file' ? 'Arquivo' : 'URL'}</Badge>
           )}
         </TableCell>
         <TableCell className="hidden lg:table-cell text-muted-foreground">
@@ -502,7 +515,7 @@ export default function AdminVideos() {
         </div>
         <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
           <Clock className="h-3 w-3" />
-          {Math.floor(video.duration / 60)}:{String(video.duration % 60).padStart(2, '0')}
+          {formatDuration(video.duration)}
           <span>•</span>
           <Eye className="h-3 w-3" />
           {viewsMap[video.id] || 0} views
@@ -594,7 +607,7 @@ export default function AdminVideos() {
                 {moduleVideos.length + childModules.reduce((acc, child) => {
                   const childVideos = categoryVideos.filter(v => (v.moduleId || v.module_id) === child.id);
                   return acc + childVideos.length;
-                }, 0)} vídeos
+                }, 0)} vídeos • {formatDuration(moduleVideos.reduce((acc, v) => acc + Math.max(0, Number(v.duration) || 0), 0))}
               </p>
             </div>
           </div>
@@ -670,7 +683,7 @@ export default function AdminVideos() {
                   <p className="text-sm text-muted-foreground">{categoryVideos.length} vídeos</p>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {Math.floor(categoryVideos.reduce((acc, v) => acc + v.duration, 0) / 60)}h de conteúdo
+                  {formatDuration(categoryVideos.reduce((acc, v) => acc + v.duration, 0))} de conteúdo
                 </div>
               </div>
 
@@ -714,6 +727,10 @@ export default function AdminVideos() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [search, filterCategory]);
 
   // Após carregar a lista, tentar preencher duração/thumbnail de vídeos do Vimeo ainda sem dados
   useEffect(() => {
@@ -802,6 +819,9 @@ export default function AdminVideos() {
         module_id: newVideo.moduleId || undefined,
         duration: newVideo.duration,
         uploaded_by: 'admin',
+        release_at: fromDateTimeLocalValue(newVideo.releaseAt),
+        support_files: newVideo.supportFiles,
+        content_type: newVideo.videoUrl.includes('/api/files/') ? 'file' : 'video',
       });
 
       await loadData();
@@ -814,7 +834,9 @@ export default function AdminVideos() {
         categoryIds: [],
         moduleId: '',
         duration: 0,
-        thumbnail: ''
+        thumbnail: '',
+        releaseAt: '',
+        supportFiles: [],
       });
 
       toast({
@@ -883,6 +905,9 @@ export default function AdminVideos() {
         category_ids: editingVideo.category_ids,
         module_id: finalModuleId,
         duration: editingVideo.duration,
+        release_at: editingVideo.release_at || (editingVideo.releaseAt ? new Date(editingVideo.releaseAt).toISOString() : null),
+        support_files: editingVideo.support_files || editingVideo.supportFiles || [],
+        content_type: editingVideo.content_type || editingVideo.contentType || ((editingVideo.video_url || editingVideo.videoUrl || '').includes('/api/files/') ? 'file' : 'video'),
       });
       
       await loadData();
@@ -951,9 +976,7 @@ export default function AdminVideos() {
   };
 
   const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return formatDurationLong(seconds);
   };
 
   const safeFormatDate = (value: Date | string | number | null | undefined) => {
@@ -997,6 +1020,13 @@ export default function AdminVideos() {
 
   const isProcessing = (v: AdminVideoRow) => {
     return (v.duration || 0) === 0 || !v.thumbnail;
+  };
+
+  const isScheduled = (v: AdminVideoRow) => {
+    const raw = v.release_at || v.releaseAt;
+    if (!raw) return false;
+    const date = new Date(raw);
+    return !Number.isNaN(date.getTime()) && date.getTime() > Date.now();
   };
 
   const toggleSelect = (id: string) => {
@@ -1144,7 +1174,7 @@ export default function AdminVideos() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {Math.floor(videos.reduce((acc, v) => acc + v.duration, 0) / 60)}h
+                {formatDuration(videos.reduce((acc, v) => acc + v.duration, 0))}
               </div>
               <p className="text-xs text-muted-foreground">de conteúdo</p>
             </CardContent>
@@ -1224,42 +1254,55 @@ export default function AdminVideos() {
                     const orderB = b.order ?? (b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0);
                     return orderA - orderB;
                   });
+                const totalListPages = Math.max(1, Math.ceil(filteredVideosList.length / pageSize));
+                const safePage = Math.min(listPage, totalListPages);
+                const pageVideos = filteredVideosList.slice((safePage - 1) * pageSize, safePage * pageSize);
 
                 return (
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(e) => handleDragEnd(e, filteredVideosList)}
-                  >
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>
-                            <input type="checkbox" onChange={(e) => setSelectedIds(e.target.checked ? videos.map(v => v.id) : [])} checked={selectedIds.length > 0 && selectedIds.length === videos.length} aria-label="Selecionar todos" />
-                          </TableHead>
-                          <TableHead>Thumb</TableHead>
-                          <TableHead>Título</TableHead>
-                          <TableHead className="hidden sm:table-cell">Categoria</TableHead>
-                          <TableHead className="hidden md:table-cell">Duração</TableHead>
-                          <TableHead className="hidden lg:table-cell">Enviado por</TableHead>
-                          <TableHead className="hidden lg:table-cell">Views</TableHead>
-                          <TableHead className="hidden md:table-cell">Status</TableHead>
-                          <TableHead className="hidden lg:table-cell">Upload</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <SortableContext
-                        items={filteredVideosList.map(v => v.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <TableBody>
-                          {filteredVideosList.map(video => (
-                            <SortableTableRow key={video.id} video={video} />
-                          ))}
-                        </TableBody>
-                      </SortableContext>
-                    </Table>
-                  </DndContext>
+                  <div className="space-y-4">
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(e) => handleDragEnd(e, pageVideos)}
+                    >
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>
+                              <input type="checkbox" onChange={(e) => setSelectedIds(e.target.checked ? pageVideos.map(v => v.id) : [])} checked={pageVideos.length > 0 && selectedIds.length === pageVideos.length} aria-label="Selecionar todos" />
+                            </TableHead>
+                            <TableHead>Thumb</TableHead>
+                            <TableHead>Título</TableHead>
+                            <TableHead className="hidden sm:table-cell">Categoria</TableHead>
+                            <TableHead className="hidden md:table-cell">Duração</TableHead>
+                            <TableHead className="hidden lg:table-cell">Enviado por</TableHead>
+                            <TableHead className="hidden lg:table-cell">Views</TableHead>
+                            <TableHead className="hidden md:table-cell">Status</TableHead>
+                            <TableHead className="hidden lg:table-cell">Upload</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <SortableContext
+                          items={pageVideos.map(v => v.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <TableBody>
+                            {pageVideos.map(video => (
+                              <SortableTableRow key={video.id} video={video} />
+                            ))}
+                          </TableBody>
+                        </SortableContext>
+                      </Table>
+                    </DndContext>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>{filteredVideosList.length} conteúdo(s) encontrados</span>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" disabled={safePage <= 1} onClick={() => setListPage((p) => Math.max(1, p - 1))}>Anterior</Button>
+                        <span>Página {safePage} de {totalListPages}</span>
+                        <Button size="sm" variant="outline" disabled={safePage >= totalListPages} onClick={() => setListPage((p) => Math.min(totalListPages, p + 1))}>Próxima</Button>
+                      </div>
+                    </div>
+                  </div>
                 );
               })()
             )}
@@ -1618,6 +1661,16 @@ export default function AdminVideos() {
                     />
                   </div>
                   <div className="grid gap-2">
+                    <Label htmlFor="release-at">Liberação programada</Label>
+                    <Input
+                      id="release-at"
+                      type="datetime-local"
+                      value={newVideo.releaseAt}
+                      onChange={(e) => setNewVideo({ ...newVideo, releaseAt: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">Deixe em branco para liberar imediatamente.</p>
+                  </div>
+                  <div className="grid gap-2">
                     <Label>Thumbnail</Label>
                     <div className="flex items-center gap-2">
                       <Input
@@ -1653,10 +1706,10 @@ export default function AdminVideos() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <h3 className="text-sm font-medium">Enviar arquivo (PDF/JPG/PNG)</h3>
+                    <h3 className="text-sm font-medium">Enviar arquivo como aula</h3>
                     <Input
                       type="file"
-                      accept="application/pdf,image/jpeg,image/png"
+                      accept="application/pdf,image/jpeg,image/png,text/plain,text/csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                       onChange={async (e) => {
                         const f = e.target.files?.[0];
                         if (!f) return;
@@ -1668,7 +1721,40 @@ export default function AdminVideos() {
                         }
                       }}
                     />
-                    <p className="text-xs text-muted-foreground">O arquivo será disponibilizado como material na lista. Para imagens, usaremos a própria imagem como thumbnail.</p>
+                    <p className="text-xs text-muted-foreground">O arquivo ocupará a mesma estrutura dos vídeos. Para imagens, usaremos a própria imagem como thumbnail.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Materiais de apoio desta aula</h3>
+                    <Input
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png,text/plain,text/csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                      multiple
+                      onChange={async (e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (files.length === 0) return;
+                        try {
+                          const uploaded = [];
+                          for (const f of files) {
+                            uploaded.push(await uploadSupportFile(f));
+                          }
+                          setNewVideo({ ...newVideo, supportFiles: [...newVideo.supportFiles, ...uploaded] });
+                        } catch (err) {
+                          toast({ title: 'Falha ao enviar material de apoio', variant: 'destructive' });
+                        } finally {
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                    />
+                    {newVideo.supportFiles.length > 0 && (
+                      <div className="space-y-1">
+                        {newVideo.supportFiles.map((f) => (
+                          <div key={f.id} className="flex items-center justify-between rounded border px-2 py-1 text-xs">
+                            <span className="truncate">{f.filename}</span>
+                            <button type="button" className="text-destructive" onClick={() => setNewVideo({ ...newVideo, supportFiles: newVideo.supportFiles.filter((x) => x.id !== f.id) })}>remover</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1679,7 +1765,7 @@ export default function AdminVideos() {
               </Button>
               <Button 
                 onClick={handleAddVideo}
-                disabled={!newVideo.title || !newVideo.videoUrl || !newVideo.categoryId}
+                disabled={!newVideo.title || !newVideo.videoUrl || (newVideo.categoryIds || []).length === 0}
               >
                 Adicionar Vídeo
               </Button>
@@ -1881,6 +1967,16 @@ export default function AdminVideos() {
                     onChange={(e) => setEditingVideo({ ...editingVideo, duration: parseInt(e.target.value) || 0 })}
                   />
                 </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-release-at">Liberação programada</Label>
+                  <Input
+                    id="edit-release-at"
+                    type="datetime-local"
+                    value={toDateTimeLocalValue(editingVideo.release_at || editingVideo.releaseAt || null)}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, release_at: fromDateTimeLocalValue(e.target.value) })}
+                  />
+                  <p className="text-xs text-muted-foreground">Deixe em branco para liberar imediatamente.</p>
+                </div>
                   <div className="grid gap-2">
                     <Label>Módulo/Submódulo</Label>
                   <div className="flex gap-2">
@@ -2032,6 +2128,49 @@ export default function AdminVideos() {
                     />
                   )}
                 </div>
+                <div className="grid gap-2">
+                  <Label>Materiais de apoio</Label>
+                  <Input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,text/plain,text/csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    multiple
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (!files.length || !editingVideo) return;
+                      try {
+                        const uploaded = [];
+                        for (const f of files) {
+                          uploaded.push(await uploadSupportFile(f));
+                        }
+                        const current = editingVideo.support_files || editingVideo.supportFiles || [];
+                        setEditingVideo({ ...editingVideo, support_files: [...current, ...uploaded] });
+                      } catch {
+                        toast({ title: 'Falha ao enviar material de apoio', variant: 'destructive' });
+                      } finally {
+                        e.currentTarget.value = '';
+                      }
+                    }}
+                  />
+                  {((editingVideo.support_files || editingVideo.supportFiles || []).length > 0) && (
+                    <div className="space-y-1">
+                      {(editingVideo.support_files || editingVideo.supportFiles || []).map((f) => (
+                        <div key={f.id} className="flex items-center justify-between rounded border px-2 py-1 text-xs">
+                          <a href={f.url} target="_blank" rel="noreferrer" className="truncate underline">{f.filename}</a>
+                          <button
+                            type="button"
+                            className="text-destructive"
+                            onClick={() => {
+                              const current = editingVideo.support_files || editingVideo.supportFiles || [];
+                              setEditingVideo({ ...editingVideo, support_files: current.filter((x) => x.id !== f.id) });
+                            }}
+                          >
+                            remover
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             <DialogFooter>
@@ -2056,8 +2195,9 @@ export default function AdminVideos() {
               const pv = (previewVideo as unknown as { video_url?: string; videoUrl?: string } | null);
               const url = String(pv?.video_url || pv?.videoUrl || '');
               const lower = url.toLowerCase();
-              const isPdf = lower.endsWith('.pdf') || lower.includes('/api/files/');
+              const isPdf = lower.endsWith('.pdf');
               const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(lower);
+              const isFile = (previewVideo?.content_type || previewVideo?.contentType) === 'file' || lower.includes('/api/files/');
               const vimeo = computeVimeoEmbed(previewVideo);
               return (
                 <div className="relative aspect-video bg-black rounded-md overflow-hidden">
@@ -2065,6 +2205,14 @@ export default function AdminVideos() {
                     <PdfViewer url={url} title={previewVideo?.title} className="absolute inset-0 w-full h-full" />
                   ) : isImg ? (
                     <img src={url} alt={previewVideo?.title || 'Imagem'} className="absolute inset-0 w-full h-full object-contain bg-black" />
+                  ) : isFile ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted p-6 text-center">
+                      <Upload className="h-10 w-10 text-primary" />
+                      <p className="font-medium">Arquivo disponível para abertura externa</p>
+                      <Button asChild>
+                        <a href={url} target="_blank" rel="noreferrer">Abrir arquivo</a>
+                      </Button>
+                    </div>
                   ) : vimeo ? (
                     <iframe
                       src={vimeo as string}

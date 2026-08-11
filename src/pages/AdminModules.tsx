@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getCategories, getModules, addModule, updateModule, deleteModule } from '@/lib/storage';
 import type { Category, Module } from '@/types';
 import { ModuleTree } from '@/components/ModuleTree';
+import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
 
 export default function AdminModules() {
   const { toast } = useToast();
@@ -19,6 +20,7 @@ export default function AdminModules() {
   const [newModuleTitle, setNewModuleTitle] = useState('');
   const [editingId, setEditingId] = useState<string>('');
   const [editingTitle, setEditingTitle] = useState<string>('');
+  const [editingReleaseAt, setEditingReleaseAt] = useState<string>('');
 
   useEffect(() => {
     (async () => {
@@ -92,13 +94,18 @@ export default function AdminModules() {
   const handleRename = async (mod: Module) => {
     setEditingId(mod.id);
     setEditingTitle(mod.title);
+    setEditingReleaseAt(toDateTimeLocalValue(mod.releaseAt || null));
   };
 
   const saveRename = async (mod: Module) => {
     try {
-      await updateModule(mod.id, { title: editingTitle.trim() || mod.title });
+      await updateModule(mod.id, {
+        title: editingTitle.trim() || mod.title,
+        releaseAt: fromDateTimeLocalValue(editingReleaseAt) ? new Date(fromDateTimeLocalValue(editingReleaseAt) as string) : null,
+      });
       setEditingId('');
       setEditingTitle('');
+      setEditingReleaseAt('');
       await refresh();
     } catch {
       toast({ title: 'Erro ao renomear', variant: 'destructive' });
@@ -192,10 +199,12 @@ export default function AdminModules() {
                     level={0}
                     editingId={editingId}
                     editingTitle={editingTitle}
+                    editingReleaseAt={editingReleaseAt}
                     onEdit={handleRename}
                     onSaveEdit={saveRename}
-                    onCancelEdit={() => { setEditingId(''); setEditingTitle(''); }}
+                    onCancelEdit={() => { setEditingId(''); setEditingTitle(''); setEditingReleaseAt(''); }}
                     onTitleChange={setEditingTitle}
+                    onReleaseAtChange={setEditingReleaseAt}
                     onMove={moveWithinSiblings}
                     onAddChild={handleAddChild}
                     onDelete={handleDelete}
@@ -210,5 +219,4 @@ export default function AdminModules() {
     </Layout>
   );
 }
-
 

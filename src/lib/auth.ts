@@ -1,10 +1,12 @@
 import { User } from '@/types';
+import { API_URL } from '@/lib/api';
 
 const AUTH_KEY = 'microeduca_auth';
 
 export const login = (email: string, password: string): User | null => {
-	// Chamada para API do Railway
-	const API = (import.meta as any).env?.VITE_API_URL || 'https://microeduca.up.railway.app/api';
+	// Usa a mesma origem do restante da aplicação; fixar a URL aqui fazia
+	// qualquer ambiente autenticar contra a produção.
+	const API = API_URL;
 	const xhr = new XMLHttpRequest();
 	xhr.open('POST', `${API}/login`, false);
 	xhr.setRequestHeader('Content-Type', 'application/json');

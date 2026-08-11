@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,22 +79,67 @@ export default function MeusCursos() {
     ? categories.filter(cat => user.assignedCategories.includes(cat.id) && isReleased(cat))
     : [];
 
+  const assignedModuleIds = useMemo(
+    () => new Set<string>(user?.assignedModules || []),
+    [user?.assignedModules]
+  );
+
+  const moduleById = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const m of Object.values(modulesByCategory).flat()) map.set(m.id, m);
+    return map;
+  }, [modulesByCategory]);
+
+  // Percorre o módulo e seus ancestrais, parando em ciclos.
+  const walkModuleChain = (moduleId: string | undefined | null, visit: (m: any) => boolean | void) => {
+    let current = moduleId ? moduleById.get(moduleId) : null;
+    const seen = new Set<string>();
+    while (current && !seen.has(current.id)) {
+      const stop = visit(current);
+      if (stop) return true;
+      seen.add(current.id);
+      current = current.parentId ? moduleById.get(current.parentId) : null;
+    }
+    return false;
+  };
+
+  // Conceder um módulo concede também seus submódulos.
+  const isModuleAllowed = (moduleId?: string | null) =>
+    walkModuleChain(moduleId, (m) => assignedModuleIds.has(m.id));
+
+  // Nenhum ancestral pode ter liberação futura.
+  const isModuleChainReleased = (moduleId?: string | null) =>
+    !walkModuleChain(moduleId, (m) => !isReleased(m));
+
+  // Se o usuário tem módulos atribuídos nesta categoria, só eles valem.
+  // Sem nenhum módulo atribuído, a categoria inteira vale.
+  const categoryHasModuleRestriction = (categoryId: string) =>
+    (modulesByCategory[categoryId] || []).some((m: any) => assignedModuleIds.has(m.id));
+
+  const canAccessVideo = (video: any, categoryId?: string) => {
+    if (!isReleased(video)) return false;
+    const moduleId = video.moduleId || video.module_id;
+    if (!isModuleChainReleased(moduleId)) return false;
+    const ids: string[] = video.categoryIds || video.category_ids || [video.categoryId].filter(Boolean);
+    const scope = categoryId ? [categoryId] : ids;
+    return scope.some((cid) => {
+      if (!ids.includes(cid)) return false;
+      if (!(user?.assignedCategories || []).includes(cid)) return false;
+      const category = categories.find((c) => c.id === cid);
+      if (category && !isReleased(category)) return false;
+      if (!categoryHasModuleRestriction(cid)) return true;
+      return isModuleAllowed(moduleId);
+    });
+  };
+
+  const videosOfCategory = (categoryId: string) => videos.filter((v) => canAccessVideo(v, categoryId));
+
   // Filtrar vídeos das categorias do usuário
-  const userVideos = videos.filter(video => {
-    const ids = (video as any).categoryIds || (video as any).category_ids || [video.categoryId].filter(Boolean);
-    const moduleId = (video as any).moduleId || (video as any).module_id;
-    const module = moduleId ? Object.values(modulesByCategory).flat().find((m: any) => m.id === moduleId) : null;
-    return isReleased(video) && (!module || isReleased(module)) && (user?.assignedCategories || []).some((cid) => ids.includes(cid));
-  });
+  const userVideos = videos.filter((video) => canAccessVideo(video));
 
   // Calcular estatísticas por categoria (agregando por vídeo e com fallback)
   const getCategoryStats = (categoryId: string) => {
-    const categoryVideos = videos.filter(v => {
-      const ids = (v as any).category_ids || [v.categoryId].filter(Boolean);
-      const moduleId = (v as any).moduleId || (v as any).module_id;
-      const module = moduleId ? Object.values(modulesByCategory).flat().find((m: any) => m.id === moduleId) : null;
-      return ids.includes(categoryId) && isReleased(v) && (!module || isReleased(module));
-    });
+    const categoryVideos = videosOfCategory(categoryId);
 
     const videoIdSet = new Set(categoryVideos.map(v => v.id));
     const watchedEntries = viewHistory.filter(h => videoIdSet.has(h.videoId));
@@ -165,10 +210,7 @@ export default function MeusCursos() {
   };
 
   const getResumeVideoForCategory = (categoryId: string): VideoType | null => {
-    const categoryVideos = videos.filter(v => {
-      const ids = (v as any).categoryIds || (v as any).category_ids || [v.categoryId].filter(Boolean);
-      return ids.includes(categoryId);
-    });
+    const categoryVideos = videosOfCategory(categoryId);
     if (categoryVideos.length === 0) return null;
     const idSet = new Set(categoryVideos.map(v => v.id));
     const inProgress = viewHistory
@@ -191,11 +233,8 @@ export default function MeusCursos() {
   };
 
   const renderCategoryDetails = (categoryId: string) => {
-    const categoryVideos = videos.filter(v => {
-      const ids = (v as any).categoryIds || (v as any).category_ids || [v.categoryId].filter(Boolean);
-      return ids.includes(categoryId);
-    });
-    const mods = (modulesByCategory[categoryId] || []) as Array<{ id: string; title: string; parentId?: string | null; order?: number }>; 
+    const categoryVideos = videosOfCategory(categoryId);
+    const mods = (modulesByCategory[categoryId] || []) as Array<{ id: string; title: string; parentId?: string | null; order?: number }>;
     const roots = mods.filter(m => !m.parentId)
       .sort((a, b) => (Number((a as unknown as { order?: number }).order || 0) - Number((b as unknown as { order?: number }).order || 0)) || String(a.title).localeCompare(String(b.title)));
     const childOf = (pid: string) => mods.filter(m => m.parentId === pid)
@@ -441,13 +480,10 @@ export default function MeusCursos() {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {userCategories.map(category => {
                   const stats = getCategoryStats(category.id);
-                  const categoryVideos = videos.filter(v => {
-                    const ids = (v as any).categoryIds || (v as any).category_ids || [v.categoryId].filter(Boolean);
-                    return ids.includes(category.id);
-                  });
-                  
+                  const categoryVideos = videosOfCategory(category.id);
+
                   return (
-                    <Card 
+                    <Card
                       key={category.id} 
                       className="hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
                       onClick={() => { setIsDetailsOpen(true); setDetailsCategoryId(category.id); }}
@@ -541,11 +577,8 @@ export default function MeusCursos() {
             <TabsContent value="list" className="space-y-4">
               {userCategories.map(category => {
                 const stats = getCategoryStats(category.id);
-                const categoryVideos = videos.filter(v => {
-                  const ids = (v as any).categoryIds || (v as any).category_ids || [v.categoryId].filter(Boolean);
-                  return ids.includes(category.id);
-                });
-                
+                const categoryVideos = videosOfCategory(category.id);
+
                 return (
                   <Card key={category.id}>
                     <CardHeader>

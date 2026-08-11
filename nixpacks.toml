@@ -4,12 +4,17 @@ NPM_CONFIG_CACHE = "/tmp/.npm"
 NPM_CONFIG_PRODUCTION = "false"
 ROLLUP_SKIP_NODEJS_NATIVE = "true"
 
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
 [phases.install]
+dependsOn = ["setup"]
 cmds = [
   "npm ci --no-audit --no-fund --include=dev --cache /tmp/.npm || npm install --no-audit --no-fund --include=dev --cache /tmp/.npm"
 ]
 
 [phases.build]
+dependsOn = ["install"]
 cmds = ["npm run build"]
 
 [start]

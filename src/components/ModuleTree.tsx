@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Folder, ArrowUp, ArrowDown, Pencil, Trash2, Plus } from 'lucide-react';
+import { Folder, ArrowUp, ArrowDown, Pencil, Trash2, Plus, ClipboardCheck } from 'lucide-react';
 import type { Module } from '@/types';
 
 interface ModuleTreeProps {
@@ -12,11 +12,13 @@ interface ModuleTreeProps {
   editingId: string;
   editingTitle: string;
   editingReleaseAt?: string;
+  editingEvaluationUrl?: string;
   onEdit: (module: Module) => void;
   onSaveEdit: (module: Module) => void;
   onCancelEdit: () => void;
   onTitleChange: (title: string) => void;
   onReleaseAtChange?: (value: string) => void;
+  onEvaluationUrlChange?: (value: string) => void;
   onMove: (module: Module, direction: 'up' | 'down') => void;
   onAddChild: (parent: Module) => void;
   onDelete: (module: Module) => void;
@@ -30,11 +32,13 @@ export function ModuleTree({
   editingId,
   editingTitle,
   editingReleaseAt = '',
+  editingEvaluationUrl = '',
   onEdit,
   onSaveEdit,
   onCancelEdit,
   onTitleChange,
   onReleaseAtChange,
+  onEvaluationUrlChange,
   onMove,
   onAddChild,
   onDelete,
@@ -72,6 +76,15 @@ export function ModuleTree({
                 className="h-8 md:w-[220px]"
                 title="Liberação programada"
               />
+              <Input
+                type="url"
+                inputMode="url"
+                placeholder="Link da avaliação (forms)"
+                value={editingEvaluationUrl}
+                onChange={(e) => onEvaluationUrlChange?.(e.target.value)}
+                className="h-8 md:w-[260px]"
+                title="Link da avaliação do módulo"
+              />
               <Button size="sm" onClick={() => onSaveEdit(module)}>Salvar</Button>
               <Button size="sm" variant="outline" onClick={onCancelEdit}>Cancelar</Button>
             </div>
@@ -82,6 +95,12 @@ export function ModuleTree({
               {module.releaseAt && (
                 <Badge variant="secondary" className="text-xs">
                   libera {new Date(module.releaseAt).toLocaleString('pt-BR')}
+                </Badge>
+              )}
+              {module.evaluationUrl && (
+                <Badge variant="outline" className="text-xs gap-1">
+                  <ClipboardCheck className="h-3 w-3" />
+                  avaliação
                 </Badge>
               )}
             </div>
@@ -133,11 +152,13 @@ export function ModuleTree({
               editingId={editingId}
               editingTitle={editingTitle}
               editingReleaseAt={editingReleaseAt}
+              editingEvaluationUrl={editingEvaluationUrl}
               onEdit={onEdit}
               onSaveEdit={onSaveEdit}
               onCancelEdit={onCancelEdit}
               onTitleChange={onTitleChange}
               onReleaseAtChange={onReleaseAtChange}
+              onEvaluationUrlChange={onEvaluationUrlChange}
               onMove={onMove}
               onAddChild={onAddChild}
               onDelete={onDelete}

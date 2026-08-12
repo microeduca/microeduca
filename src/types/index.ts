@@ -79,5 +79,6 @@ export interface Module {
   createdAt?: Date;
   updatedAt?: Date;
   releaseAt?: Date | null;
+  evaluationUrl?: string | null;
   children?: Module[];
 }

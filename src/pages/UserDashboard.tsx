@@ -16,7 +16,7 @@ import VideoCard from '@/components/VideoCard';
 import ModuleBadge from '@/components/ModuleBadge';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useFavorites } from '@/hooks/useFavorites';
-import { isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
+import { formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 
 export default function UserDashboard() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('user');
@@ -188,15 +188,6 @@ export default function UserDashboard() {
 
   const handleVideoClick = (videoId: string) => {
     navigate(`/video/${videoId}`);
-  };
-
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}min`;
-    }
-    return `${minutes} min`;
   };
 
   return (
@@ -666,7 +657,7 @@ export default function UserDashboard() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="flex items-center gap-1 text-muted-foreground">
                           <Clock className="h-3 w-3" />
-                          {formatDuration(video.duration)}
+                          {formatDurationLong(video.duration)}
                         </span>
                         <Badge variant="secondary">
                           {categories.find(c => c.id === video.categoryId)?.name}

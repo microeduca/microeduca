@@ -292,6 +292,7 @@ const mapModule = (row: any): Module => ({
   createdAt: row.created_at ? new Date(row.created_at) : undefined,
   updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
   releaseAt: row.release_at ? new Date(row.release_at) : null,
+  evaluationUrl: row.evaluation_url || null,
 });
 
 export const getModules = async (categoryId?: string): Promise<Module[]> => {
@@ -307,6 +308,7 @@ export const addModule = async (module: Omit<Module, 'id' | 'createdAt' | 'updat
     description: module.description,
     order: module.order,
     release_at: module.releaseAt ? new Date(module.releaseAt).toISOString() : null,
+    evaluation_url: module.evaluationUrl || null,
   });
   return mapModule(row);
 };
@@ -319,6 +321,7 @@ export const updateModule = async (id: string, updates: Partial<Omit<Module, 'id
     description: updates.description,
     order: updates.order,
     release_at: updates.releaseAt ? new Date(updates.releaseAt).toISOString() : updates.releaseAt === null ? null : undefined,
+    evaluation_url: updates.evaluationUrl === undefined ? undefined : (updates.evaluationUrl || null),
   });
   return mapModule(row);
 };

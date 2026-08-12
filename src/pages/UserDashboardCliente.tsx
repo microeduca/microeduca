@@ -14,7 +14,7 @@ import ModuleBadge from '@/components/ModuleBadge';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useNavigate } from 'react-router-dom';
 import { useFavorites } from '@/hooks/useFavorites';
-import { isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
+import { formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 
 export default function UserDashboardCliente() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('cliente');
@@ -90,12 +90,6 @@ export default function UserDashboardCliente() {
     .filter(item => item.video && !item.completed && item.progress < 100);
 
   const handleVideoClick = (videoId: string) => navigate(`/video/${videoId}`);
-
-  const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${minutes}:${String(secs).padStart(2, '0')}`;
-  };
 
   return (
     <Layout>

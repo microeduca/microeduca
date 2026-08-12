@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Clock, CheckCircle, Play, Star } from 'lucide-react';
 import ModuleBadge from '@/components/ModuleBadge';
+import { formatDurationLong } from '@/lib/utils';
 
 interface VideoCardProps {
   video: any;
@@ -20,12 +21,6 @@ interface VideoCardProps {
 export default function VideoCard({ video, progressPercentage = 0, showProgressBar = true, modulesByCategory, categories, onClick, layout = 'grid', isFavorite, onToggleFavorite, isNew, onResume }: VideoCardProps) {
   const categoryId = (video as any).categoryId || (video as any).category_id;
   const moduleId = (video as any).moduleId || (video as any).module_id;
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}min`;
-    return `${minutes} min`;
-  };
 
   if (layout === 'list') {
     return (
@@ -68,7 +63,7 @@ export default function VideoCard({ video, progressPercentage = 0, showProgressB
             <div className="flex items-center gap-4 text-sm">
               <span className="flex items-center gap-1 text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                {formatDuration(video.duration)}
+                {formatDurationLong(video.duration)}
               </span>
               <div className="flex items-center gap-1 flex-wrap">
                 <span className="text-xs">
@@ -145,7 +140,7 @@ export default function VideoCard({ video, progressPercentage = 0, showProgressB
         <div className="flex items-center justify-between text-sm">
           <span className="flex items-center gap-1 text-muted-foreground">
             <Clock className="h-3 w-3" />
-            {formatDuration(video.duration)}
+            {formatDurationLong(video.duration)}
           </span>
           <div className="flex gap-1 flex-wrap justify-end">
             {(((video as any).category_ids) || [categoryId]).filter(Boolean).slice(0,2).map((cid: string) => (

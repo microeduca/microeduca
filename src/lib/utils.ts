@@ -56,6 +56,45 @@ export const formatDurationClock = (seconds: number): string => {
   return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
 };
 
+/**
+ * Soma vídeos e duração de um módulo incluindo todos os descendentes.
+ * A contagem anterior somava só os vídeos presos diretamente ao módulo, o que
+ * fazia uma pasta com subpastas aparecer como "0min" mesmo cheia de conteúdo.
+ */
+export const aggregateModuleContent = (
+  moduleId: string,
+  modules: Array<{ id: string; parentId?: string | null }>,
+  videos: Array<{ moduleId?: string; module_id?: string; duration?: number }>
+): { videos: number; duration: number } => {
+  const filhosPorPai = new Map<string, string[]>();
+  for (const m of modules) {
+    const pai = m.parentId || '';
+    if (!pai) continue;
+    if (!filhosPorPai.has(pai)) filhosPorPai.set(pai, []);
+    filhosPorPai.get(pai)!.push(m.id);
+  }
+
+  const ids = new Set<string>();
+  const fila = [moduleId];
+  while (fila.length) {
+    const atual = fila.pop()!;
+    if (ids.has(atual)) continue; // protege contra ciclos
+    ids.add(atual);
+    for (const filho of filhosPorPai.get(atual) || []) fila.push(filho);
+  }
+
+  let total = 0;
+  let contagem = 0;
+  for (const v of videos) {
+    const mid = v.moduleId || v.module_id;
+    if (mid && ids.has(mid)) {
+      contagem += 1;
+      total += Math.max(0, Number(v.duration) || 0);
+    }
+  }
+  return { videos: contagem, duration: total };
+};
+
 export const isReleased = (item: any, now = new Date()): boolean => {
   const raw = item?.releaseAt || item?.release_at;
   if (!raw) return true;

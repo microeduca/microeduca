@@ -21,6 +21,7 @@ export default function AdminModules() {
   const [editingId, setEditingId] = useState<string>('');
   const [editingTitle, setEditingTitle] = useState<string>('');
   const [editingReleaseAt, setEditingReleaseAt] = useState<string>('');
+  const [editingEvaluationUrl, setEditingEvaluationUrl] = useState<string>('');
 
   useEffect(() => {
     (async () => {
@@ -95,6 +96,7 @@ export default function AdminModules() {
     setEditingId(mod.id);
     setEditingTitle(mod.title);
     setEditingReleaseAt(toDateTimeLocalValue(mod.releaseAt || null));
+    setEditingEvaluationUrl(mod.evaluationUrl || '');
   };
 
   const saveRename = async (mod: Module) => {
@@ -102,10 +104,12 @@ export default function AdminModules() {
       await updateModule(mod.id, {
         title: editingTitle.trim() || mod.title,
         releaseAt: fromDateTimeLocalValue(editingReleaseAt) ? new Date(fromDateTimeLocalValue(editingReleaseAt) as string) : null,
+        evaluationUrl: editingEvaluationUrl.trim() || null,
       });
       setEditingId('');
       setEditingTitle('');
       setEditingReleaseAt('');
+      setEditingEvaluationUrl('');
       await refresh();
     } catch {
       toast({ title: 'Erro ao renomear', variant: 'destructive' });
@@ -200,11 +204,13 @@ export default function AdminModules() {
                     editingId={editingId}
                     editingTitle={editingTitle}
                     editingReleaseAt={editingReleaseAt}
+                    editingEvaluationUrl={editingEvaluationUrl}
                     onEdit={handleRename}
                     onSaveEdit={saveRename}
                     onCancelEdit={() => { setEditingId(''); setEditingTitle(''); setEditingReleaseAt(''); }}
                     onTitleChange={setEditingTitle}
                     onReleaseAtChange={setEditingReleaseAt}
+                    onEvaluationUrlChange={setEditingEvaluationUrl}
                     onMove={moveWithinSiblings}
                     onAddChild={handleAddChild}
                     onDelete={handleDelete}

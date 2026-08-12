@@ -91,12 +91,6 @@ export default function AdminDashboard() {
   };
 
   const getThumb = (v: any): string => v?.thumbnail || getVimeoThumbFallback(v) || '/placeholder.svg';
-  const formatTime = (seconds: number) => {
-    const s = Math.max(0, Math.floor(Number(seconds) || 0));
-    const mins = Math.floor(s / 60);
-    const secs = s % 60;
-    return `${mins}:${String(secs).padStart(2, '0')}`;
-  };
 
   const sourceHistory = (recentViews && recentViews.length > 0) ? recentViews : viewHistory;
   const filteredHistory = sourceHistory.filter((vh) => {
@@ -336,7 +330,7 @@ export default function AdminDashboard() {
                           </div>
                         </TableCell>
                         <TableCell>{new Date(vh.lastWatchedAt).toLocaleString('pt-BR')}</TableCell>
-                        <TableCell>{formatTime(vh.watchedDuration || 0)}</TableCell>
+                        <TableCell>{formatDurationLong(vh.watchedDuration || 0)}</TableCell>
                         <TableCell>
                           {rowCompleted ? (
                             <Badge variant="default" className="gap-1"><CheckCircle2 className="h-3 w-3" /> Concluído</Badge>

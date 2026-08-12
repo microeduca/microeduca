@@ -12,6 +12,7 @@ import { toast } from '@/hooks/use-toast';
 import { Video, Category } from '@/types';
 import { getVideos, getCategories, addVideo, updateVideo, deleteVideo } from '@/lib/storage';
 import { Plus, Edit, Trash2, Play, Upload, Clock } from 'lucide-react';
+import { formatDurationLong } from '@/lib/utils';
 
 export default function AdminVideoManagement() {
   const [videos, setVideos] = useState<Video[]>([]);
@@ -121,12 +122,6 @@ export default function AdminVideoManagement() {
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   const getCategoryName = (categoryId: string | undefined | null) => {
@@ -297,7 +292,7 @@ export default function AdminVideoManagement() {
                   <TableCell>
                     <div className="flex items-center gap-1 text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      {formatDuration(video.duration)}
+                      {formatDurationLong(video.duration)}
                     </div>
                   </TableCell>
                   <TableCell>{video.uploadedBy}</TableCell>

@@ -10,17 +10,20 @@ import { getCategories, addCategory, updateCategory, deleteCategory } from '@/li
 import { getModules, addModule, updateModule, deleteModule } from '@/lib/storage';
 import { ModuleTree } from '@/components/ModuleTree';
 import type { Module } from '@/types';
+import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
 
 export default function AdminTaxonomy() {
   const { toast } = useToast();
   const [categories, setCategories] = useState<Array<{ id: string; name: string; description?: string }>>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
-  const [modules, setModules] = useState<Array<{ id: string; title: string; parentId?: string | null; order: number }>>([]);
+  const [modules, setModules] = useState<Module[]>([]);
   const [catSearch, setCatSearch] = useState('');
   const [modSearch, setModSearch] = useState('');
   const [newModuleTitle, setNewModuleTitle] = useState('');
   const [editingId, setEditingId] = useState<string>('');
   const [editingTitle, setEditingTitle] = useState<string>('');
+  const [editingReleaseAt, setEditingReleaseAt] = useState<string>('');
+  const [editingEvaluationUrl, setEditingEvaluationUrl] = useState<string>('');
   const [newCatName, setNewCatName] = useState('');
   const [newCatDesc, setNewCatDesc] = useState('');
   const [editingCatId, setEditingCatId] = useState<string>('');
@@ -40,7 +43,7 @@ export default function AdminTaxonomy() {
     if (!selectedCategoryId) { setModules([]); return; }
     (async () => {
       const list = await getModules(selectedCategoryId);
-      setModules(list.map(m => ({ id: m.id, title: m.title, parentId: m.parentId ?? null, order: m.order })));
+      setModules(list.map(m => ({ ...m, parentId: m.parentId ?? null })));
     })();
   }, [selectedCategoryId]);
 
@@ -63,17 +66,14 @@ export default function AdminTaxonomy() {
   // Converter para formato Module para usar com ModuleTree
   const modulesAsModuleType = useMemo(() => {
     return allMods.map(m => ({
-      id: m.id,
-      categoryId: selectedCategoryId,
-      parentId: m.parentId,
-      title: m.title,
-      order: m.order,
-    } as Module));
+      ...m,
+      categoryId: m.categoryId || selectedCategoryId,
+    }));
   }, [allMods, selectedCategoryId]);
 
   const refreshModules = async () => {
     const list = await getModules(selectedCategoryId);
-    setModules(list.map(m => ({ id: m.id, title: m.title, parentId: m.parentId ?? null, order: m.order })));
+    setModules(list.map(m => ({ ...m, parentId: m.parentId ?? null })));
   };
 
   const handleAddCategory = async () => {
@@ -159,11 +159,20 @@ export default function AdminTaxonomy() {
     } catch { toast({ title: 'Erro ao reordenar', variant: 'destructive' }); }
   };
 
-  const handleRename = (m: Module) => { setEditingId(m.id); setEditingTitle(m.title); };
+  const handleRename = (m: Module) => {
+    setEditingId(m.id);
+    setEditingTitle(m.title);
+    setEditingReleaseAt(toDateTimeLocalValue(m.releaseAt || null));
+    setEditingEvaluationUrl(m.evaluationUrl || '');
+  };
   const saveRename = async (m: Module) => {
     try {
-      await updateModule(m.id, { title: editingTitle.trim() || m.title });
-      setEditingId(''); setEditingTitle('');
+      await updateModule(m.id, {
+        title: editingTitle.trim() || m.title,
+        releaseAt: fromDateTimeLocalValue(editingReleaseAt) ? new Date(fromDateTimeLocalValue(editingReleaseAt) as string) : null,
+        evaluationUrl: editingEvaluationUrl.trim() || null,
+      });
+      setEditingId(''); setEditingTitle(''); setEditingReleaseAt(''); setEditingEvaluationUrl('');
       await refreshModules();
     } catch { toast({ title: 'Erro ao renomear', variant: 'destructive' }); }
   };
@@ -370,10 +379,14 @@ export default function AdminTaxonomy() {
                           level={0}
                           editingId={editingId}
                           editingTitle={editingTitle}
+                          editingReleaseAt={editingReleaseAt}
+                          editingEvaluationUrl={editingEvaluationUrl}
                           onEdit={handleRename}
                           onSaveEdit={saveRename}
-                          onCancelEdit={() => { setEditingId(''); setEditingTitle(''); }}
+                          onCancelEdit={() => { setEditingId(''); setEditingTitle(''); setEditingReleaseAt(''); setEditingEvaluationUrl(''); }}
                           onTitleChange={setEditingTitle}
+                          onReleaseAtChange={setEditingReleaseAt}
+                          onEvaluationUrlChange={setEditingEvaluationUrl}
                           onMove={handleMove}
                           onAddChild={(parent) => handleAddChild(parent.id)}
                           onDelete={handleDelete}

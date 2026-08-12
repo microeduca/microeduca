@@ -41,7 +41,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import VimeoPlayer from '@/components/VimeoPlayer';
 import PdfViewer from '@/components/PdfViewer';
-import { formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
+import { formatDurationClock, formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 
 function extractVimeoId(url?: string | null): string | undefined {
   if (!url) return undefined;
@@ -507,12 +507,6 @@ export default function VideoPlayer() {
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   if (isLoading) {
     return (
       <Layout>
@@ -710,7 +704,7 @@ export default function VideoPlayer() {
                           </Button>
                           
                           <span className="text-white text-sm">
-                            {formatTime(currentTime)} / {formatTime(duration)}
+                            {formatDurationClock(currentTime)} / {formatDurationClock(duration)}
                           </span>
                         </div>
                         

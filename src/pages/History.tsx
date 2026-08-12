@@ -11,6 +11,7 @@ import { Clock, Play, Search, Calendar, Filter, BarChart3 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getViewHistory, getVideos, getCategories, getModules, getVideoProgress as getVideoProgressApi } from "@/lib/storage";
 import { ViewHistory, Video, Category } from "@/types";
+import { formatDurationLong } from '@/lib/utils';
 
 export default function History() {
   const navigate = useNavigate();
@@ -83,17 +84,6 @@ export default function History() {
 
   const getCategory = (categoryId: string) => {
     return categories.find(c => c.id === categoryId);
-  };
-
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}min`;
-    }
-    return `${minutes}min ${secs}s`;
   };
 
   const formatDate = (date: Date) => {
@@ -241,7 +231,7 @@ export default function History() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatDuration(stats.totalWatchTime)}
+                {formatDurationLong(stats.totalWatchTime)}
               </div>
               <p className="text-xs text-muted-foreground">
                 Tempo total assistido
@@ -370,7 +360,7 @@ export default function History() {
                           </div>
                         )}
                         <div className="absolute bottom-2 right-2 bg-background/90 px-2 py-1 rounded text-xs">
-                          {formatDuration(video.duration)}
+                          {formatDurationLong(video.duration)}
                         </div>
                       </div>
 
@@ -419,7 +409,7 @@ export default function History() {
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">
-                              {formatDuration(item.watchedDuration)} de {formatDuration(effectiveDuration || video.duration)}
+                              {formatDurationLong(item.watchedDuration)} de {formatDurationLong(effectiveDuration || video.duration)}
                             </span>
                             <span className="font-medium">
                               {progressPercentage.toFixed(0)}%

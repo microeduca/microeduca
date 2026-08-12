@@ -18,7 +18,7 @@ import { uploadSupportFile } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import PdfViewer from '@/components/PdfViewer';
 import VimeoUpload from '@/components/admin/VimeoUpload';
-import { formatDurationLong, fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
+import { aggregateModuleContent, formatDurationLong, fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
 import {
   DndContext,
   closestCenter,
@@ -273,7 +273,7 @@ export default function AdminVideos() {
           </div>
           <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
             <Clock className="h-3 w-3" />
-            {formatDuration(video.duration)}
+            {formatDurationLong(video.duration)}
             <span>•</span>
             <Eye className="h-3 w-3" />
             {viewsMap[video.id] || 0} views
@@ -409,7 +409,7 @@ export default function AdminVideos() {
             <button className="text-xs underline mt-1" onClick={() => { const current = ((video as unknown as { category_ids?: string[] }).category_ids) || (video.categoryId ? [video.categoryId] : []); setEditingCatsId(video.id); setTempCats(current); }}>editar</button>
           )}
         </TableCell>
-        <TableCell className="hidden md:table-cell">{formatDuration(video.duration)}</TableCell>
+        <TableCell className="hidden md:table-cell">{formatDurationLong(video.duration)}</TableCell>
         <TableCell className="hidden lg:table-cell">{getUploaderName(video)}</TableCell>
         <TableCell className="hidden lg:table-cell">{viewsMap[video.id] || 0}</TableCell>
         <TableCell className="hidden md:table-cell">
@@ -515,7 +515,7 @@ export default function AdminVideos() {
         </div>
         <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
           <Clock className="h-3 w-3" />
-          {formatDuration(video.duration)}
+          {formatDurationLong(video.duration)}
           <span>•</span>
           <Eye className="h-3 w-3" />
           {viewsMap[video.id] || 0} views
@@ -604,10 +604,10 @@ export default function AdminVideos() {
             <div className="flex-1">
               <h4 className={`font-medium ${level > 0 ? 'text-sm' : ''}`}>{module.title}</h4>
               <p className="text-xs text-muted-foreground">
-                {moduleVideos.length + childModules.reduce((acc, child) => {
-                  const childVideos = categoryVideos.filter(v => (v.moduleId || v.module_id) === child.id);
-                  return acc + childVideos.length;
-                }, 0)} vídeos • {formatDuration(moduleVideos.reduce((acc, v) => acc + Math.max(0, Number(v.duration) || 0), 0))}
+                {(() => {
+                  const total = aggregateModuleContent(module.id, allModules, categoryVideos);
+                  return `${total.videos} vídeos • ${formatDurationLong(total.duration)}`;
+                })()}
               </p>
             </div>
           </div>
@@ -683,7 +683,7 @@ export default function AdminVideos() {
                   <p className="text-sm text-muted-foreground">{categoryVideos.length} vídeos</p>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {formatDuration(categoryVideos.reduce((acc, v) => acc + v.duration, 0))} de conteúdo
+                  {formatDurationLong(categoryVideos.reduce((acc, v) => acc + v.duration, 0))} de conteúdo
                 </div>
               </div>
 
@@ -975,10 +975,6 @@ export default function AdminVideos() {
     }
   };
 
-  const formatDuration = (seconds: number) => {
-    return formatDurationLong(seconds);
-  };
-
   const safeFormatDate = (value: Date | string | number | null | undefined) => {
     if (!value) return '-';
     const d = new Date(value);
@@ -1174,7 +1170,7 @@ export default function AdminVideos() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatDuration(videos.reduce((acc, v) => acc + v.duration, 0))}
+                {formatDurationLong(videos.reduce((acc, v) => acc + v.duration, 0))}
               </div>
               <p className="text-xs text-muted-foreground">de conteúdo</p>
             </CardContent>

@@ -7,6 +7,7 @@ import { ViewHistory, User, Video } from '@/types';
 import { getViewHistory, getUsers, getVideos } from '@/lib/storage';
 import { Search, Clock, Eye, TrendingUp, UserCheck } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { formatDurationLong } from '@/lib/utils';
 
 export default function AdminViewerHistory() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,12 +46,6 @@ export default function AdminViewerHistory() {
   const getVideoDuration = (videoId: string) => {
     const video = videos.find(v => v.id === videoId);
     return video?.duration || 0;
-  };
-
-  const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   const calculateProgress = (watchedDuration: number, totalDuration: number) => {
@@ -166,7 +161,7 @@ export default function AdminViewerHistory() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatDuration(stats.averageWatchTime)}</div>
+            <div className="text-2xl font-bold">{formatDurationLong(stats.averageWatchTime)}</div>
           </CardContent>
         </Card>
       </div>
@@ -252,7 +247,7 @@ export default function AdminViewerHistory() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {formatDuration(history.watchedDuration)} / {formatDuration(videoDuration)}
+                      {formatDurationLong(history.watchedDuration)} / {formatDurationLong(videoDuration)}
                     </TableCell>
                     <TableCell>
                       <Badge 

@@ -15,13 +15,14 @@ import {
   Lock,
   FolderOpen,
   Video,
-  AlertCircle
+  AlertCircle,
+  ClipboardCheck
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { getCategories, getVideos, getViewHistory, getModules } from '@/lib/storage';
 import { Category, Video as VideoType } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { isReleased } from '@/lib/utils';
+import { aggregateModuleContent, formatDurationLong, isReleased } from '@/lib/utils';
 
 export default function MeusCursos() {
   const navigate = useNavigate();
@@ -192,15 +193,6 @@ export default function MeusCursos() {
     totalWatchTime: viewHistory.reduce((acc, h) => acc + h.watchedDuration, 0)
   };
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}min`;
-    }
-    return `${minutes} min`;
-  };
-
   const handleCategoryClick = (categoryId: string) => {
     setSelectedCategory(categoryId);
   };
@@ -259,7 +251,7 @@ export default function MeusCursos() {
                   )}
                   <div>
                     <p className="font-medium text-sm">{video.title}</p>
-                    <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                    <p className="text-xs text-muted-foreground">{formatDurationLong(video.duration)}</p>
                   </div>
                 </div>
                 <Button variant="ghost" size="sm">Assistir</Button>
@@ -281,18 +273,41 @@ export default function MeusCursos() {
       if (!hasAny) return null;
 
       const moduleStats = renderModuleProgress(module.id, categoryVideos);
+      // Carga horária da subpasta inclui os descendentes.
+      const carga = aggregateModuleContent(module.id, mods, categoryVideos);
       const headingClass = level === 0 ? 'text-sm font-semibold' : level === 1 ? 'text-xs font-medium' : 'text-[10px] font-medium';
       const indentStyle = level > 0 ? { marginLeft: `${level * 0.5}rem` } : {};
 
       return (
         <div key={module.id} style={indentStyle} className="mb-3">
           <div className="flex items-center justify-between mb-2">
-            <div className={headingClass}>{module.title}</div>
+            <div className="flex items-center gap-2 min-w-0">
+              <div className={headingClass}>{module.title}</div>
+              {carga.duration > 0 && (
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  <Clock className="h-3 w-3 mr-1" />
+                  {formatDurationLong(carga.duration)}
+                </Badge>
+              )}
+            </div>
             <span className={`text-xs text-muted-foreground ${level > 1 ? 'text-[10px]' : ''}`}>
               {moduleStats.completed}/{moduleStats.total}
             </span>
           </div>
           <Progress value={moduleStats.percentage} className="h-1 mb-2" />
+          {(module as { evaluationUrl?: string | null }).evaluationUrl && (
+            <div className="mb-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => window.open((module as { evaluationUrl?: string }).evaluationUrl, '_blank', 'noopener,noreferrer')}
+              >
+                <ClipboardCheck className="h-4 w-4" />
+                Fazer avaliação do módulo
+              </Button>
+            </div>
+          )}
           {moduleVideos.length > 0 && (
             <div className="space-y-2 mb-3">
               {moduleVideos.map(video => {
@@ -309,7 +324,7 @@ export default function MeusCursos() {
                       )}
                       <div>
                         <p className="font-medium text-sm">{video.title}</p>
-                        <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                        <p className="text-xs text-muted-foreground">{formatDurationLong(video.duration)}</p>
                       </div>
                     </div>
                     <Button variant="ghost" size="sm">Assistir</Button>
@@ -344,7 +359,7 @@ export default function MeusCursos() {
                       )}
                       <div>
                         <p className="font-medium text-sm">{video.title}</p>
-                        <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                        <p className="text-xs text-muted-foreground">{formatDurationLong(video.duration)}</p>
                       </div>
                     </div>
                     <Button variant="ghost" size="sm">Assistir</Button>
@@ -680,7 +695,7 @@ export default function MeusCursos() {
                                                       )}
                                                       <div>
                                                         <p className="font-medium text-sm">{video.title}</p>
-                                                        <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                                                        <p className="text-xs text-muted-foreground">{formatDurationLong(video.duration)}</p>
                                                       </div>
                                                     </div>
                                                     <Button variant="ghost" size="sm">Assistir</Button>
@@ -707,7 +722,7 @@ export default function MeusCursos() {
                                                         )}
                                                         <div>
                                                           <p className="font-medium text-sm">{video.title}</p>
-                                                          <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                                                          <p className="text-xs text-muted-foreground">{formatDurationLong(video.duration)}</p>
                                                         </div>
                                                       </div>
                                                       <Button variant="ghost" size="sm">Assistir</Button>
@@ -739,7 +754,7 @@ export default function MeusCursos() {
                                                   )}
                                                   <div>
                                                     <p className="font-medium text-sm">{video.title}</p>
-                                                    <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                                                    <p className="text-xs text-muted-foreground">{formatDurationLong(video.duration)}</p>
                                                   </div>
                                                 </div>
                                                 <Button variant="ghost" size="sm">Assistir</Button>
@@ -770,7 +785,7 @@ export default function MeusCursos() {
                                           )}
                                           <div>
                                             <p className="font-medium text-sm">{video.title}</p>
-                                            <p className="text-xs text-muted-foreground">{formatDuration(video.duration)}</p>
+                                            <p className="text-xs text-muted-foreground">{formatDurationLong(video.duration)}</p>
                                           </div>
                                         </div>
                                         <Button variant="ghost" size="sm">Assistir</Button>

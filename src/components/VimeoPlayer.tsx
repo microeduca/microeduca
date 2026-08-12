@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Play, Pause, Volume2, Maximize, SkipBack, SkipForward } from 'lucide-react';
 import Player from '@vimeo/player';
+import { formatDurationClock } from '@/lib/utils';
 
 interface VimeoPlayerProps {
   vimeoId?: string;
@@ -155,12 +156,6 @@ export default function VimeoPlayer({
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div 
       className={`relative bg-black ${className}`}
@@ -218,7 +213,7 @@ export default function VimeoPlayer({
               </Button>
               
               <span className="text-white text-sm">
-                {formatTime(currentTime)} / {formatTime(duration)}
+                {formatDurationClock(currentTime)} / {formatDurationClock(duration)}
               </span>
             </div>
             

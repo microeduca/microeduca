@@ -168,6 +168,7 @@ async function ensureModulesSchema() {
   try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS module_id uuid REFERENCES public.modules(id) ON DELETE SET NULL'); } catch {}
   try { await pool.query('CREATE INDEX IF NOT EXISTS idx_videos_module_id ON public.videos(module_id)'); } catch {}
   try { await pool.query('ALTER TABLE public.modules ADD COLUMN IF NOT EXISTS release_at timestamptz'); } catch {}
+  try { await pool.query('ALTER TABLE public.modules ADD COLUMN IF NOT EXISTS evaluation_url text'); } catch {}
 }
 
 // Ensure profiles.role allows 'cliente'
@@ -400,12 +401,12 @@ app.get('/api/modules', async (req, res) => {
 app.post('/api/modules', requireAdmin, async (req, res) => {
   try {
     await ensureModulesSchema();
-    const { category_id, parent_id, title, description, order, release_at } = req.body || {};
+    const { category_id, parent_id, title, description, order, release_at, evaluation_url } = req.body || {};
     const { rows } = await pool.query(
-      `INSERT INTO public.modules (category_id, parent_id, title, description, "order", release_at)
-       VALUES ($1,$2,$3,$4,$5,$6)
+      `INSERT INTO public.modules (category_id, parent_id, title, description, "order", release_at, evaluation_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
        RETURNING *`,
-      [category_id, parent_id || null, title, description || null, Number.isFinite(order) ? order : 0, release_at || null]
+      [category_id, parent_id || null, title, description || null, Number.isFinite(order) ? order : 0, release_at || null, evaluation_url || null]
     );
     res.status(201).json(rows[0]);
   } catch (e) {
@@ -417,7 +418,7 @@ app.put('/api/modules/:id', requireAdmin, async (req, res) => {
   try {
     await ensureModulesSchema();
     const { id } = req.params;
-    const fields = ['category_id','parent_id','title','description','order','release_at'];
+    const fields = ['category_id','parent_id','title','description','order','release_at','evaluation_url'];
     const updates = [];
     const values = [];
     let idx = 1;

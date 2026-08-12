@@ -13,10 +13,13 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = login(email, password);
-    
+    setSubmitting(true);
+    const user = await login(email, password).finally(() => setSubmitting(false));
+
     if (user) {
       toast({
         title: 'Login realizado com sucesso!',
@@ -75,8 +78,8 @@ export default function Login() {
                 required
               />
             </div>
-            <Button type="submit" className="w-full bg-gradient-primary hover:shadow-glow transition-all">
-              Entrar
+            <Button type="submit" disabled={submitting} className="w-full bg-gradient-primary hover:shadow-glow transition-all">
+              {submitting ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>
         </CardContent>

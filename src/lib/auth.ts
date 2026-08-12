@@ -1,24 +1,25 @@
 import { User } from '@/types';
-import { API_URL } from '@/lib/api';
+import { api, API_URL } from '@/lib/api';
 
 const AUTH_KEY = 'microeduca_auth';
 
-export const login = (email: string, password: string): User | null => {
-	// Usa a mesma origem do restante da aplicação; fixar a URL aqui fazia
-	// qualquer ambiente autenticar contra a produção.
-	const API = API_URL;
-	const xhr = new XMLHttpRequest();
-	xhr.open('POST', `${API}/login`, false);
-	xhr.setRequestHeader('Content-Type', 'application/json');
+type StoredSession = User & { token: string };
+
+export const login = async (email: string, password: string): Promise<User | null> => {
 	try {
-		xhr.send(JSON.stringify({ email, password }));
-		if (xhr.status >= 200 && xhr.status < 300) {
-			const user = JSON.parse(xhr.responseText) as User;
-			localStorage.setItem(AUTH_KEY, JSON.stringify(user));
-			return user;
-		}
-	} catch {}
-	return null;
+		const res = await fetch(`${API_URL}/login`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ email, password }),
+		});
+		if (!res.ok) return null;
+		const session = (await res.json()) as StoredSession;
+		if (!session?.token) return null;
+		localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+		return session;
+	} catch {
+		return null;
+	}
 };
 
 export const logout = () => {
@@ -38,12 +39,39 @@ export const getCurrentUser = (): User | null => {
 	return null;
 };
 
+export const getToken = (): string | null => {
+	try {
+		const raw = localStorage.getItem(AUTH_KEY);
+		return raw ? JSON.parse(raw)?.token || null : null;
+	} catch {
+		return null;
+	}
+};
+
+/**
+ * Revalida a sessão contra o servidor e atualiza os dados locais.
+ * O que está no localStorage é conveniência de renderização, não autoridade:
+ * quem decide o que o usuário vê é o backend.
+ */
+export const refreshCurrentUser = async (): Promise<User | null> => {
+	const stored = getCurrentUser();
+	if (!stored) return null;
+	try {
+		const fresh = await api.getMe();
+		const merged = { ...fresh, token: getToken() };
+		localStorage.setItem(AUTH_KEY, JSON.stringify(merged));
+		return merged;
+	} catch {
+		return null;
+	}
+};
+
 export const isAdmin = (): boolean => {
 	const user = getCurrentUser();
 	return user?.role === 'admin';
 };
 
 export const isCliente = (): boolean => {
-  const user = getCurrentUser();
-  return user?.role === 'cliente';
+	const user = getCurrentUser();
+	return user?.role === 'cliente';
 };

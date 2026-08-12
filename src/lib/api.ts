@@ -4,11 +4,35 @@ export const API_URL =
     ? `${window.location.origin}/api`
     : 'https://microeduca.up.railway.app/api');
 
+const AUTH_KEY = 'microeduca_auth';
+
+function getToken(): string | null {
+  try {
+    const raw = localStorage.getItem(AUTH_KEY);
+    return raw ? JSON.parse(raw)?.token || null : null;
+  } catch {
+    return null;
+  }
+}
+
 async function request(path: string, options: RequestInit = {}) {
+  const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
     ...options,
   });
+  // Sessão expirada ou revogada: limpa e manda para o login.
+  if (res.status === 401 && path !== '/login') {
+    localStorage.removeItem(AUTH_KEY);
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login';
+    }
+    throw new Error('Sessão expirada');
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(text || `Request failed: ${res.status}`);
@@ -23,6 +47,9 @@ async function request(path: string, options: RequestInit = {}) {
 }
 
 export const api = {
+  // Sessão
+  getMe: () => request('/me', { method: 'GET' }),
+
   // Categories
   getCategories: () => request('/categories', { method: 'GET' }),
   addCategory: (payload: any) => request('/categories', { method: 'POST', body: JSON.stringify(payload) }),

@@ -34,16 +34,16 @@ export default function Layout({ children }: LayoutProps) {
     }
   }, [user?.id]);
 
+  // Revalida a sessão no servidor. Antes isso baixava a lista inteira de
+  // perfis — com os hashes de senha — só para descobrir se o próprio usuário
+  // ainda estava ativo.
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
     (async () => {
       try {
-        const profiles = await api.getProfiles();
-        const current = Array.isArray(profiles)
-          ? profiles.find((p: { id?: string; is_active?: boolean }) => p.id === user.id)
-          : null;
-        if (!cancelled && current && current.is_active === false) {
+        const me = await api.getMe();
+        if (!cancelled && me?.isActive === false) {
           toast({ title: 'Acesso inativo', description: 'Seu usuário foi inativado.', variant: 'destructive' });
           logout();
         }

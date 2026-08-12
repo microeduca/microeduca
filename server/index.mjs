@@ -2,9 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import pkg from 'pg';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 
 const { Pool } = pkg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,6 +44,67 @@ app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+// --- Autenticação ---
+// Sem JWT_SECRET definido a aplicação continua subindo, mas com um segredo
+// efêmero: as sessões caem a cada restart. Defina a variável em produção.
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+if (!process.env.JWT_SECRET) {
+  console.warn('[auth] JWT_SECRET não definido — usando segredo efêmero. Sessões não sobrevivem a restart.');
+}
+const TOKEN_TTL = '12h';
+
+const signToken = (user) => jwt.sign(
+  { sub: user.id, email: user.email, role: user.role },
+  JWT_SECRET,
+  { expiresIn: TOKEN_TTL }
+);
+
+// Rotas liberadas: health, login e o webhook do Vimeo (chamador externo).
+const PUBLIC_PATHS = new Set(['/health', '/login', '/vimeo-webhook']);
+
+const authMiddleware = async (req, res, next) => {
+  if (PUBLIC_PATHS.has(req.path)) return next();
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Não autenticado' });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    const { rows } = await pool.query(
+      'SELECT id, email, name, role, assigned_categories, assigned_modules, is_active FROM public.profiles WHERE id = $1 LIMIT 1',
+      [payload.sub]
+    );
+    const user = rows[0];
+    // Revalida contra o banco: inativar ou rebaixar um usuário passa a ter
+    // efeito imediato, sem esperar o token expirar.
+    if (!user) return res.status(401).json({ error: 'Sessão inválida' });
+    if (user.is_active === false) return res.status(403).json({ error: 'Usuário inativo' });
+    req.user = user;
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'Sessão expirada' });
+  }
+};
+
+const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Acesso restrito a administradores' });
+  return next();
+};
+
+app.use('/api', authMiddleware);
+
+app.get('/api/me', (req, res) => {
+  const u = req.user;
+  res.json({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    assignedCategories: u.assigned_categories || [],
+    assignedModules: u.assigned_modules || [],
+    isActive: u.is_active,
+  });
+});
 
 // Settings helpers to persist shared Vimeo OAuth token (for all admins)
 async function ensureSettingsTable() {
@@ -129,9 +192,8 @@ async function ensureFilesTable() {
   )`);
 }
 
-import crypto from 'node:crypto';
 
-app.post('/api/files', async (req, res) => {
+app.post('/api/files', requireAdmin, async (req, res) => {
   try {
     const { filename, mimeType, dataBase64 } = req.body || {};
     if (!filename || !mimeType || !dataBase64) return res.status(400).json({ error: 'Missing fields' });
@@ -174,7 +236,7 @@ app.get('/api/files/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/files/:id', async (req, res) => {
+app.delete('/api/files/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await ensureFilesTable();
@@ -196,7 +258,7 @@ app.get('/api/settings/:key', async (req, res) => {
   }
 });
 
-app.post('/api/settings/:key', async (req, res) => {
+app.post('/api/settings/:key', requireAdmin, async (req, res) => {
   try {
     const { key } = req.params;
     const value = req.body || null;
@@ -241,8 +303,8 @@ app.post('/api/login', async (req, res) => {
     if (!user.password_hash) return res.status(401).json({ error: 'Credenciais inválidas' });
     const ok = await bcrypt.compare(password || '', user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Credenciais inválidas' });
-    // Return a minimal session (sem JWT, client-side)
     return res.json({
+      token: signToken(user),
       id: user.id,
       name: user.name,
       email: user.email,
@@ -267,7 +329,7 @@ app.get('/api/categories', async (_req, res) => {
   }
 });
 
-app.post('/api/categories', async (req, res) => {
+app.post('/api/categories', requireAdmin, async (req, res) => {
   try {
     await ensureContentEnhancementColumns();
     const { name, description, thumbnail, release_at } = req.body || {};
@@ -281,7 +343,7 @@ app.post('/api/categories', async (req, res) => {
   }
 });
 
-app.put('/api/categories/:id', async (req, res) => {
+app.put('/api/categories/:id', requireAdmin, async (req, res) => {
   try {
     await ensureContentEnhancementColumns();
     const { id } = req.params;
@@ -306,7 +368,7 @@ app.put('/api/categories/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/categories/:id', async (req, res) => {
+app.delete('/api/categories/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM public.categories WHERE id = $1', [id]);
@@ -335,7 +397,7 @@ app.get('/api/modules', async (req, res) => {
   }
 });
 
-app.post('/api/modules', async (req, res) => {
+app.post('/api/modules', requireAdmin, async (req, res) => {
   try {
     await ensureModulesSchema();
     const { category_id, parent_id, title, description, order, release_at } = req.body || {};
@@ -351,7 +413,7 @@ app.post('/api/modules', async (req, res) => {
   }
 });
 
-app.put('/api/modules/:id', async (req, res) => {
+app.put('/api/modules/:id', requireAdmin, async (req, res) => {
   try {
     await ensureModulesSchema();
     const { id } = req.params;
@@ -376,7 +438,7 @@ app.put('/api/modules/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/modules/:id', async (req, res) => {
+app.delete('/api/modules/:id', requireAdmin, async (req, res) => {
   try {
     await ensureModulesSchema();
     const { id } = req.params;
@@ -393,19 +455,62 @@ app.delete('/api/modules/:id', async (req, res) => {
 });
 
 // Videos
-app.get('/api/videos', async (_req, res) => {
+// Não-admin recebe apenas o que pode ver: a regra deixa de depender do
+// navegador. Categoria, módulo (e ancestrais) e o próprio vídeo precisam
+// estar liberados; havendo módulos atribuídos na categoria, só eles valem.
+const VIDEOS_VISIVEIS_SQL = `
+  WITH RECURSIVE cadeia AS (
+    SELECT id, parent_id, category_id, release_at, id AS raiz_de
+      FROM public.modules
+    UNION ALL
+    SELECT m.id, m.parent_id, m.category_id, m.release_at, c.raiz_de
+      FROM public.modules m
+      JOIN cadeia c ON c.parent_id = m.id
+  ),
+  modulo_liberado AS (
+    SELECT raiz_de AS module_id,
+           bool_and(release_at IS NULL OR release_at <= now()) AS liberado,
+           bool_or(id = ANY($2::uuid[]))                       AS concedido
+      FROM cadeia
+     GROUP BY raiz_de
+  )
+  SELECT v.* FROM public.videos v
+   WHERE (v.release_at IS NULL OR v.release_at <= now())
+     AND EXISTS (
+       SELECT 1 FROM public.categories c
+        WHERE c.id = ANY(COALESCE(v.category_ids, ARRAY[v.category_id]))
+          AND c.id = ANY($1::uuid[])
+          AND (c.release_at IS NULL OR c.release_at <= now())
+          AND (
+            NOT EXISTS (SELECT 1 FROM public.modules m
+                         WHERE m.category_id = c.id AND m.id = ANY($2::uuid[]))
+            OR COALESCE((SELECT ml.concedido FROM modulo_liberado ml
+                          WHERE ml.module_id = v.module_id), false)
+          )
+     )
+     AND COALESCE((SELECT ml.liberado FROM modulo_liberado ml
+                    WHERE ml.module_id = v.module_id), true)
+   ORDER BY COALESCE(v."order", 0) ASC, v.uploaded_at ASC`;
+
+app.get('/api/videos', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
-      SELECT * FROM public.videos 
-      ORDER BY COALESCE("order", 0) ASC, uploaded_at ASC
-    `);
-    res.json(rows);
+    if (req.user.role === 'admin') {
+      const { rows } = await pool.query(
+        'SELECT * FROM public.videos ORDER BY COALESCE("order", 0) ASC, uploaded_at ASC'
+      );
+      return res.json(rows);
+    }
+    const { rows } = await pool.query(VIDEOS_VISIVEIS_SQL, [
+      req.user.assigned_categories || [],
+      req.user.assigned_modules || [],
+    ]);
+    return res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-app.post('/api/videos', async (req, res) => {
+app.post('/api/videos', requireAdmin, async (req, res) => {
   try {
     const {
       title,
@@ -446,7 +551,7 @@ app.post('/api/videos', async (req, res) => {
   }
 });
 
-app.put('/api/videos/:id', async (req, res) => {
+app.put('/api/videos/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     // ensure optional array column exists
@@ -485,7 +590,7 @@ app.put('/api/videos/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/videos/:id', async (req, res) => {
+app.delete('/api/videos/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM public.videos WHERE id = $1', [id]);
@@ -496,7 +601,7 @@ app.delete('/api/videos/:id', async (req, res) => {
 });
 
 // Endpoint para corrigir sincronização de module_id e category_id
-app.post('/api/videos/fix-module-category-sync', async (req, res) => {
+app.post('/api/videos/fix-module-category-sync', requireAdmin, async (req, res) => {
   try {
     await ensureModulesSchema();
     
@@ -544,10 +649,13 @@ app.post('/api/videos/fix-module-category-sync', async (req, res) => {
 });
 
 // Profiles (Users)
-app.get('/api/profiles', async (_req, res) => {
+// Colunas explícitas: o SELECT * anterior devolvia password_hash de todo mundo.
+const PROFILE_COLUMNS = 'id, email, name, role, assigned_categories, assigned_modules, is_active, created_at, updated_at';
+
+app.get('/api/profiles', requireAdmin, async (_req, res) => {
   try {
     await ensureProfilesAssignedModules();
-    const { rows } = await pool.query('SELECT * FROM public.profiles ORDER BY name');
+    const { rows } = await pool.query(`SELECT ${PROFILE_COLUMNS} FROM public.profiles ORDER BY name`);
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -556,7 +664,7 @@ app.get('/api/profiles', async (_req, res) => {
 
 // (movido para o final do arquivo após todas as rotas /api)
 
-app.post('/api/profiles', async (req, res) => {
+app.post('/api/profiles', requireAdmin, async (req, res) => {
   try {
     await ensureProfilesAssignedModules();
     const { email, name, role = 'user', assigned_categories = [], assigned_modules = [], is_active = true, password } = req.body || {};
@@ -574,7 +682,7 @@ app.post('/api/profiles', async (req, res) => {
   }
 });
 
-app.put('/api/profiles/:id', async (req, res) => {
+app.put('/api/profiles/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await ensureProfilesAssignedModules();
@@ -603,7 +711,7 @@ app.put('/api/profiles/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/profiles/:id', async (req, res) => {
+app.delete('/api/profiles/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM public.profiles WHERE id = $1', [id]);
@@ -617,6 +725,9 @@ app.delete('/api/profiles/:id', async (req, res) => {
 app.post('/api/profiles/:id/password', async (req, res) => {
   try {
     const { id } = req.params;
+    if (req.user.role !== 'admin' && req.user.id !== id) {
+      return res.status(403).json({ error: 'Você só pode alterar a própria senha' });
+    }
     const { currentPassword, newPassword } = req.body || {};
     if (!newPassword || String(newPassword).length < 6) {
       return res.status(400).json({ error: 'Senha muito curta' });
@@ -637,7 +748,7 @@ app.post('/api/profiles/:id/password', async (req, res) => {
 });
 
 // Vimeo OAuth-like endpoints (migramos das Edge Functions)
-app.post('/api/vimeo-auth', async (req, res) => {
+app.post('/api/vimeo-auth', requireAdmin, async (req, res) => {
   try {
     const { action, code, state, refreshToken } = req.body || {};
     const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
@@ -726,7 +837,7 @@ app.get('/api/vimeo-token/status', async (_req, res) => {
   }
 });
 
-app.post('/api/vimeo-upload', async (req, res) => {
+app.post('/api/vimeo-upload', requireAdmin, async (req, res) => {
   try {
     const { accessToken, title, description, privacy } = req.body || {};
     const fileSize = req.headers['x-file-size'] || '0';
@@ -878,7 +989,8 @@ app.get('/api/vimeo-thumbnail/:videoId', async (req, res) => {
 // View History
 app.get('/api/view-history', async (req, res) => {
   try {
-    const { userId } = req.query;
+    // Usuário comum só lê o próprio histórico, ignorando o userId recebido.
+    const userId = req.user.role === 'admin' ? req.query.userId : req.user.id;
     const params = [];
     let sql = 'SELECT * FROM public.view_history';
     if (userId) {
@@ -894,7 +1006,7 @@ app.get('/api/view-history', async (req, res) => {
 });
 
 // View History - recent with joins
-app.get('/api/view-history/recent', async (req, res) => {
+app.get('/api/view-history/recent', requireAdmin, async (req, res) => {
   try {
     const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 10));
     const { rows } = await pool.query(
@@ -920,7 +1032,8 @@ app.get('/api/view-history/recent', async (req, res) => {
 
 app.post('/api/view-history', async (req, res) => {
   try {
-    const { user_id, video_id, watched_duration, completed } = req.body || {};
+    const user_id = req.user.id;
+    const { user_id: _ignorado, video_id, watched_duration, completed } = req.body || {};
     // Upsert by (user_id, video_id)
     const { rows } = await pool.query(
       `INSERT INTO public.view_history (user_id, video_id, watched_duration, completed, last_watched_at)
@@ -990,7 +1103,8 @@ app.delete('/api/comments/:id', async (req, res) => {
 // Video Progress
 app.get('/api/video-progress', async (req, res) => {
   try {
-    const { userId, videoId } = req.query;
+    const { videoId } = req.query;
+    const userId = req.user.role === 'admin' ? req.query.userId : req.user.id;
     if (!userId || !videoId) return res.json(null);
     const { rows } = await pool.query(
       'SELECT * FROM public.video_progress WHERE user_id = $1 AND video_id = $2 LIMIT 1',
@@ -1003,7 +1117,7 @@ app.get('/api/video-progress', async (req, res) => {
 });
 
 // Delete video on Vimeo using shared token
-app.delete('/api/vimeo/:videoId', async (req, res) => {
+app.delete('/api/vimeo/:videoId', requireAdmin, async (req, res) => {
   try {
     const { videoId } = req.params;
     const token = await getSharedVimeoAccessToken();
@@ -1035,7 +1149,8 @@ app.get('/api/vimeo-token', async (_req, res) => {
 
 app.post('/api/video-progress', async (req, res) => {
   try {
-    const { user_id, video_id } = req.body || {};
+    const user_id = req.user.id;
+    const { user_id: _ignorado, video_id } = req.body || {};
     const time_watched_raw = req.body?.time_watched ?? 0;
     const duration_raw = req.body?.duration ?? 0;
     const completed = !!req.body?.completed;

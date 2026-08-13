@@ -2,6 +2,42 @@
 
 > Base: documento **"Sugestões de Melhorias para o Portal MicroEduca"** (MICRO – Serviços de Anatomia Patológica e Citopatologia LTDA)
 > Análise do código realizada em: **05/08/2026** — branch `main`, commit `0bafb36`
+> Execução concluída em: **13/08/2026** — branch `melhorias-portal`, commit `4caf2ea`
+
+---
+
+## STATUS: todas as frentes do documento entregues
+
+| Fase | Commit | Testes |
+|---|---|---|
+| Fase 1 — autenticação no servidor | `ee36ed3` | 22/22 |
+| Item 2 — conteúdo | `fba79c7` | 15/15 |
+| Item 4 — navegação e carregamento | `5673ea1` | medido no navegador |
+| Itens 1 e 5 — dashboard e relatórios | `8be3c17` | 21/21 |
+| Item 3 — liberação programada por usuário | `4caf2ea` | 13/13 |
+| Correção do acesso por submódulo | `7463e40` | verificado no navegador |
+
+Ambiente de teste isolado: projeto Railway `microeduca-dev`, banco próprio,
+em **https://microeduca-app-production.up.railway.app**
+
+### Pendências antes de fazer merge em `main`
+
+1. **`DATABASE_URL` e `JWT_SECRET` no serviço de produção.** O `.env` saiu do
+   versionamento; sem essas variáveis no Railway o servidor não sobe.
+2. **Rotacionar as credenciais expostas.** O `.env` esteve num repositório
+   público; as chaves antigas seguem no histórico do Git.
+3. **Decidir sobre `railway.json`.** Não versionado de propósito: ele força o
+   builder Nixpacks e mudaria o caminho de build da produção.
+4. **O deploy desloga todos os usuários uma vez** — sessões antigas não têm token.
+
+### Não implementado, por decisão de escopo
+
+- Paginação no servidor para `/api/videos`, `/api/profiles` e `/api/view-history`
+  (o cache do React Query resolveu o sintoma; o volume ainda não exige)
+- Migração dos arquivos de `bytea` para armazenamento externo (item 3.5)
+- Remoção da camada legada `lib/supabase.ts`, ainda usada por 4 telas (item 5.2)
+- Consolidação das migrations e remoção dos `ensure*` dos handlers (item 5.3)
+- `AdminVideos` segue com 2.241 linhas (item 5.1)
 
 ---
 

@@ -25,6 +25,10 @@ interface ModuleTreeProps {
   getSiblings: (module: Module) => Module[];
 }
 
+// Na edição usamos flex-wrap em vez de md:flex-row: o breakpoint reage à
+// largura da janela, não da coluna onde a árvore vive. Numa coluna estreita os
+// campos de tamanho fixo espremiam o título a 26px e empurravam os botões
+// Salvar/Cancelar para fora da tela.
 export function ModuleTree({
   module,
   allModules,
@@ -58,11 +62,12 @@ export function ModuleTree({
           {level === 0 && <Folder className="h-4 w-4 text-muted-foreground" />}
           {level > 0 && <span className="text-muted-foreground">↳</span>}
           {isEditing ? (
-            <div className="flex flex-col gap-2 flex-1 md:flex-row md:items-center">
-              <Input 
-                value={editingTitle} 
-                onChange={(e) => onTitleChange(e.target.value)} 
-                className="h-8 flex-1" 
+            <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+              <Input
+                value={editingTitle}
+                onChange={(e) => onTitleChange(e.target.value)}
+                placeholder="Nome do módulo"
+                className="h-8 flex-1 min-w-[180px]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') onSaveEdit(module);
                   if (e.key === 'Escape') onCancelEdit();
@@ -73,7 +78,7 @@ export function ModuleTree({
                 type="datetime-local"
                 value={editingReleaseAt}
                 onChange={(e) => onReleaseAtChange?.(e.target.value)}
-                className="h-8 md:w-[220px]"
+                className="h-8 w-[190px] shrink-0"
                 title="Liberação programada"
               />
               <Input
@@ -82,11 +87,13 @@ export function ModuleTree({
                 placeholder="Link da avaliação (forms)"
                 value={editingEvaluationUrl}
                 onChange={(e) => onEvaluationUrlChange?.(e.target.value)}
-                className="h-8 md:w-[260px]"
+                className="h-8 flex-1 min-w-[200px]"
                 title="Link da avaliação do módulo"
               />
-              <Button size="sm" onClick={() => onSaveEdit(module)}>Salvar</Button>
-              <Button size="sm" variant="outline" onClick={onCancelEdit}>Cancelar</Button>
+              <div className="flex gap-2 ml-auto shrink-0">
+                <Button size="sm" onClick={() => onSaveEdit(module)}>Salvar</Button>
+                <Button size="sm" variant="outline" onClick={onCancelEdit}>Cancelar</Button>
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-2">

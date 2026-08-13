@@ -157,7 +157,7 @@ export default function AdminUsers() {
         type="datetime-local"
         value={agendamentos[chave] || ''}
         onChange={(e) => setAgendamentos((a) => ({ ...a, [chave]: e.target.value }))}
-        className="h-7 w-[200px] text-xs"
+        className="h-7 w-[180px] shrink-0 text-xs"
         title="Liberar para este usuário a partir de"
         placeholder="Liberar a partir de"
       />
@@ -522,7 +522,7 @@ export default function AdminUsers() {
 
         {/* Add User Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogContent className="sm:max-w-[525px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Adicionar Novo Usuário</DialogTitle>
               <DialogDescription>
@@ -577,7 +577,7 @@ export default function AdminUsers() {
               </div>
               <div className="grid gap-2">
                 <Label>Categorias de Acesso</Label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Input placeholder="Buscar categorias..." value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} />
                   <Button
                     variant="outline"
@@ -637,7 +637,7 @@ export default function AdminUsers() {
               <div className="grid gap-2">
                 <div className="flex items-center justify-between">
                   <Label>Módulos/Submódulos (opcional)</Label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Input placeholder="Buscar módulos..." value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)} />
                     <Select value={moduleCreationCategoryId || (newUser.assignedCategories[0] || '')} onValueChange={(v) => setModuleCreationCategoryId(v)}>
                       <SelectTrigger className="w-[200px]"><SelectValue placeholder="Categoria do módulo" /></SelectTrigger>
@@ -735,7 +735,7 @@ export default function AdminUsers() {
 
         {/* Edit User Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[525px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Usuário</DialogTitle>
               <DialogDescription>
@@ -801,7 +801,7 @@ export default function AdminUsers() {
                 </div>
                 <div className="grid gap-2">
                   <Label>Categorias de Acesso</Label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Input placeholder="Buscar categorias..." value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} />
                     <Button
                       variant="outline"
@@ -847,7 +847,7 @@ export default function AdminUsers() {
                               }}
                             />
                             <div className="grid gap-1 leading-none flex-1">
-                              <div className="flex items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
                                 <label htmlFor={`edit-cat-${category.id}`} className="text-sm font-medium cursor-pointer">{category.name}</label>
                                 {(editingUser.assignedCategories || []).includes(category.id) && (
                                   <CampoLiberacao tipo="category" id={category.id} />
@@ -866,7 +866,7 @@ export default function AdminUsers() {
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
                     <Label>Módulos/Submódulos (opcional)</Label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Input placeholder="Buscar módulos..." value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)} />
                       <Select value={moduleCreationCategoryId || ((editingUser.assignedCategories || [])[0] || '')} onValueChange={(v) => setModuleCreationCategoryId(v)}>
                         <SelectTrigger className="w-[200px]"><SelectValue placeholder="Categoria do módulo" /></SelectTrigger>

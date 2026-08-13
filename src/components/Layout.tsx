@@ -1,13 +1,14 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { getCurrentUser, logout } from '@/lib/auth';
-import { LogOut, User, BookOpen, Settings } from 'lucide-react';
+import { LogOut, User, BookOpen, Settings, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 interface LayoutProps {
   children: ReactNode;
@@ -24,6 +25,7 @@ export default function Layout({ children }: LayoutProps) {
   const [savingPwd, setSavingPwd] = useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [termsChecked, setTermsChecked] = useState(false);
+  const [menuAberto, setMenuAberto] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -97,6 +99,22 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
+  // Mesma lista alimenta o menu do desktop e o do celular; antes a navegação
+  // era hidden md:flex sem alternativa, então no telefone não havia menu algum.
+  const navegacao = user?.role === 'admin'
+    ? [
+        { rotulo: 'Dashboard', destino: '/admin' },
+        { rotulo: 'Vídeos', destino: '/admin/videos' },
+        { rotulo: 'Categorias & Módulos', destino: '/admin/taxonomia' },
+        { rotulo: 'Usuários', destino: '/admin/users' },
+        { rotulo: 'Relatórios', destino: '/admin/relatorios' },
+      ]
+    : [
+        { rotulo: 'Meus Cursos', destino: '/meus-cursos' },
+        { rotulo: 'Todos os Vídeos', destino: '/dashboard' },
+        { rotulo: 'Histórico', destino: '/history' },
+      ];
+
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <header className="bg-background border-b border-border sticky top-0 z-50 shadow-sm">
@@ -115,66 +133,45 @@ export default function Layout({ children }: LayoutProps) {
               
               {user && (
                 <nav className="hidden md:flex items-center space-x-6">
-                  {user.role === 'admin' ? (
-                    <>
-                      <button
-                        onClick={() => navigate('/admin')}
-                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
-                      >
-                        Dashboard
-                      </button>
-                      <button
-                        onClick={() => navigate('/admin/videos')}
-                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
-                      >
-                        Vídeos
-                      </button>
-                      <button
-                        onClick={() => navigate('/admin/taxonomia')}
-                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
-                      >
-                        Categorias & Módulos
-                      </button>
-                      <button
-                        onClick={() => navigate('/admin/users')}
-                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
-                      >
-                        Usuários
-                      </button>
-                      <button
-                        onClick={() => navigate('/admin/relatorios')}
-                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
-                      >
-                        Relatórios
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => navigate('/meus-cursos')}
-                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
-                      >
-                        Meus Cursos
-                      </button>
-                      <button
-                        onClick={() => navigate('/dashboard')}
-                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
-                      >
-                        Todos os Vídeos
-                      </button>
-                      <button
-                        onClick={() => navigate('/history')}
-                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
-                      >
-                        Histórico
-                      </button>
-                    </>
-                  )}
+                  {navegacao.map((item) => (
+                    <button
+                      key={item.destino}
+                      onClick={() => navigate(item.destino)}
+                      className="text-muted-foreground hover:text-foreground transition-colors font-inter"
+                    >
+                      {item.rotulo}
+                    </button>
+                  ))}
                 </nav>
               )}
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              {user && (
+                <Sheet open={menuAberto} onOpenChange={setMenuAberto}>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="icon" className="md:hidden" aria-label="Abrir menu">
+                      <Menu className="h-5 w-5" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-[260px]">
+                    <SheetHeader>
+                      <SheetTitle className="text-left">Navegação</SheetTitle>
+                    </SheetHeader>
+                    <nav className="mt-6 flex flex-col gap-1">
+                      {navegacao.map((item) => (
+                        <button
+                          key={item.destino}
+                          onClick={() => { setMenuAberto(false); navigate(item.destino); }}
+                          className="rounded-md px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
+                        >
+                          {item.rotulo}
+                        </button>
+                      ))}
+                    </nav>
+                  </SheetContent>
+                </Sheet>
+              )}
               {user ? (
                 <>
                   <div className="flex items-center space-x-2 text-sm">

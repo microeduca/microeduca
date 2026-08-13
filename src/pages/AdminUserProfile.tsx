@@ -6,7 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getUsers, getVideos, getViewHistory } from '@/lib/storage';
-import { Clock3, Play, CheckCircle2, User as UserIcon, Mail, ArrowLeft } from 'lucide-react';
+import { Clock3, Play, CheckCircle2, User as UserIcon, Mail, ArrowLeft, Download } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { formatDurationLong } from '@/lib/utils';
+import { SkeletonEstatisticas, SkeletonTabela } from '@/components/LoadingState';
 
 export default function AdminUserProfile() {
   const { userId } = useParams();
@@ -15,6 +19,9 @@ export default function AdminUserProfile() {
   const [videos, setVideos] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // Item 5 do documento: atividade individual com recorte de período
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -41,21 +48,55 @@ export default function AdminUserProfile() {
       const thumb = v?.thumbnail || (v?.vimeoId ? `https://vumbnail.com/${v.vimeoId}.jpg` : undefined);
       return { ...h, video: v, progress, status, thumb };
     });
-    return items.sort((a, b) => new Date(b.lastWatchedAt).getTime() - new Date(a.lastWatchedAt).getTime());
-  }, [history, videos]);
+    const inicio = de ? new Date(`${de}T00:00:00`).getTime() : null;
+    const fim = ate ? new Date(`${ate}T23:59:59`).getTime() : null;
+    return items
+      .filter((h) => {
+        const t = new Date(h.lastWatchedAt).getTime();
+        return (inicio === null || t >= inicio) && (fim === null || t <= fim);
+      })
+      .sort((a, b) => new Date(b.lastWatchedAt).getTime() - new Date(a.lastWatchedAt).getTime());
+  }, [history, videos, de, ate]);
 
   const stats = {
     total: rows.length,
     completed: rows.filter((r) => r.completed).length,
     inProgress: rows.filter((r) => !r.completed && (r.watchedDuration || 0) > 0).length,
-    watchTimeH: Math.floor(rows.reduce((acc, r) => acc + (r.watchedDuration || 0), 0) / 3600),
+    watchTime: rows.reduce((acc, r) => acc + (r.watchedDuration || 0), 0),
+  };
+
+  const exportarCsv = () => {
+    if (rows.length === 0) return;
+    const linhas = rows.map((r) => ({
+      video: r.video?.title || r.videoId,
+      assistido_segundos: r.watchedDuration || 0,
+      assistido: formatDurationLong(r.watchedDuration || 0),
+      progresso_pct: r.progress,
+      status: r.status,
+      quando: new Date(r.lastWatchedAt).toLocaleString('pt-BR'),
+    }));
+    const cols = Object.keys(linhas[0]);
+    const esc = (v: unknown) => {
+      const t = String(v ?? '');
+      return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
+    const csv = [cols.join(';'), ...linhas.map((l) => cols.map((c) => esc((l as Record<string, unknown>)[c])).join(';'))].join('\n');
+    const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `atividade-${(user?.name || 'usuario').replace(/\s+/g, '-').toLowerCase()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   if (loading) {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-8">
-          <Card className="py-16 text-center"><CardContent>Carregando…</CardContent></Card>
+          <div className="space-y-6">
+            <SkeletonEstatisticas />
+            <Card><CardContent className="pt-6"><SkeletonTabela colunas={5} /></CardContent></Card>
+          </div>
         </div>
       </Layout>
     );
@@ -111,7 +152,7 @@ export default function AdminUserProfile() {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Tempo assistido</div>
-                <div className="text-2xl font-bold">{stats.watchTimeH}h</div>
+                <div className="text-2xl font-bold">{formatDurationLong(stats.watchTime)}</div>
               </div>
             </div>
           </CardContent>
@@ -119,8 +160,28 @@ export default function AdminUserProfile() {
 
         {/* Tabela */}
         <Card>
-          <CardHeader>
-            <CardTitle>Histórico de visualização</CardTitle>
+          <CardHeader className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle>Histórico de visualização</CardTitle>
+              <Button variant="outline" size="sm" className="gap-2"
+                      onClick={() => exportarCsv()}>
+                <Download className="h-4 w-4" /> CSV
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="grid gap-1">
+                <Label className="text-xs">De</Label>
+                <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="h-9 w-[160px]" />
+              </div>
+              <div className="grid gap-1">
+                <Label className="text-xs">Até</Label>
+                <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="h-9 w-[160px]" />
+              </div>
+              {(de || ate) && (
+                <Button variant="ghost" size="sm" onClick={() => { setDe(''); setAte(''); }}>Limpar</Button>
+              )}
+              <span className="text-sm text-muted-foreground">{rows.length} registro(s)</span>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -151,7 +212,7 @@ export default function AdminUserProfile() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{Math.floor((r.watchedDuration || 0) / 60)} min</TableCell>
+                    <TableCell>{formatDurationLong(r.watchedDuration || 0)}</TableCell>
                     <TableCell>
                       {r.completed ? (
                         <Badge className="gap-1"><CheckCircle2 className="h-3 w-3" /> Concluído</Badge>

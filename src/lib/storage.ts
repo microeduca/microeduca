@@ -300,6 +300,20 @@ export const getModules = async (categoryId?: string): Promise<Module[]> => {
   return rows.map(mapModule);
 };
 
+/** Busca módulos de várias categorias numa chamada só e devolve agrupado. */
+export const getModulesByCategories = async (categoryIds: string[]): Promise<Record<string, Module[]>> => {
+  const map: Record<string, Module[]> = {};
+  for (const id of categoryIds) map[id] = [];
+  if (categoryIds.length === 0) return map;
+  const rows = await api.getModulesFor(categoryIds);
+  for (const row of rows) {
+    const mod = mapModule(row);
+    if (!map[mod.categoryId]) map[mod.categoryId] = [];
+    map[mod.categoryId].push(mod);
+  }
+  return map;
+};
+
 export const addModule = async (module: Omit<Module, 'id' | 'createdAt' | 'updatedAt' | 'children'>): Promise<Module> => {
   const row = await api.addModule({
     category_id: module.categoryId,

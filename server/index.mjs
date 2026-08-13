@@ -383,12 +383,16 @@ app.delete('/api/categories/:id', requireAdmin, async (req, res) => {
 app.get('/api/modules', async (req, res) => {
   try {
     await ensureModulesSchema();
-    const { categoryId } = req.query;
+    // categoryIds (lista) evita o N+1 de uma chamada por categoria.
+    const { categoryId, categoryIds } = req.query;
+    const lista = categoryIds
+      ? String(categoryIds).split(',').map((s) => s.trim()).filter(Boolean)
+      : (categoryId ? [String(categoryId)] : []);
     const params = [];
     let sql = 'SELECT * FROM public.modules';
-    if (categoryId) {
-      sql += ' WHERE category_id = $1';
-      params.push(categoryId);
+    if (lista.length > 0) {
+      sql += ' WHERE category_id = ANY($1::uuid[])';
+      params.push(lista);
     }
     sql += ' ORDER BY "order", title';
     const { rows } = await pool.query(sql, params);

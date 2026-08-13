@@ -22,7 +22,17 @@ import AdminVimeoUpload from "./pages/AdminVimeoUpload";
 import AdminMaterialUpload from "./pages/AdminMaterialUpload";
 import History from "./pages/History";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Sessão expirada já redireciona para o login em lib/api; repetir a
+      // chamada só atrasaria o redirecionamento.
+      retry: (falhas, erro) =>
+        !String((erro as Error)?.message || '').includes('Sessão') && falhas < 2,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // Wrapper para forçar remontagem do VideoPlayer quando o ID mudar
 const VideoPlayerWrapper = () => {

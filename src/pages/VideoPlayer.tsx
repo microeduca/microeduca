@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,11 +36,13 @@ import {
   addComment, 
   deleteComment,
   updateVideo,
-  getVideoProgress as getVideoProgressApi
+  getVideoProgress as getVideoProgressApi,
+  getModules
 } from '@/lib/storage';
 import { useToast } from '@/hooks/use-toast';
 import VimeoPlayer from '@/components/VimeoPlayer';
 import PdfViewer from '@/components/PdfViewer';
+import CourseBreadcrumb, { type TrilhaItem } from '@/components/CourseBreadcrumb';
 import { formatDurationClock, formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 
 function extractVimeoId(url?: string | null): string | undefined {
@@ -59,6 +61,7 @@ export default function VideoPlayer() {
   const [video, setVideo] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [categories, setCategories] = useState<any[]>([]);
+  const [modulosDaCategoria, setModulosDaCategoria] = useState<Array<{ id: string; title: string; parentId?: string | null }>>([]);
   const [videos, setVideos] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>([]);
   useEffect(() => {
@@ -92,6 +95,12 @@ export default function VideoPlayer() {
           setIsLoading(false);
           return;
         }
+      }
+      // Módulos da categoria, para montar a trilha de navegação.
+      if (v?.categoryId) {
+        try { setModulosDaCategoria(await getModules(v.categoryId)); } catch { setModulosDaCategoria([]); }
+      } else {
+        setModulosDaCategoria([]);
       }
       setVideo(v || null);
       if (v) {
@@ -225,6 +234,27 @@ export default function VideoPlayer() {
   
   // Obter moduleId do vídeo atual
   const currentModuleId = (video as any)?.moduleId || (video as any)?.module_id;
+
+  // Trilha Categoria › Módulo › Submódulo › Aula. O breadcrumb anterior pulava
+  // os módulos, então o usuário não sabia em que subpasta estava.
+  const trilhaDeNavegacao = useMemo(() => {
+    const itens: TrilhaItem[] = [];
+    const categoria = categories.find((c) => c.id === (video?.categoryId || (video as any)?.category_id));
+    if (categoria) itens.push({ label: categoria.name });
+
+    const cadeia: string[] = [];
+    let atual = currentModuleId ? modulosDaCategoria.find((m) => m.id === currentModuleId) : null;
+    const vistos = new Set<string>();
+    while (atual && !vistos.has(atual.id)) {
+      cadeia.unshift(atual.title);
+      vistos.add(atual.id);
+      atual = atual.parentId ? modulosDaCategoria.find((m) => m.id === atual!.parentId) : null;
+    }
+    for (const titulo of cadeia) itens.push({ label: titulo });
+
+    if (video?.title) itens.push({ label: video.title });
+    return itens;
+  }, [categories, video, currentModuleId, modulosDaCategoria]);
   
   // Vídeos relacionados do mesmo módulo (ou categoria se não houver módulo)
   const relatedVideos = videos
@@ -538,19 +568,7 @@ export default function VideoPlayer() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-6">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-          <button 
-            onClick={() => navigate('/dashboard')}
-            className="hover:text-foreground transition-colors"
-          >
-            Dashboard
-          </button>
-          <ChevronRight className="h-4 w-4" />
-          <span>{category?.name}</span>
-          <ChevronRight className="h-4 w-4" />
-          <span className="text-foreground">{video.title}</span>
-        </div>
+        <CourseBreadcrumb itens={trilhaDeNavegacao} />
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Main Video Area */}

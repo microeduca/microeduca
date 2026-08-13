@@ -19,54 +19,26 @@ import {
   ClipboardCheck
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
-import { getCategories, getVideos, getViewHistory, getModules } from '@/lib/storage';
-import { Category, Video as VideoType } from '@/types';
+import type { Video as VideoType } from '@/types';
+import { useCategorias, useHistorico, useModulos, useVideos } from '@/hooks/queries';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { aggregateModuleContent, formatDurationLong, isReleased } from '@/lib/utils';
+import { SkeletonCartoes, SkeletonEstatisticas } from '@/components/LoadingState';
 
 export default function MeusCursos() {
   const navigate = useNavigate();
   const user = getCurrentUser();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [videos, setVideos] = useState<VideoType[]>([]);
-  const [viewHistory, setViewHistory] = useState<any[]>([]);
-  const [modulesByCategory, setModulesByCategory] = useState<Record<string, any[]>>({});
   const [detailsCategoryId, setDetailsCategoryId] = useState<string | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  useEffect(() => {
-    (async () => {
-      const [c, v, vh] = await Promise.all([
-        getCategories(),
-        getVideos(),
-        getViewHistory(user?.id),
-      ]);
-      setCategories(c);
-      setVideos(v);
-      setViewHistory(vh);
-    })();
-  }, [user?.id]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Carregar módulos por categoria do usuário
-  useEffect(() => {
-    const load = async () => {
-      if (!user) return;
-      const cats = user?.assignedCategories 
-        ? categories.filter(cat => user.assignedCategories.includes(cat.id) && isReleased(cat))
-        : [];
-      if (cats.length === 0) {
-        setModulesByCategory({});
-        return;
-      }
-      const entries = await Promise.all(
-        cats.map(async (c) => [c.id, await getModules(c.id)] as const)
-      );
-      const map: Record<string, any[]> = {};
-      for (const [cid, mods] of entries) map[cid] = mods || [];
-      setModulesByCategory(map);
-    };
-    load();
-  }, [user?.assignedCategories, categories]);
+  const { data: categories = [], isLoading: carregandoCategorias } = useCategorias();
+  const { data: videos = [], isLoading: carregandoVideos } = useVideos();
+  const { data: viewHistory = [] } = useHistorico(user?.id);
+  const { data: modulesByCategory = {} } = useModulos(
+    (user?.assignedCategories || []).filter(Boolean)
+  );
+  const carregando = carregandoCategorias || carregandoVideos;
 
   // Redirecionar se não estiver logado
   useEffect(() => {
@@ -388,6 +360,13 @@ export default function MeusCursos() {
           </p>
         </div>
 
+        {carregando ? (
+          <div className="space-y-6">
+            <SkeletonEstatisticas quantidade={5} />
+            <SkeletonCartoes quantidade={3} />
+          </div>
+        ) : (
+        <>
         {/* Statistics Overview */}
         <div className="grid gap-4 md:grid-cols-5">
           <Card>
@@ -820,6 +799,8 @@ export default function MeusCursos() {
               </div>
             </CardContent>
           </Card>
+        )}
+        </>
         )}
       </div>
     </Layout>

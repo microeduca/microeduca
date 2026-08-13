@@ -262,6 +262,65 @@ async function ensureProfilesRoleConstraint() {
 // Run in background on start
 ensureProfilesRoleConstraint().catch(() => {});
 
+// --- Armazenamento de arquivos ---
+// Antes o conteúdo vivia em bytea: 88% do banco de produção eram blobs, sem
+// streaming, sem cache e sem range requests. Agora o binário fica num volume
+// e o banco guarda só os metadados. A coluna content continua existindo como
+// origem para a migração e como fallback de leitura.
+const UPLOAD_DIR = process.env.UPLOAD_DIR || '/data/uploads';
+
+function garantirPastaDeUploads() {
+  try {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    return true;
+  } catch (e) {
+    console.warn(`[files] volume indisponível em ${UPLOAD_DIR} (${e.code}); usando o banco`);
+    return false;
+  }
+}
+const VOLUME_OK = garantirPastaDeUploads();
+
+const caminhoDoArquivo = (id) => path.join(UPLOAD_DIR, id);
+
+async function ensureFilesStorageColumns() {
+  try { await pool.query('ALTER TABLE public.files ADD COLUMN IF NOT EXISTS storage_path text'); } catch {}
+  try { await pool.query('ALTER TABLE public.files ALTER COLUMN content DROP NOT NULL'); } catch {}
+}
+
+/**
+ * Move para o volume os arquivos que ainda estão em bytea. Roda uma vez no
+ * boot e é idempotente: só toca em linhas sem storage_path.
+ */
+async function migrarArquivosParaVolume() {
+  if (!VOLUME_OK) return;
+  try {
+    await ensureFilesTable();
+    await ensureFilesStorageColumns();
+    const { rows } = await pool.query(
+      'SELECT id FROM public.files WHERE storage_path IS NULL AND content IS NOT NULL'
+    );
+    if (rows.length === 0) return;
+    console.log(`[files] migrando ${rows.length} arquivo(s) do banco para ${UPLOAD_DIR}`);
+    let migrados = 0;
+    for (const { id } of rows) {
+      try {
+        const { rows: r } = await pool.query('SELECT content FROM public.files WHERE id = $1', [id]);
+        if (!r[0]?.content) continue;
+        const destino = caminhoDoArquivo(id);
+        fs.writeFileSync(destino, Buffer.from(r[0].content));
+        await pool.query('UPDATE public.files SET storage_path = $1 WHERE id = $2', [destino, id]);
+        migrados += 1;
+      } catch (e) {
+        console.warn(`[files] falha ao migrar ${id}: ${e.message}`);
+      }
+    }
+    console.log(`[files] ${migrados}/${rows.length} arquivo(s) migrado(s)`);
+  } catch (e) {
+    console.warn(`[files] migração não executada: ${e.message}`);
+  }
+}
+migrarArquivosParaVolume().catch(() => {});
+
 // Files storage (PDF/JPG) in Postgres
 async function ensureFilesTable() {
   await pool.query(`CREATE TABLE IF NOT EXISTS public.files (
@@ -295,8 +354,23 @@ app.post('/api/files', requireAdmin, async (req, res) => {
     if (!allowed.includes(mimeType)) return res.status(400).json({ error: 'Unsupported mimeType' });
     const buf = Buffer.from(String(dataBase64).split(',').pop(), 'base64');
     await ensureFilesTable();
+    await ensureFilesStorageColumns();
     const id = crypto.randomUUID();
-    await pool.query('INSERT INTO public.files (id, filename, mime_type, content, size) VALUES ($1,$2,$3,$4,$5)', [id, filename, mimeType, buf, buf.length]);
+
+    if (VOLUME_OK) {
+      const destino = caminhoDoArquivo(id);
+      fs.writeFileSync(destino, buf);
+      await pool.query(
+        'INSERT INTO public.files (id, filename, mime_type, size, storage_path) VALUES ($1,$2,$3,$4,$5)',
+        [id, filename, mimeType, buf.length, destino]
+      );
+    } else {
+      // Sem volume montado o comportamento antigo continua valendo.
+      await pool.query(
+        'INSERT INTO public.files (id, filename, mime_type, content, size) VALUES ($1,$2,$3,$4,$5)',
+        [id, filename, mimeType, buf, buf.length]
+      );
+    }
     res.status(201).json({ id, filename, mimeType, size: buf.length, url: `/api/files/${id}` });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -307,12 +381,44 @@ app.get('/api/files/:id', async (req, res) => {
   try {
     const { id } = req.params;
     await ensureFilesTable();
-    const { rows } = await pool.query('SELECT * FROM public.files WHERE id = $1', [id]);
+    await ensureFilesStorageColumns();
+    const { rows } = await pool.query(
+      'SELECT id, filename, mime_type, size, storage_path FROM public.files WHERE id = $1', [id]);
     const file = rows[0];
     if (!file) return res.status(404).end();
+
     res.setHeader('Content-Type', file.mime_type);
-    res.setHeader('Content-Disposition', `inline; filename="${file.filename}"`);
-    return res.send(Buffer.from(file.content));
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.filename)}"`);
+    // Conteúdo imutável: o id nunca é reaproveitado.
+    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+
+    const noDisco = file.storage_path && fs.existsSync(file.storage_path);
+    if (noDisco) {
+      const total = fs.statSync(file.storage_path).size;
+      res.setHeader('Accept-Ranges', 'bytes');
+      // Range é o que permite ao leitor de PDF abrir páginas sem baixar tudo.
+      const range = req.headers.range;
+      const m = range && /^bytes=(\d*)-(\d*)$/.exec(range);
+      if (m) {
+        const inicio = m[1] ? Number(m[1]) : 0;
+        const fim = m[2] ? Math.min(Number(m[2]), total - 1) : total - 1;
+        if (Number.isNaN(inicio) || inicio > fim || inicio >= total) {
+          res.setHeader('Content-Range', `bytes */${total}`);
+          return res.status(416).end();
+        }
+        res.status(206);
+        res.setHeader('Content-Range', `bytes ${inicio}-${fim}/${total}`);
+        res.setHeader('Content-Length', fim - inicio + 1);
+        return fs.createReadStream(file.storage_path, { start: inicio, end: fim }).pipe(res);
+      }
+      res.setHeader('Content-Length', total);
+      return fs.createReadStream(file.storage_path).pipe(res);
+    }
+
+    // Ainda no banco (antes da migração ou sem volume).
+    const { rows: r } = await pool.query('SELECT content FROM public.files WHERE id = $1', [id]);
+    if (!r[0]?.content) return res.status(404).end();
+    return res.send(Buffer.from(r[0].content));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -322,8 +428,59 @@ app.delete('/api/files/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await ensureFilesTable();
+    await ensureFilesStorageColumns();
+    const { rows } = await pool.query('SELECT storage_path FROM public.files WHERE id = $1', [id]);
+    // Remove o binário antes do registro; sobrar arquivo sem linha é lixo invisível.
+    if (rows[0]?.storage_path) {
+      try { fs.unlinkSync(rows[0].storage_path); } catch { /* já não existe */ }
+    }
     await pool.query('DELETE FROM public.files WHERE id = $1', [id]);
     res.status(204).end();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Diagnóstico do armazenamento, para o admin saber onde os arquivos estão.
+app.get('/api/files-storage/status', requireAdmin, async (_req, res) => {
+  try {
+    await ensureFilesTable();
+    await ensureFilesStorageColumns();
+    const { rows } = await pool.query(`
+      SELECT count(*)::int                                            AS total,
+             count(*) FILTER (WHERE storage_path IS NOT NULL)::int     AS no_volume,
+             count(*) FILTER (WHERE storage_path IS NULL)::int         AS no_banco,
+             COALESCE(sum(size), 0)::bigint                            AS bytes
+        FROM public.files`);
+    res.json({ ...rows[0], volumeAtivo: VOLUME_OK, diretorio: UPLOAD_DIR });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Remove arquivos que nenhum vídeo referencia — uploads abandonados.
+app.post('/api/files-storage/cleanup', requireAdmin, async (_req, res) => {
+  try {
+    await ensureFilesTable();
+    await ensureFilesStorageColumns();
+    const { rows } = await pool.query(`
+      WITH usados AS (
+        SELECT DISTINCT substring(video_url  from '/api/files/([0-9a-fA-F-]+)') AS id
+          FROM public.videos WHERE video_url LIKE '%/api/files/%'
+        UNION
+        SELECT DISTINCT substring(thumbnail from '/api/files/([0-9a-fA-F-]+)')
+          FROM public.videos WHERE thumbnail LIKE '%/api/files/%'
+        UNION
+        SELECT DISTINCT (sf ->> 'id')
+          FROM public.videos v, jsonb_array_elements(COALESCE(v.support_files, '[]'::jsonb)) sf
+      )
+      SELECT f.id, f.storage_path FROM public.files f
+       WHERE NOT EXISTS (SELECT 1 FROM usados u WHERE u.id = f.id)`);
+    for (const r of rows) {
+      if (r.storage_path) { try { fs.unlinkSync(r.storage_path); } catch { /* ausente */ } }
+      await pool.query('DELETE FROM public.files WHERE id = $1', [r.id]);
+    }
+    res.json({ removidos: rows.length });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

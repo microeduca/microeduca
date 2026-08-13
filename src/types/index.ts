@@ -7,6 +7,8 @@ export interface User {
   assignedModules?: string[];
   createdAt: Date;
   isActive?: boolean;
+  /** Liberação programada individual, por categoria ou módulo. */
+  scheduledAccess?: Array<{ scope_type: 'category' | 'module'; scope_id: string; release_at: string | null }>;
 }
 
 export interface SupportFile {

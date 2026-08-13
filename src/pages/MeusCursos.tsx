@@ -47,15 +47,30 @@ export default function MeusCursos() {
     }
   }, [user, navigate]);
 
-  // Filtrar categorias que o usuário tem acesso
-  const userCategories = user?.assignedCategories 
-    ? categories.filter(cat => user.assignedCategories.includes(cat.id) && isReleased(cat))
-    : [];
-
   const assignedModuleIds = useMemo(
     () => new Set<string>(user?.assignedModules || []),
     [user?.assignedModules]
   );
+
+  // Liberação programada individual (item 3 do documento). O servidor já
+  // bloqueia; aqui é para a interface não anunciar o que não abre.
+  const agendadoParaMim = useMemo(() => {
+    const bloqueados = new Set<string>();
+    for (const r of user?.scheduledAccess || []) {
+      if (r.release_at && new Date(r.release_at).getTime() > Date.now()) {
+        bloqueados.add(`${r.scope_type}:${r.scope_id}`);
+      }
+    }
+    return bloqueados;
+  }, [user?.scheduledAccess]);
+
+  // Filtrar categorias que o usuário tem acesso
+  const userCategories = user?.assignedCategories
+    ? categories.filter(cat =>
+        user.assignedCategories.includes(cat.id) &&
+        isReleased(cat) &&
+        !agendadoParaMim.has(`category:${cat.id}`))
+    : [];
 
   const moduleById = useMemo(() => {
     const map = new Map<string, any>();
@@ -89,15 +104,20 @@ export default function MeusCursos() {
   const categoryHasModuleRestriction = (categoryId: string) =>
     (modulesByCategory[categoryId] || []).some((m: any) => assignedModuleIds.has(m.id));
 
+  const moduleChainAgendada = (moduleId?: string | null) =>
+    walkModuleChain(moduleId, (m) => agendadoParaMim.has(`module:${m.id}`));
+
   const canAccessVideo = (video: any, categoryId?: string) => {
     if (!isReleased(video)) return false;
     const moduleId = video.moduleId || video.module_id;
     if (!isModuleChainReleased(moduleId)) return false;
+    if (moduleChainAgendada(moduleId)) return false;
     const ids: string[] = video.categoryIds || video.category_ids || [video.categoryId].filter(Boolean);
     const scope = categoryId ? [categoryId] : ids;
     return scope.some((cid) => {
       if (!ids.includes(cid)) return false;
       if (!(user?.assignedCategories || []).includes(cid)) return false;
+      if (agendadoParaMim.has(`category:${cid}`)) return false;
       const category = categories.find((c) => c.id === cid);
       if (category && !isReleased(category)) return false;
       if (!categoryHasModuleRestriction(cid)) return true;

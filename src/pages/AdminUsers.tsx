@@ -16,6 +16,8 @@ import { useToast } from '@/hooks/use-toast';
 import { getUsers, addUser, updateUser, deleteUser, getCategories, getModules, addCategory, addModule } from '@/lib/storage';
 import { User } from '@/types';
 import { getCurrentUser } from '@/lib/auth';
+import { api } from '@/lib/api';
+import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
 
 export default function AdminUsers() {
   const { toast } = useToast();
@@ -43,6 +45,8 @@ export default function AdminUsers() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  // chave "category:<id>" ou "module:<id>" -> valor de datetime-local
+  const [agendamentos, setAgendamentos] = useState<Record<string, string>>({});
   
   const [newUser, setNewUser] = useState({
     name: '',
@@ -104,14 +108,50 @@ export default function AdminUsers() {
     if (!editingUser) return;
 
     await updateUser(editingUser);
+    // Liberação programada individual: só sobrevivem as datas de escopos
+    // que continuam concedidos ao usuário.
+    const concedidos = new Set([
+      ...(editingUser.assignedCategories || []),
+      ...(editingUser.assignedModules || []),
+    ]);
+    const regras = Object.entries(agendamentos)
+      .filter(([chave, valor]) => valor && concedidos.has(chave.split(':')[1]))
+      .map(([chave, valor]) => ({
+        scope_type: chave.split(':')[0] as 'category' | 'module',
+        scope_id: chave.split(':')[1],
+        release_at: fromDateTimeLocalValue(valor),
+      }));
+    try {
+      await api.setUserAccess(editingUser.id, regras);
+    } catch (e) {
+      toast({ title: 'Não foi possível salvar a liberação programada',
+              description: (e as Error)?.message, variant: 'destructive' });
+    }
+
     setUsers(await getUsers());
     setIsEditDialogOpen(false);
     setEditingUser(null);
+    setAgendamentos({});
 
     toast({
       title: "Usuário atualizado",
       description: "As informações do usuário foram atualizadas.",
     });
+  };
+
+  /** Campo de data para adiar o acesso deste usuário a um escopo concedido. */
+  const CampoLiberacao = ({ tipo, id }: { tipo: 'category' | 'module'; id: string }) => {
+    const chave = `${tipo}:${id}`;
+    return (
+      <Input
+        type="datetime-local"
+        value={agendamentos[chave] || ''}
+        onChange={(e) => setAgendamentos((a) => ({ ...a, [chave]: e.target.value }))}
+        className="h-7 w-[200px] text-xs"
+        title="Liberar para este usuário a partir de"
+        placeholder="Liberar a partir de"
+      />
+    );
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -341,9 +381,17 @@ export default function AdminUsers() {
                           Ver perfil
                         </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => {
+                            onClick={async () => {
                               setEditingUser(user);
                               setIsEditDialogOpen(true);
+                              try {
+                                const regras = await api.getUserAccess(user.id);
+                                const mapa: Record<string, string> = {};
+                                for (const r of regras || []) {
+                                  mapa[`${r.scope_type}:${r.scope_id}`] = toDateTimeLocalValue(r.release_at);
+                                }
+                                setAgendamentos(mapa);
+                              } catch { setAgendamentos({}); }
                             }}
                           >
                             <Edit2 className="mr-2 h-4 w-4" />
@@ -719,8 +767,13 @@ export default function AdminUsers() {
                                 }
                               }}
                             />
-                            <div className="grid gap-1 leading-none">
-                              <label htmlFor={`edit-cat-${category.id}`} className="text-sm font-medium cursor-pointer">{category.name}</label>
+                            <div className="grid gap-1 leading-none flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <label htmlFor={`edit-cat-${category.id}`} className="text-sm font-medium cursor-pointer">{category.name}</label>
+                                {(editingUser.assignedCategories || []).includes(category.id) && (
+                                  <CampoLiberacao tipo="category" id={category.id} />
+                                )}
+                              </div>
                               {category.description && (<p className="text-xs text-muted-foreground">{category.description}</p>)}
                             </div>
                           </div>
@@ -801,7 +854,10 @@ export default function AdminUsers() {
                                             }
                                           }}
                                         />
-                                        <label htmlFor={`edit-mod-${module.id}`} className="text-sm cursor-pointer">{module.title}</label>
+                                        <label htmlFor={`edit-mod-${module.id}`} className="text-sm cursor-pointer flex-1">{module.title}</label>
+                                        {(editingUser.assignedModules || []).includes(module.id) && (
+                                          <CampoLiberacao tipo="module" id={module.id} />
+                                        )}
                                       </div>
                                       {children.map(child => renderModuleCheckbox(child, level + 1))}
                                     </div>
@@ -824,7 +880,7 @@ export default function AdminUsers() {
               </div>
             )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); setAgendamentos({}); }}>
                 Cancelar
               </Button>
               <Button onClick={handleUpdateUser}>Salvar Alterações</Button>

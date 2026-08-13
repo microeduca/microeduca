@@ -43,6 +43,17 @@ export default function Layout({ children }: LayoutProps) {
     (async () => {
       try {
         const me = await api.getMe();
+        // Mantém assignedCategories/Modules e a liberação programada em dia
+        // sem exigir novo login.
+        if (!cancelled && me?.id) {
+          const bruto = localStorage.getItem('microeduca_auth');
+          if (bruto) {
+            try {
+              const atual = JSON.parse(bruto);
+              localStorage.setItem('microeduca_auth', JSON.stringify({ ...atual, ...me }));
+            } catch { /* sessão ilegível: o próximo 401 trata */ }
+          }
+        }
         if (!cancelled && me?.isActive === false) {
           toast({ title: 'Acesso inativo', description: 'Seu usuário foi inativado.', variant: 'destructive' });
           logout();

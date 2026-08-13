@@ -93,9 +93,19 @@ const requireAdmin = (req, res, next) => {
 
 app.use('/api', authMiddleware);
 
-app.get('/api/me', (req, res) => {
+app.get('/api/me', async (req, res) => {
   const u = req.user;
+  let agendamentos = [];
+  try {
+    await ensureUserContentAccess();
+    const { rows } = await pool.query(
+      'SELECT scope_type, scope_id, release_at FROM public.user_content_access WHERE user_id = $1',
+      [u.id]
+    );
+    agendamentos = rows;
+  } catch { agendamentos = []; }
   res.json({
+    scheduledAccess: agendamentos,
     id: u.id,
     name: u.name,
     email: u.email,
@@ -170,6 +180,77 @@ async function ensureModulesSchema() {
   try { await pool.query('ALTER TABLE public.modules ADD COLUMN IF NOT EXISTS release_at timestamptz'); } catch {}
   try { await pool.query('ALTER TABLE public.modules ADD COLUMN IF NOT EXISTS evaluation_url text'); } catch {}
 }
+
+// Liberação programada por usuário (item 3 do documento).
+// O release_at das categorias/módulos é global; esta tabela adia o acesso de
+// um usuário específico a um conteúdo que ele já tem concedido.
+async function ensureUserContentAccess() {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS public.user_content_access (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+      scope_type text NOT NULL CHECK (scope_type IN ('category','module')),
+      scope_id uuid NOT NULL,
+      release_at timestamptz,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now(),
+      UNIQUE (user_id, scope_type, scope_id)
+    )`);
+  } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_uca_user ON public.user_content_access(user_id)'); } catch {}
+}
+ensureUserContentAccess().catch(() => {});
+
+app.get('/api/profiles/:id/access', requireAdmin, async (req, res) => {
+  try {
+    await ensureUserContentAccess();
+    const { rows } = await pool.query(
+      'SELECT scope_type, scope_id, release_at FROM public.user_content_access WHERE user_id = $1',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Substitui as regras do usuário de uma vez; entradas sem data são removidas.
+app.put('/api/profiles/:id/access', requireAdmin, async (req, res) => {
+  const cliente = await pool.connect();
+  try {
+    await ensureUserContentAccess();
+    const regras = Array.isArray(req.body?.rules) ? req.body.rules : [];
+    for (const r of regras) {
+      if (!['category', 'module'].includes(r.scope_type)) {
+        return res.status(400).json({ error: `scope_type inválido: ${r.scope_type}` });
+      }
+      if (r.release_at && Number.isNaN(new Date(r.release_at).getTime())) {
+        return res.status(400).json({ error: 'release_at não é uma data válida' });
+      }
+    }
+    await cliente.query('BEGIN');
+    await cliente.query('DELETE FROM public.user_content_access WHERE user_id = $1', [req.params.id]);
+    for (const r of regras) {
+      if (!r.release_at) continue;
+      await cliente.query(
+        `INSERT INTO public.user_content_access (user_id, scope_type, scope_id, release_at)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (user_id, scope_type, scope_id)
+         DO UPDATE SET release_at = EXCLUDED.release_at, updated_at = now()`,
+        [req.params.id, r.scope_type, r.scope_id, r.release_at]
+      );
+    }
+    await cliente.query('COMMIT');
+    const { rows } = await cliente.query(
+      'SELECT scope_type, scope_id, release_at FROM public.user_content_access WHERE user_id = $1',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (e) {
+    await cliente.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: e.message });
+  } finally {
+    cliente.release();
+  }
+});
 
 // Ensure profiles.role allows 'cliente'
 async function ensureProfilesRoleConstraint() {
@@ -478,6 +559,13 @@ const VIDEOS_VISIVEIS_SQL = `
            bool_or(id = ANY($2::uuid[]))                       AS concedido
       FROM cadeia
      GROUP BY raiz_de
+  ),
+  -- Liberação programada individual: adia o acesso deste usuário a uma
+  -- categoria ou módulo que ele já tem concedido.
+  agendamento_usuario AS (
+    SELECT scope_type, scope_id, release_at
+      FROM public.user_content_access
+     WHERE user_id = $3 AND release_at IS NOT NULL AND release_at > now()
   )
   SELECT v.* FROM public.videos v
    WHERE (v.release_at IS NULL OR v.release_at <= now())
@@ -486,6 +574,8 @@ const VIDEOS_VISIVEIS_SQL = `
         WHERE c.id = ANY(COALESCE(v.category_ids, ARRAY[v.category_id]))
           AND c.id = ANY($1::uuid[])
           AND (c.release_at IS NULL OR c.release_at <= now())
+          AND NOT EXISTS (SELECT 1 FROM agendamento_usuario a
+                           WHERE a.scope_type = 'category' AND a.scope_id = c.id)
           AND (
             NOT EXISTS (SELECT 1 FROM public.modules m
                          WHERE m.category_id = c.id AND m.id = ANY($2::uuid[]))
@@ -495,6 +585,13 @@ const VIDEOS_VISIVEIS_SQL = `
      )
      AND COALESCE((SELECT ml.liberado FROM modulo_liberado ml
                     WHERE ml.module_id = v.module_id), true)
+     -- Nenhum módulo da cadeia pode estar agendado para este usuário.
+     AND NOT EXISTS (
+       SELECT 1 FROM cadeia ch
+        JOIN agendamento_usuario a
+          ON a.scope_type = 'module' AND a.scope_id = ch.id
+       WHERE ch.raiz_de = v.module_id
+     )
    ORDER BY COALESCE(v."order", 0) ASC, v.uploaded_at ASC`;
 
 app.get('/api/videos', async (req, res) => {
@@ -505,9 +602,11 @@ app.get('/api/videos', async (req, res) => {
       );
       return res.json(rows);
     }
+    await ensureUserContentAccess();
     const { rows } = await pool.query(VIDEOS_VISIVEIS_SQL, [
       req.user.assigned_categories || [],
       req.user.assigned_modules || [],
+      req.user.id,
     ]);
     return res.json(rows);
   } catch (e) {

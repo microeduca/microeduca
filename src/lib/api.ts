@@ -67,6 +67,9 @@ export const api = {
   addProfile: (payload: any) => request('/profiles', { method: 'POST', body: JSON.stringify(payload) }),
   updateProfile: (id: string, payload: any) => request(`/profiles/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteProfile: (id: string) => request(`/profiles/${id}`, { method: 'DELETE' }),
+  getUserAccess: (id: string) => request(`/profiles/${id}/access`, { method: 'GET' }),
+  setUserAccess: (id: string, rules: Array<{ scope_type: 'category' | 'module'; scope_id: string; release_at: string | null }>) =>
+    request(`/profiles/${id}/access`, { method: 'PUT', body: JSON.stringify({ rules }) }),
   changePassword: (id: string, currentPassword: string, newPassword: string) =>
     request(`/profiles/${id}/password`, { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
 

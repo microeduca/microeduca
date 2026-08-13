@@ -82,6 +82,15 @@ export const api = {
   getRecentViews: (limit = 10) => request(`/view-history/recent?limit=${encodeURIComponent(String(limit))}`, { method: 'GET' }),
   addToHistory: (payload: any) => request('/view-history', { method: 'POST', body: JSON.stringify(payload) }),
 
+  // Relatórios gerenciais
+  getReport: (nome: 'summary' | 'users' | 'content' | 'categories' | 'timeline', from?: string, to?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    const qs = q.toString();
+    return request(`/reports/${nome}${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
   // Settings
   getSetting: (key: string) => request(`/settings/${encodeURIComponent(key)}`, { method: 'GET' }),
   setSetting: (key: string, value: any) => request(`/settings/${encodeURIComponent(key)}`, { method: 'POST', body: JSON.stringify(value) }),

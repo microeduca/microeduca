@@ -130,6 +130,12 @@ export default function Layout({ children }: LayoutProps) {
                       >
                         Usuários
                       </button>
+                      <button
+                        onClick={() => navigate('/admin/relatorios')}
+                        className="text-muted-foreground hover:text-foreground transition-colors font-inter"
+                      >
+                        Relatórios
+                      </button>
                     </>
                   ) : (
                     <>

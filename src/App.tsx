@@ -17,6 +17,7 @@ import UserDashboardCliente from "./pages/UserDashboardCliente";
 import VideoPlayer from "./pages/VideoPlayer";
 import AdminUsers from "./pages/AdminUsers";
 import AdminSettings from "./pages/AdminSettings";
+import AdminReports from "./pages/AdminReports";
 import AdminUserProfile from "./pages/AdminUserProfile";
 import AdminVimeoUpload from "./pages/AdminVimeoUpload";
 import AdminMaterialUpload from "./pages/AdminMaterialUpload";
@@ -57,6 +58,7 @@ const App = () => (
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/users/:userId" element={<AdminUserProfile />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/admin/relatorios" element={<AdminReports />} />
           <Route path="/admin/vimeo-upload" element={<AdminVimeoUpload />} />
           <Route path="/admin/material-upload" element={<AdminMaterialUpload />} />
           <Route path="/admin/vimeo-callback" element={<AdminVimeoUpload />} />

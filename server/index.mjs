@@ -1054,6 +1054,124 @@ app.post('/api/view-history', async (req, res) => {
   }
 });
 
+// --- Relatórios gerenciais (itens 1 e 5 do documento) ---
+// Agregação em SQL. Antes o painel baixava o histórico inteiro e somava no
+// navegador, o que piorava a cada novo registro de visualização.
+// Uma data ilegível não pode ser ignorada em silêncio: o relatório mostraria
+// o período inteiro como se fosse o intervalo pedido.
+class PeriodoInvalido extends Error {}
+
+const parseData = (valor, campo) => {
+  if (valor === undefined || valor === null || valor === '') return null;
+  // "+" vira espaço quando a query string não é codificada; recuperamos o fuso.
+  const bruto = String(valor).replace(/ (\d{2}:\d{2})$/, '+$1');
+  const d = new Date(bruto);
+  if (Number.isNaN(d.getTime())) throw new PeriodoInvalido(`Parâmetro "${campo}" não é uma data válida`);
+  return d.toISOString();
+};
+
+const periodo = (req) => [parseData(req.query.from, 'from'), parseData(req.query.to, 'to')];
+
+const comPeriodo = (handler) => async (req, res) => {
+  try {
+    return await handler(req, res, periodo(req));
+  } catch (e) {
+    if (e instanceof PeriodoInvalido) return res.status(400).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
+  }
+};
+const FILTRO_PERIODO = `($1::timestamptz IS NULL OR vh.last_watched_at >= $1)
+                    AND ($2::timestamptz IS NULL OR vh.last_watched_at <= $2)`;
+
+app.get('/api/reports/summary', requireAdmin, comPeriodo(async (req, res, p) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        (SELECT count(*) FROM public.profiles WHERE role <> 'admin')            AS total_usuarios,
+        (SELECT count(*) FROM public.profiles WHERE role <> 'admin'
+                                                AND is_active IS NOT false)     AS usuarios_ativos,
+        (SELECT count(*) FROM public.videos)                                    AS total_videos,
+        (SELECT COALESCE(sum(duration), 0) FROM public.videos)                  AS acervo_segundos,
+        count(*)                                                                AS visualizacoes,
+        count(DISTINCT vh.user_id)                                              AS usuarios_no_periodo,
+        COALESCE(sum(vh.watched_duration), 0)                                   AS segundos_assistidos,
+        count(*) FILTER (WHERE vh.completed)                                    AS conclusoes
+      FROM public.view_history vh WHERE ${FILTRO_PERIODO}`, p);
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}));
+
+app.get('/api/reports/users', requireAdmin, comPeriodo(async (req, res, p) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT pr.id, pr.name, pr.email, pr.role, pr.is_active,
+             count(vh.*)                                   AS visualizacoes,
+             count(vh.*) FILTER (WHERE vh.completed)       AS conclusoes,
+             COALESCE(sum(vh.watched_duration), 0)         AS segundos_assistidos,
+             max(vh.last_watched_at)                       AS ultimo_acesso
+        FROM public.profiles pr
+        LEFT JOIN public.view_history vh
+               ON vh.user_id = pr.id AND ${FILTRO_PERIODO}
+       WHERE pr.role <> 'admin'
+       GROUP BY pr.id, pr.name, pr.email, pr.role, pr.is_active
+       ORDER BY segundos_assistidos DESC, visualizacoes DESC`, p);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}));
+
+app.get('/api/reports/content', requireAdmin, comPeriodo(async (req, res, p) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT v.id, v.title, v.duration, v.content_type,
+             c.name                                        AS categoria,
+             m.title                                       AS modulo,
+             count(vh.*)                                   AS visualizacoes,
+             count(DISTINCT vh.user_id)                    AS espectadores,
+             count(vh.*) FILTER (WHERE vh.completed)       AS conclusoes,
+             COALESCE(sum(vh.watched_duration), 0)         AS segundos_assistidos
+        FROM public.videos v
+        LEFT JOIN public.categories c ON c.id = v.category_id
+        LEFT JOIN public.modules m    ON m.id = v.module_id
+        LEFT JOIN public.view_history vh
+               ON vh.video_id = v.id AND ${FILTRO_PERIODO}
+       GROUP BY v.id, v.title, v.duration, v.content_type, c.name, m.title
+       ORDER BY visualizacoes DESC, segundos_assistidos DESC`, p);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}));
+
+app.get('/api/reports/categories', requireAdmin, comPeriodo(async (req, res, p) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT c.id, c.name,
+             count(DISTINCT v.id)                          AS videos,
+             count(vh.*)                                   AS visualizacoes,
+             count(DISTINCT vh.user_id)                    AS espectadores,
+             COALESCE(sum(vh.watched_duration), 0)         AS segundos_assistidos
+        FROM public.categories c
+        LEFT JOIN public.videos v ON v.category_id = c.id
+        LEFT JOIN public.view_history vh
+               ON vh.video_id = v.id AND ${FILTRO_PERIODO}
+       GROUP BY c.id, c.name
+       ORDER BY visualizacoes DESC, c.name`, p);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}));
+
+app.get('/api/reports/timeline', requireAdmin, comPeriodo(async (req, res, p) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT to_char(date_trunc('day', vh.last_watched_at), 'YYYY-MM-DD') AS dia,
+             count(*)                                      AS visualizacoes,
+             count(DISTINCT vh.user_id)                    AS usuarios,
+             COALESCE(sum(vh.watched_duration), 0)         AS segundos_assistidos
+        FROM public.view_history vh
+       WHERE ${FILTRO_PERIODO}
+       GROUP BY 1 ORDER BY 1`, p);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}));
+
 // Comments
 app.get('/api/comments', async (req, res) => {
   try {

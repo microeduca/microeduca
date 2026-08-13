@@ -1,54 +1,50 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Users, Video, Eye, TrendingUp, History, Upload, Film, Play, CheckCircle2, Clock3, Settings } from 'lucide-react';
+import { Users, Video, Eye, TrendingUp, Film, Play, CheckCircle2, Clock3, Settings, BarChart3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { getUsers, getVideos, getViewHistory, getRecentViews } from '@/lib/storage';
-import AdminVideoManagement from '@/components/admin/AdminVideoManagement';
-import AdminUserManagement from '@/components/admin/AdminUserManagement';
-import AdminViewerHistory from '@/components/admin/AdminViewerHistory';
+import { getRecentViews } from '@/lib/storage';
+import { useQuery } from '@tanstack/react-query';
+import { useCategorias, useHistorico, usePerfis, useVideos } from '@/hooks/queries';
+import { SkeletonEstatisticas, SkeletonTabela } from '@/components/LoadingState';
 import { formatDurationLong } from '@/lib/utils';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [users, setUsers] = useState<any[]>([]);
-  const [videos, setVideos] = useState<any[]>([]);
-  const [viewHistory, setViewHistory] = useState<any[]>([]);
-  const [recentViews, setRecentViews] = useState<any[]>([]);
+  const { data: users = [], isLoading: carregandoUsuarios } = usePerfis();
+  const { data: videos = [] } = useVideos();
+  const { data: categories = [] } = useCategorias();
+  const { data: viewHistory = [] } = useHistorico();
+  const { data: recentViews = [] } = useQuery({
+    queryKey: ['views-recentes'],
+    queryFn: () => getRecentViews(100),
+    staleTime: 60 * 1000,
+  });
+  const carregando = carregandoUsuarios;
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [page, setPage] = useState(1);
   const pageSize = 10;
-
-  useEffect(() => {
-    (async () => {
-      const [u, v, vh, rv] = await Promise.all([
-        getUsers(),
-        getVideos(),
-        getViewHistory(),
-        getRecentViews(100),
-      ]);
-      setUsers(u);
-      setVideos(v);
-      setViewHistory(vh);
-      setRecentViews(rv || []);
-    })();
-  }, []);
 
   const stats = {
     totalUsers: users.filter(u => u.role !== 'admin').length,
     totalVideos: videos.length,
     totalViews: viewHistory.length,
     totalWatchTime: viewHistory.reduce((acc, h) => acc + Math.max(0, Number(h.watchedDuration) || 0), 0),
-    activeToday: users.filter(u => {
-      const today = new Date().toDateString();
-      return new Date(u.createdAt).toDateString() === today;
-    }).length,
+    // Antes contava cadastros do dia sob o rótulo "Engajamento"; agora é
+    // quem realmente assistiu algo nos últimos 7 dias.
+    activeLastWeek: (() => {
+      const limite = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      return new Set(
+        viewHistory
+          .filter(h => new Date(h.lastWatchedAt).getTime() >= limite)
+          .map(h => h.userId)
+      ).size;
+    })(),
   };
 
   const userRanking = users
@@ -96,7 +92,7 @@ export default function AdminDashboard() {
   const filteredHistory = sourceHistory.filter((vh) => {
     const userOk = selectedUserId === 'all' || vh.userId === selectedUserId;
     const video = videos.find(v => v.id === vh.videoId);
-    const catId = vh.videoCategoryId || video?.categoryId || video?.category_id;
+    const catId = vh.videoCategoryId || video?.categoryId;
     const catOk = selectedCategoryId === 'all' || catId === selectedCategoryId;
     return userOk && catOk;
   });
@@ -120,6 +116,10 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button onClick={() => navigate('/admin/relatorios')} variant="outline" className="gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Relatórios
+            </Button>
             <Button onClick={() => navigate('/admin/settings')} variant="outline" className="gap-2">
               <Settings className="h-4 w-4" />
               Configurações
@@ -186,9 +186,9 @@ export default function AdminDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.activeToday}</div>
+              <div className="text-2xl font-bold">{stats.activeLastWeek}</div>
               <p className="text-xs text-muted-foreground">
-                Novos usuários hoje
+                Usuários ativos em 7 dias
               </p>
             </CardContent>
           </Card>
@@ -280,10 +280,8 @@ export default function AdminDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas as categorias</SelectItem>
-                      {Array.from(new Set(videos.map(v => v.categoryId).filter(Boolean))).map((cid: any) => (
-                        <SelectItem key={cid} value={cid}>
-                          {cid}
-                        </SelectItem>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -366,35 +364,6 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* Management Tabs */}
-        <Tabs defaultValue="videos" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[500px]">
-            <TabsTrigger value="videos">
-              <Video className="h-4 w-4 mr-2" />
-              Vídeos
-            </TabsTrigger>
-            <TabsTrigger value="users">
-              <Users className="h-4 w-4 mr-2" />
-              Usuários
-            </TabsTrigger>
-            <TabsTrigger value="history">
-              <History className="h-4 w-4 mr-2" />
-              Histórico
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="videos" className="space-y-4">
-            <AdminVideoManagement />
-          </TabsContent>
-
-          <TabsContent value="users" className="space-y-4">
-            <AdminUserManagement />
-          </TabsContent>
-
-          <TabsContent value="history" className="space-y-4">
-            <AdminViewerHistory />
-          </TabsContent>
-        </Tabs>
       </div>
     </Layout>
   );

@@ -86,12 +86,12 @@ export default function AdminUserManagement() {
     });
   };
 
-  const toggleUserStatus = (userId: string) => {
+  const toggleUserStatus = async (userId: string) => {
     const user = users.find(u => u.id === userId);
     if (user) {
       const updatedUser = { ...user, isActive: !user.isActive };
-      updateUser(updatedUser);
-      setUsers(getUsers());
+      await updateUser(updatedUser);
+      setUsers(await getUsers());
       
       toast({
         title: 'Sucesso',

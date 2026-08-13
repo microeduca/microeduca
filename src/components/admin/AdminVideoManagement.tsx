@@ -130,17 +130,23 @@ export default function AdminVideoManagement() {
     return category?.name || 'Sem categoria';
   };
 
-  const resolveCategoryId = (v: Partial<Video> & Record<string, unknown>): string | undefined => {
-    return (v as any).categoryId || (v as any).category_id || (v as any)?.category?.id;
+  // Aceita tanto o Video tipado quanto a linha crua do banco (snake_case).
+  const resolveCategoryId = (input: Video | Record<string, unknown>): string | undefined => {
+    const v = input as Record<string, unknown> & { category?: { id?: string } };
+    return (v.categoryId as string) || (v.category_id as string) || v.category?.id;
   };
 
-  const getVimeoThumbFallback = (v: Partial<Video> & Record<string, unknown>): string | null => {
-    const videoId = (v as any).vimeoId || (v as any).vimeo_id || ((v as any).video_url || (v as any).videoUrl)?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
+  const getVimeoThumbFallback = (input: Video | Record<string, unknown>): string | null => {
+    const v = input as Record<string, unknown>;
+    const url = (v.video_url || v.videoUrl) as string | undefined;
+    const videoId = (v.vimeoId as string) || (v.vimeo_id as string)
+      || url?.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
     return videoId ? `https://vumbnail.com/${videoId}.jpg` : null;
   };
 
-  const getThumb = (v: Partial<Video> & Record<string, unknown>): string => {
-    return (v as any).thumbnail || getVimeoThumbFallback(v) || '/placeholder.svg';
+  const getThumb = (input: Video | Record<string, unknown>): string => {
+    const v = input as Record<string, unknown>;
+    return (v.thumbnail as string) || getVimeoThumbFallback(input) || '/placeholder.svg';
   };
 
   return (

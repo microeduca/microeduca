@@ -57,6 +57,7 @@ export interface Comment {
 }
 
 export interface ViewHistory {
+  id?: string;
   userId: string;
   videoId: string;
   watchedDuration: number; // in seconds

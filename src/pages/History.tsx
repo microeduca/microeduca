@@ -25,6 +25,10 @@ export default function History() {
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
+  // Item 4 do documento: evitar lista longa numa página só
+  const [pagina, setPagina] = useState(1);
+  const porPagina = 12;
+  const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
     if (!currentUser) {
@@ -97,6 +101,12 @@ export default function History() {
     if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} semanas atrás`;
     if (diffInDays < 365) return `${Math.floor(diffInDays / 30)} meses atrás`;
     return `${Math.floor(diffInDays / 365)} anos atrás`;
+  };
+
+  const paginar = <T,>(lista: T[]) => {
+    const total = Math.max(1, Math.ceil(lista.length / porPagina));
+    const atual = Math.min(pagina, total);
+    return { total, atual, itens: lista.slice((atual - 1) * porPagina, atual * porPagina) };
   };
 
   const filteredAndSortedHistory = useMemo(() => {
@@ -272,12 +282,12 @@ export default function History() {
                 <Input
                   placeholder="Buscar vídeo..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setPagina(1); }}
                   className="pl-10"
                 />
               </div>
 
-              <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setPagina(1); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Categoria" />
                 </SelectTrigger>
@@ -291,7 +301,7 @@ export default function History() {
                 </SelectContent>
               </Select>
 
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPagina(1); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -331,7 +341,7 @@ export default function History() {
               </CardContent>
             </Card>
           ) : (
-            filteredAndSortedHistory.map((item) => {
+            paginar(filteredAndSortedHistory).itens.map((item) => {
               const video = getVideo(item.videoId);
               const category = video ? getCategory(video.categoryId) : null;
               const fallback = videoProgressById[item.videoId];
@@ -431,6 +441,23 @@ export default function History() {
                 </Card>
               );
             })
+          )}
+
+          {paginar(filteredAndSortedHistory).total > 1 && (
+            <div className="flex items-center justify-between pt-2 text-sm">
+              <span className="text-muted-foreground">
+                Página {paginar(filteredAndSortedHistory).atual} de {paginar(filteredAndSortedHistory).total}
+                {' · '}{filteredAndSortedHistory.length} registro(s)
+              </span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm"
+                        disabled={paginar(filteredAndSortedHistory).atual <= 1}
+                        onClick={() => setPagina((p) => Math.max(1, p - 1))}>Anterior</Button>
+                <Button variant="outline" size="sm"
+                        disabled={paginar(filteredAndSortedHistory).atual >= paginar(filteredAndSortedHistory).total}
+                        onClick={() => setPagina((p) => p + 1)}>Próxima</Button>
+              </div>
+            </div>
           )}
         </div>
       </div>

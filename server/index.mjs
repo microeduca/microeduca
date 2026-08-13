@@ -596,11 +596,21 @@ const VIDEOS_VISIVEIS_SQL = `
 
 app.get('/api/videos', async (req, res) => {
   try {
+    const pag = paginacao(req);
     if (req.user.role === 'admin') {
+      const busca = String(req.query.search || '').trim();
+      const params = [];
+      let where = '';
+      if (busca) { params.push(`%${busca}%`); where = `WHERE title ILIKE $${params.length}`; }
+      let total = 0;
+      if (pag) {
+        const { rows: c } = await pool.query(`SELECT count(*)::int AS n FROM public.videos ${where}`, params);
+        total = c[0]?.n || 0;
+      }
+      const limites = pag ? ` LIMIT ${pag.limit} OFFSET ${pag.offset}` : '';
       const { rows } = await pool.query(
-        'SELECT * FROM public.videos ORDER BY COALESCE("order", 0) ASC, uploaded_at ASC'
-      );
-      return res.json(rows);
+        `SELECT * FROM public.videos ${where} ORDER BY COALESCE("order", 0) ASC, uploaded_at ASC${limites}`, params);
+      return responder(res, rows, pag, total);
     }
     await ensureUserContentAccess();
     const { rows } = await pool.query(VIDEOS_VISIVEIS_SQL, [
@@ -756,11 +766,54 @@ app.post('/api/videos/fix-module-category-sync', requireAdmin, async (req, res) 
 // Colunas explícitas: o SELECT * anterior devolvia password_hash de todo mundo.
 const PROFILE_COLUMNS = 'id, email, name, role, assigned_categories, assigned_modules, is_active, created_at, updated_at';
 
-app.get('/api/profiles', requireAdmin, async (_req, res) => {
+/**
+ * Paginação opcional e retrocompatível: sem page/limit a resposta continua
+ * sendo o array puro que as telas já consomem; com eles vem
+ * { items, total, page, limit, pages }.
+ */
+const paginacao = (req) => {
+  const pediu = req.query.page !== undefined || req.query.limit !== undefined;
+  if (!pediu) return null;
+  const limit = Math.max(1, Math.min(200, Number(req.query.limit) || 20));
+  const page = Math.max(1, Number(req.query.page) || 1);
+  return { limit, page, offset: (page - 1) * limit };
+};
+
+const responder = (res, rows, pag, total) =>
+  pag
+    ? res.json({ items: rows, total, page: pag.page, limit: pag.limit,
+                 pages: Math.max(1, Math.ceil(total / pag.limit)) })
+    : res.json(rows);
+
+app.get('/api/profiles', requireAdmin, async (req, res) => {
   try {
     await ensureProfilesAssignedModules();
-    const { rows } = await pool.query(`SELECT ${PROFILE_COLUMNS} FROM public.profiles ORDER BY name`);
-    res.json(rows);
+    const busca = String(req.query.search || '').trim();
+    const filtros = [];
+    const params = [];
+    if (busca) {
+      params.push(`%${busca}%`);
+      filtros.push(`(name ILIKE $${params.length} OR email ILIKE $${params.length})`);
+    }
+    if (req.query.role) {
+      params.push(String(req.query.role));
+      filtros.push(`role = $${params.length}`);
+    }
+    if (req.query.active === 'true' || req.query.active === 'false') {
+      filtros.push(req.query.active === 'true' ? 'is_active IS NOT false' : 'is_active IS false');
+    }
+    const where = filtros.length ? `WHERE ${filtros.join(' AND ')}` : '';
+
+    const pag = paginacao(req);
+    let total = 0;
+    if (pag) {
+      const { rows } = await pool.query(`SELECT count(*)::int AS n FROM public.profiles ${where}`, params);
+      total = rows[0]?.n || 0;
+    }
+    const limites = pag ? ` LIMIT ${pag.limit} OFFSET ${pag.offset}` : '';
+    const { rows } = await pool.query(
+      `SELECT ${PROFILE_COLUMNS} FROM public.profiles ${where} ORDER BY name${limites}`, params);
+    responder(res, rows, pag, total);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1102,8 +1155,16 @@ app.get('/api/view-history', async (req, res) => {
       params.push(userId);
     }
     sql += ' ORDER BY last_watched_at DESC';
+    const pag = paginacao(req);
+    let total = 0;
+    if (pag) {
+      const contagem = sql.replace(/^SELECT \*/, 'SELECT count(*)::int AS n').replace(/ ORDER BY .*$/, '');
+      const { rows: c } = await pool.query(contagem, params);
+      total = c[0]?.n || 0;
+      sql += ` LIMIT ${pag.limit} OFFSET ${pag.offset}`;
+    }
     const { rows } = await pool.query(sql, params);
-    res.json(rows);
+    responder(res, rows, pag, total);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

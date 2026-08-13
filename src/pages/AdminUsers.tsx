@@ -11,13 +11,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Users, UserCheck, Shield, Edit2, Trash2, MoreVertical, UserX, Mail, FolderOpen, FolderPlus, Network } from 'lucide-react';
+import { Plus, Users, UserCheck, Shield, Edit2, Trash2, MoreVertical, UserX, Mail, FolderOpen, FolderPlus, Network, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getUsers, addUser, updateUser, deleteUser, getCategories, getModules, addCategory, addModule } from '@/lib/storage';
 import { User } from '@/types';
 import { getCurrentUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
+import { SkeletonTabela } from '@/components/LoadingState';
 
 export default function AdminUsers() {
   const { toast } = useToast();
@@ -27,9 +28,11 @@ export default function AdminUsers() {
   const [modulesByCategory, setModulesByCategory] = useState<Record<string, any[]>>({});
   useEffect(() => {
     (async () => {
+      setCarregando(true);
       const [u, c] = await Promise.all([getUsers(), getCategories()]);
       setUsers(u);
       setCategories(c);
+      setCarregando(false);
       // Pré-carregar módulos por categoria para facilitar seleção
       const map: Record<string, any[]> = {};
       for (const cat of c) {
@@ -47,6 +50,13 @@ export default function AdminUsers() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   // chave "category:<id>" ou "module:<id>" -> valor de datetime-local
   const [agendamentos, setAgendamentos] = useState<Record<string, string>>({});
+  // Item 4 do documento: busca, filtros e paginação na listagem
+  const [buscaUsuario, setBuscaUsuario] = useState('');
+  const [filtroPerfil, setFiltroPerfil] = useState<'todos' | 'admin' | 'user' | 'cliente'>('todos');
+  const [filtroSituacao, setFiltroSituacao] = useState<'todos' | 'ativos' | 'inativos'>('todos');
+  const [pagina, setPagina] = useState(1);
+  const porPagina = 15;
+  const [carregando, setCarregando] = useState(true);
   
   const [newUser, setNewUser] = useState({
     name: '',
@@ -176,6 +186,20 @@ export default function AdminUsers() {
     }
   };
 
+  const usuariosFiltrados = users.filter((u) => {
+    const termo = buscaUsuario.trim().toLowerCase();
+    const casaBusca = !termo
+      || u.name.toLowerCase().includes(termo)
+      || u.email.toLowerCase().includes(termo);
+    const casaPerfil = filtroPerfil === 'todos' || u.role === filtroPerfil;
+    const casaSituacao = filtroSituacao === 'todos'
+      || (filtroSituacao === 'ativos' ? u.isActive !== false : u.isActive === false);
+    return casaBusca && casaPerfil && casaSituacao;
+  });
+  const totalPaginas = Math.max(1, Math.ceil(usuariosFiltrados.length / porPagina));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const usuariosDaPagina = usuariosFiltrados.slice((paginaAtual - 1) * porPagina, paginaAtual * porPagina);
+
   const activeUsers = users.filter(u => u.isActive !== false && u.role !== 'admin').length;
   const adminUsers = users.filter(u => u.role === 'admin').length;
   const recentUsers = users.filter(u => {
@@ -258,13 +282,53 @@ export default function AdminUsers() {
 
         {/* Users Table */}
         <Card>
-          <CardHeader>
-            <CardTitle>Lista de Usuários</CardTitle>
-            <CardDescription>
-              Todos os usuários cadastrados no sistema
-            </CardDescription>
+          <CardHeader className="space-y-4">
+            <div>
+              <CardTitle>Lista de Usuários</CardTitle>
+              <CardDescription>
+                {usuariosFiltrados.length === users.length
+                  ? `${users.length} usuário(s) cadastrado(s)`
+                  : `${usuariosFiltrados.length} de ${users.length} usuário(s)`}
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-8 h-9"
+                  placeholder="Buscar por nome ou e-mail..."
+                  value={buscaUsuario}
+                  onChange={(e) => { setBuscaUsuario(e.target.value); setPagina(1); }}
+                />
+              </div>
+              <Select value={filtroPerfil} onValueChange={(v: typeof filtroPerfil) => { setFiltroPerfil(v); setPagina(1); }}>
+                <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os perfis</SelectItem>
+                  <SelectItem value="user">Usuário</SelectItem>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="cliente">Cliente</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filtroSituacao} onValueChange={(v: typeof filtroSituacao) => { setFiltroSituacao(v); setPagina(1); }}>
+                <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Ativos e inativos</SelectItem>
+                  <SelectItem value="ativos">Somente ativos</SelectItem>
+                  <SelectItem value="inativos">Somente inativos</SelectItem>
+                </SelectContent>
+              </Select>
+              {(buscaUsuario || filtroPerfil !== 'todos' || filtroSituacao !== 'todos') && (
+                <Button variant="ghost" size="sm"
+                        onClick={() => { setBuscaUsuario(''); setFiltroPerfil('todos'); setFiltroSituacao('todos'); setPagina(1); }}>
+                  Limpar
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
+            {carregando ? <SkeletonTabela linhas={6} colunas={6} /> : (
+            <>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -278,7 +342,7 @@ export default function AdminUsers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map(user => (
+                {usuariosDaPagina.map(user => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -429,15 +493,30 @@ export default function AdminUsers() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {users.length === 0 && (
+                {usuariosFiltrados.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      Nenhum usuário cadastrado ainda
+                      {users.length === 0 ? 'Nenhum usuário cadastrado ainda' : 'Nenhum usuário corresponde aos filtros'}
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
+            {totalPaginas > 1 && (
+              <div className="flex items-center justify-between mt-4 text-sm">
+                <span className="text-muted-foreground">
+                  Página {paginaAtual} de {totalPaginas}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={paginaAtual <= 1}
+                          onClick={() => setPagina((p) => Math.max(1, p - 1))}>Anterior</Button>
+                  <Button variant="outline" size="sm" disabled={paginaAtual >= totalPaginas}
+                          onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}>Próxima</Button>
+                </div>
+              </div>
+            )}
+            </>
+            )}
           </CardContent>
         </Card>
 

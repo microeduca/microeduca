@@ -17,6 +17,7 @@ import ModuleBadge from '@/components/ModuleBadge';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useFavorites } from '@/hooks/useFavorites';
 import { formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
+import { SkeletonCartoes, SkeletonEstatisticas } from '@/components/LoadingState';
 
 export default function UserDashboard() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('user');
@@ -193,6 +194,13 @@ export default function UserDashboard() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 space-y-6">
+        {isLoading && (
+          <div className="space-y-6">
+            <SkeletonEstatisticas />
+            <SkeletonCartoes />
+          </div>
+        )}
+        {!isLoading && (<>
         {/* Header */}
         <div>
           <h1 className="text-3xl font-poppins font-bold mb-2">
@@ -728,6 +736,7 @@ export default function UserDashboard() {
           </Card>
         )}
         </ErrorBoundary>
+        </>)}
       </div>
     </Layout>
   );

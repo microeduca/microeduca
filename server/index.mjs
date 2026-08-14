@@ -63,8 +63,16 @@ const signToken = (user) => jwt.sign(
 // Rotas liberadas: health, login e o webhook do Vimeo (chamador externo).
 const PUBLIC_PATHS = new Set(['/health', '/login', '/vimeo-webhook']);
 
+// A LEITURA de um arquivo também é pública, e não por descuido: o navegador
+// não envia Authorization em <img src>, <a href> ou window.open, então exigir
+// token aqui deixaria todo PDF, imagem e material de apoio inacessível. O
+// endereço é um UUID não adivinhável — mesma proteção de antes. Enviar e
+// excluir continuam restritos a administrador.
+const ehLeituraDeArquivo = (req) =>
+  req.method === 'GET' && /^\/files\/[0-9a-fA-F-]{36}$/.test(req.path);
+
 const authMiddleware = async (req, res, next) => {
-  if (PUBLIC_PATHS.has(req.path)) return next();
+  if (PUBLIC_PATHS.has(req.path) || ehLeituraDeArquivo(req)) return next();
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: 'Não autenticado' });

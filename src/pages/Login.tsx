@@ -50,6 +50,7 @@ export default function Login() {
             <BookOpen className="h-12 w-12 text-primary" />
           </div>
           <CardTitle className="text-2xl font-poppins">Portal de Treinamento – MicroEduca</CardTitle>
+          <p className="text-sm font-medium text-muted-foreground">Versão 2A</p>
           <CardDescription>
             Área exclusiva para Equipe e Cliente Micro.
           </CardDescription>

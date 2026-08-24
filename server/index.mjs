@@ -189,6 +189,39 @@ async function ensureModulesSchema() {
   try { await pool.query('ALTER TABLE public.modules ADD COLUMN IF NOT EXISTS evaluation_url text'); } catch {}
 }
 
+// Registro de acesso ao portal. O relatório antes usava a última visualização
+// de conteúdo como "último acesso", então quem entrava e não assistia nada
+// ficava invisível — é o item (a) do Dashboard no segundo documento.
+async function ensureAccessLog() {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS public.access_log (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+      occurred_at timestamptz NOT NULL DEFAULT now(),
+      ip text,
+      user_agent text
+    )`);
+  } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_access_log_user ON public.access_log(user_id)'); } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_access_log_when ON public.access_log(occurred_at)'); } catch {}
+}
+ensureAccessLog().catch(() => {});
+
+/** Nunca deve derrubar o login: falha em registrar é apenas avisada no log. */
+async function registrarAcesso(req, userId) {
+  try {
+    await ensureAccessLog();
+    const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim() || null;
+    const ua = String(req.headers['user-agent'] || '').slice(0, 400) || null;
+    await pool.query(
+      'INSERT INTO public.access_log (user_id, ip, user_agent) VALUES ($1,$2,$3)',
+      [userId, ip, ua]
+    );
+  } catch (e) {
+    console.warn('[acesso] não foi possível registrar:', e.message);
+  }
+}
+
 // Liberação programada por usuário (item 3 do documento).
 // O release_at das categorias/módulos é global; esta tabela adia o acesso de
 // um usuário específico a um conteúdo que ele já tem concedido.
@@ -550,6 +583,7 @@ app.post('/api/login', async (req, res) => {
     if (!user.password_hash) return res.status(401).json({ error: 'Credenciais inválidas' });
     const ok = await bcrypt.compare(password || '', user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Credenciais inválidas' });
+    await registrarAcesso(req, user.id);
     return res.json({
       token: signToken(user),
       id: user.id,
@@ -1428,12 +1462,17 @@ app.get('/api/reports/summary', requireAdmin, comPeriodo(async (req, res, p) => 
 
 app.get('/api/reports/users', requireAdmin, comPeriodo(async (req, res, p) => {
   try {
+    await ensureAccessLog();
     const { rows } = await pool.query(`
       SELECT pr.id, pr.name, pr.email, pr.role, pr.is_active,
              count(vh.*)                                   AS visualizacoes,
              count(vh.*) FILTER (WHERE vh.completed)       AS conclusoes,
              COALESCE(sum(vh.watched_duration), 0)         AS segundos_assistidos,
-             max(vh.last_watched_at)                       AS ultimo_acesso
+             max(vh.last_watched_at)                       AS ultimo_conteudo,
+             (SELECT max(al.occurred_at) FROM public.access_log al
+               WHERE al.user_id = pr.id
+                 AND ($1::timestamptz IS NULL OR al.occurred_at >= $1)
+                 AND ($2::timestamptz IS NULL OR al.occurred_at <= $2)) AS ultimo_login
         FROM public.profiles pr
         LEFT JOIN public.view_history vh
                ON vh.user_id = pr.id AND ${FILTRO_PERIODO}
@@ -1479,6 +1518,43 @@ app.get('/api/reports/categories', requireAdmin, comPeriodo(async (req, res, p) 
                ON vh.video_id = v.id AND ${FILTRO_PERIODO}
        GROUP BY c.id, c.name
        ORDER BY visualizacoes DESC, c.name`, p);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}));
+
+app.get('/api/reports/access', requireAdmin, comPeriodo(async (req, res, p) => {
+  try {
+    await ensureAccessLog();
+    const { rows } = await pool.query(`
+      SELECT pr.id, pr.name, pr.email, pr.role, pr.is_active,
+             count(al.*)                                   AS acessos,
+             max(al.occurred_at)                           AS ultimo_acesso,
+             min(al.occurred_at)                           AS primeiro_acesso,
+             count(DISTINCT date_trunc('day', al.occurred_at)) AS dias_distintos
+        FROM public.profiles pr
+        LEFT JOIN public.access_log al
+               ON al.user_id = pr.id
+              AND ($1::timestamptz IS NULL OR al.occurred_at >= $1)
+              AND ($2::timestamptz IS NULL OR al.occurred_at <= $2)
+       WHERE pr.role <> 'admin'
+       GROUP BY pr.id, pr.name, pr.email, pr.role, pr.is_active
+       ORDER BY ultimo_acesso DESC NULLS LAST, pr.name`, p);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}));
+
+// Cada entrada no portal, para auditoria — quem entrou e quando.
+app.get('/api/reports/access-log', requireAdmin, comPeriodo(async (req, res, p) => {
+  try {
+    await ensureAccessLog();
+    const { rows } = await pool.query(`
+      SELECT al.occurred_at, al.ip, al.user_agent, pr.name, pr.email
+        FROM public.access_log al
+        JOIN public.profiles pr ON pr.id = al.user_id
+       WHERE ($1::timestamptz IS NULL OR al.occurred_at >= $1)
+         AND ($2::timestamptz IS NULL OR al.occurred_at <= $2)
+       ORDER BY al.occurred_at DESC
+       LIMIT 500`, p);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 }));

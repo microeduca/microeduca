@@ -86,7 +86,7 @@ export const api = {
   addToHistory: (payload: any) => request('/view-history', { method: 'POST', body: JSON.stringify(payload) }),
 
   // Relatórios gerenciais
-  getReport: (nome: 'summary' | 'users' | 'content' | 'categories' | 'timeline', from?: string, to?: string) => {
+  getReport: (nome: 'summary' | 'users' | 'content' | 'categories' | 'timeline' | 'access' | 'access-log', from?: string, to?: string) => {
     const q = new URLSearchParams();
     if (from) q.set('from', from);
     if (to) q.set('to', to);

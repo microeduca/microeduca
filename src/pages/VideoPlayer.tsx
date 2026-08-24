@@ -24,7 +24,8 @@ import {
   Clock,
   User,
   Send,
-  FileText
+  FileText,
+  ClipboardCheck
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { 
@@ -914,6 +915,39 @@ export default function VideoPlayer() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Atividade da aula (itens a/b do 2º documento). Fica logo abaixo do
+                player, em destaque, porque é o passo seguinte esperado do aluno. */}
+            {(video.hasForm || (video as any).has_form) && (() => {
+              const link = video.formUrl || (video as any).form_url;
+              const arquivo = video.formFile || (video as any).form_file;
+              const destino = link || arquivo?.url;
+              if (!destino) return null;
+              return (
+                <Card className="border-primary/40 bg-primary/5">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <ClipboardCheck className="h-5 w-5 text-primary" />
+                      Atividade desta aula
+                    </CardTitle>
+                    <CardDescription>
+                      {isCompleted
+                        ? 'Você concluiu a aula. Responda a atividade para finalizar.'
+                        : 'Ao terminar o vídeo, responda a atividade relacionada ao conteúdo.'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      className="gap-2"
+                      onClick={() => window.open(destino, '_blank', 'noopener,noreferrer')}
+                    >
+                      <ClipboardCheck className="h-4 w-4" />
+                      {arquivo && !link ? `Abrir ${arquivo.filename}` : 'Responder a atividade'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
             {Array.isArray(video.supportFiles || (video as any).support_files) && (video.supportFiles || (video as any).support_files).length > 0 && (
               <Card>

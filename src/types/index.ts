@@ -45,6 +45,10 @@ export interface Video {
   supportFiles?: SupportFile[];
   releaseAt?: Date | null;
   contentType?: 'video' | 'file';
+  /** Atividade da aula: quando true, exige link ou arquivo (itens a/b do 2º doc). */
+  hasForm?: boolean;
+  formUrl?: string | null;
+  formFile?: SupportFile | null;
 }
 
 export interface Comment {

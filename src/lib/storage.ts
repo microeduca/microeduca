@@ -29,6 +29,9 @@ const mapVideo = (row: any): Video => ({
   supportFiles: Array.isArray(row.support_files || row.supportFiles) ? (row.support_files || row.supportFiles) : [],
   releaseAt: row.release_at ? new Date(row.release_at) : (row.releaseAt ? new Date(row.releaseAt) : null),
   contentType: row.content_type || row.contentType || undefined,
+  hasForm: !!(row.has_form ?? row.hasForm),
+  formUrl: row.form_url ?? row.formUrl ?? null,
+  formFile: row.form_file ?? row.formFile ?? null,
 });
 
 const toDbVideo = (v: Video) => ({
@@ -46,6 +49,9 @@ const toDbVideo = (v: Video) => ({
   support_files: v.supportFiles || [],
   release_at: v.releaseAt ? new Date(v.releaseAt).toISOString() : null,
   content_type: v.contentType,
+  has_form: !!v.hasForm,
+  form_url: v.hasForm ? (v.formUrl || null) : null,
+  form_file: v.hasForm ? (v.formFile || null) : null,
 });
 
 const mapUser = (row: any): User => ({

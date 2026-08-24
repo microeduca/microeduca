@@ -54,6 +54,9 @@ export async function addVideo(video: {
   release_at?: string | null;
   support_files?: any[];
   content_type?: string;
+  has_form?: boolean;
+  form_url?: string | null;
+  form_file?: { id: string; url: string; filename: string; mimeType: string } | null;
 }) {
 	return await api.addVideo(video);
 }
@@ -73,6 +76,9 @@ export async function updateVideo(id: string, updates: Partial<{
   release_at?: string | null;
   support_files?: any[];
   content_type?: string;
+  has_form?: boolean;
+  form_url?: string | null;
+  form_file?: { id: string; url: string; filename: string; mimeType: string } | null;
 }>) {
 	return await api.updateVideo(id, updates);
 }

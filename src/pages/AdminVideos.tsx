@@ -70,6 +70,9 @@ interface AdminVideoRow {
   support_files?: Array<{ id: string; url: string; filename: string; mimeType: string; size?: number }>;
   supportFiles?: Array<{ id: string; url: string; filename: string; mimeType: string; size?: number }>;
   content_type?: string;
+  has_form?: boolean;
+  form_url?: string | null;
+  form_file?: { id: string; url: string; filename: string; mimeType: string } | null;
   contentType?: string;
 }
 
@@ -125,6 +128,9 @@ export default function AdminVideos() {
     thumbnail: '',
     releaseAt: '',
     supportFiles: [] as Array<{ id: string; url: string; filename: string; mimeType: string; size?: number }>,
+    hasForm: false,
+    formUrl: '',
+    formFile: null as { id: string; url: string; filename: string; mimeType: string } | null,
   });
   const [newCatSearch, setNewCatSearch] = useState('');
   const [newModuleSearch, setNewModuleSearch] = useState('');
@@ -821,6 +827,9 @@ export default function AdminVideos() {
         uploaded_by: 'admin',
         release_at: fromDateTimeLocalValue(newVideo.releaseAt),
         support_files: newVideo.supportFiles,
+        has_form: newVideo.hasForm,
+        form_url: newVideo.hasForm ? (newVideo.formUrl || null) : null,
+        form_file: newVideo.hasForm ? newVideo.formFile : null,
         content_type: newVideo.videoUrl.includes('/api/files/') ? 'file' : 'video',
       });
 
@@ -837,6 +846,9 @@ export default function AdminVideos() {
         thumbnail: '',
         releaseAt: '',
         supportFiles: [],
+        hasForm: false,
+        formUrl: '',
+        formFile: null,
       });
 
       toast({
@@ -907,6 +919,9 @@ export default function AdminVideos() {
         duration: editingVideo.duration,
         release_at: editingVideo.release_at || (editingVideo.releaseAt ? new Date(editingVideo.releaseAt).toISOString() : null),
         support_files: editingVideo.support_files || editingVideo.supportFiles || [],
+        has_form: !!editingVideo.has_form,
+        form_url: editingVideo.has_form ? (editingVideo.form_url || null) : null,
+        form_file: editingVideo.has_form ? (editingVideo.form_file || null) : null,
         content_type: editingVideo.content_type || editingVideo.contentType || ((editingVideo.video_url || editingVideo.videoUrl || '').includes('/api/files/') ? 'file' : 'video'),
       });
       
@@ -1719,6 +1734,61 @@ export default function AdminVideos() {
                     />
                     <p className="text-xs text-muted-foreground">O arquivo ocupará a mesma estrutura dos vídeos. Para imagens, usaremos a própria imagem como thumbnail.</p>
                   </div>
+                  <div className="space-y-2 rounded-md border p-3">
+                    <Label className="text-sm font-medium">Este conteúdo possui formulário?</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Marcando “Sim”, o aluno vê a chamada para a atividade ao terminar a aula.
+                      É obrigatório informar um link ou anexar o formulário em Word ou PDF.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={newVideo.hasForm ? 'default' : 'outline'}
+                        onClick={() => setNewVideo({ ...newVideo, hasForm: true })}
+                      >Sim</Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={!newVideo.hasForm ? 'default' : 'outline'}
+                        onClick={() => setNewVideo({ ...newVideo, hasForm: false, formUrl: '', formFile: null })}
+                      >Não</Button>
+                    </div>
+                    {newVideo.hasForm && (
+                      <div className="space-y-2 pt-1">
+                        <Input
+                          type="url"
+                          inputMode="url"
+                          placeholder="Link do formulário (Google Forms, Microsoft Forms...)"
+                          value={newVideo.formUrl || ''}
+                          onChange={(e) => setNewVideo({ ...newVideo, formUrl: e.target.value })}
+                        />
+                        <div className="text-xs text-muted-foreground">ou anexe o arquivo:</div>
+                        <Input
+                          type="file"
+                          accept="application/pdf,.doc,.docx"
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            try {
+                              const res = await uploadSupportFile(f);
+                              setNewVideo({ ...newVideo, formFile: res });
+                              toast({ title: 'Formulário anexado' });
+                            } catch {
+                              toast({ title: 'Falha ao enviar o formulário', variant: 'destructive' });
+                            }
+                          }}
+                        />
+                        {newVideo.formFile && (
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="truncate">{newVideo.formFile.filename}</span>
+                            <button type="button" className="text-destructive"
+                                    onClick={() => setNewVideo({ ...newVideo, formFile: null })}>remover</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     <h3 className="text-sm font-medium">Materiais de apoio desta aula</h3>
                     <Input
@@ -2122,6 +2192,55 @@ export default function AdminVideos() {
                       alt="Thumbnail preview"
                       className="mt-2 h-24 w-auto rounded-md object-cover"
                     />
+                  )}
+                </div>
+                <div className="grid gap-2 rounded-md border p-3">
+                  <Label className="text-sm font-medium">Este conteúdo possui formulário?</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Marcando “Sim”, o aluno vê a chamada para a atividade ao terminar a aula.
+                    É obrigatório informar um link ou anexar o formulário em Word ou PDF.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm"
+                            variant={editingVideo.has_form ? 'default' : 'outline'}
+                            onClick={() => setEditingVideo({ ...editingVideo, has_form: true })}>Sim</Button>
+                    <Button type="button" size="sm"
+                            variant={!editingVideo.has_form ? 'default' : 'outline'}
+                            onClick={() => setEditingVideo({ ...editingVideo, has_form: false, form_url: null, form_file: null })}>Não</Button>
+                  </div>
+                  {editingVideo.has_form && (
+                    <div className="space-y-2 pt-1">
+                      <Input
+                        type="url"
+                        inputMode="url"
+                        placeholder="Link do formulário (Google Forms, Microsoft Forms...)"
+                        value={editingVideo.form_url || ''}
+                        onChange={(e) => setEditingVideo({ ...editingVideo, form_url: e.target.value })}
+                      />
+                      <div className="text-xs text-muted-foreground">ou anexe o arquivo:</div>
+                      <Input
+                        type="file"
+                        accept="application/pdf,.doc,.docx"
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          try {
+                            const res = await uploadSupportFile(f);
+                            setEditingVideo({ ...editingVideo, form_file: res });
+                            toast({ title: 'Formulário anexado' });
+                          } catch {
+                            toast({ title: 'Falha ao enviar o formulário', variant: 'destructive' });
+                          }
+                        }}
+                      />
+                      {editingVideo.form_file && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="truncate">{editingVideo.form_file.filename}</span>
+                          <button type="button" className="text-destructive"
+                                  onClick={() => setEditingVideo({ ...editingVideo, form_file: null })}>remover</button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="grid gap-2">

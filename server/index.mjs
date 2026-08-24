@@ -146,6 +146,10 @@ async function ensureContentEnhancementColumns() {
   try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS release_at timestamptz'); } catch {}
   try { await pool.query("ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS support_files jsonb NOT NULL DEFAULT '[]'::jsonb"); } catch {}
   try { await pool.query("ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS content_type text NOT NULL DEFAULT 'video'"); } catch {}
+  // Formulário/atividade por vídeo (itens a e b do segundo documento)
+  try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS has_form boolean NOT NULL DEFAULT false'); } catch {}
+  try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS form_url text'); } catch {}
+  try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS form_file jsonb'); } catch {}
   try { await pool.query('CREATE INDEX IF NOT EXISTS idx_videos_release_at ON public.videos(release_at)'); } catch {}
   try { await pool.query('CREATE INDEX IF NOT EXISTS idx_modules_release_at ON public.modules(release_at)'); } catch {}
   try { await pool.query('CREATE INDEX IF NOT EXISTS idx_categories_release_at ON public.categories(release_at)'); } catch {}
@@ -739,6 +743,20 @@ app.delete('/api/modules/:id', requireAdmin, async (req, res) => {
   }
 });
 
+/**
+ * Com "Este conteúdo possui formulário? Sim", exigir link ou arquivo. Sem isso
+ * o aluno veria a chamada para a atividade sem ter para onde ir.
+ */
+function validarFormulario(body) {
+  if (!body?.has_form) return null;
+  const temLink = typeof body.form_url === 'string' && body.form_url.trim().length > 0;
+  const temArquivo = !!(body.form_file && body.form_file.url);
+  if (!temLink && !temArquivo) {
+    return 'Conteúdo marcado com formulário precisa de um link ou de um arquivo anexado';
+  }
+  return null;
+}
+
 // Videos
 // Não-admin recebe apenas o que pode ver: a regra deixa de depender do
 // navegador. Categoria, módulo (e ancestrais) e o próprio vídeo precisam
@@ -840,7 +858,13 @@ app.post('/api/videos', requireAdmin, async (req, res) => {
       release_at,
       support_files,
       content_type,
+      has_form,
+      form_url,
+      form_file,
     } = req.body || {};
+
+    const erroFormulario = validarFormulario(req.body);
+    if (erroFormulario) return res.status(400).json({ error: erroFormulario });
 
     // ensure optional array column exists
     try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
@@ -848,10 +872,10 @@ app.post('/api/videos', requireAdmin, async (req, res) => {
 
     const order = req.body.order !== undefined ? req.body.order : null;
     const { rows } = await pool.query(
-      `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, module_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url, "order", release_at, support_files, content_type)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now(), $9, $10, $11, $12, $13::jsonb, $14)
+      `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, module_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url, "order", release_at, support_files, content_type, has_form, form_url, form_file)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now(), $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17::jsonb)
        RETURNING *`,
-      [title, description, video_url, thumbnail, category_id, module_id || null, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url, order, release_at || null, JSON.stringify(Array.isArray(support_files) ? support_files : []), content_type || 'video']
+      [title, description, video_url, thumbnail, category_id, module_id || null, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url, order, release_at || null, JSON.stringify(Array.isArray(support_files) ? support_files : []), content_type || 'video', !!has_form, has_form ? (form_url || null) : null, has_form && form_file ? JSON.stringify(form_file) : null]
     );
     const inserted = rows[0];
     if (Array.isArray(category_ids) && category_ids.length > 0) {
@@ -871,7 +895,17 @@ app.put('/api/videos/:id', requireAdmin, async (req, res) => {
     try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
     await ensureContentEnhancementColumns();
 
-    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','module_id','duration','vimeo_id','vimeo_embed_url','order','release_at','support_files','content_type'];
+    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','module_id','duration','vimeo_id','vimeo_embed_url','order','release_at','support_files','content_type','has_form','form_url','form_file'];
+    if (req.body?.has_form !== undefined) {
+      const erro = validarFormulario(req.body);
+      if (erro) return res.status(400).json({ error: erro });
+      // Desmarcar o formulário limpa link e arquivo, senão sobrariam órfãos
+      // que voltariam a valer se alguém remarcasse a opção.
+      if (!req.body.has_form) {
+        req.body.form_url = null;
+        req.body.form_file = null;
+      }
+    }
     const updates = [];
     const values = [];
     let idx = 1;
@@ -883,6 +917,9 @@ app.put('/api/videos/:id', requireAdmin, async (req, res) => {
         } else if (f === 'support_files') {
           updates.push(`"${f}" = $${idx++}::jsonb`);
           values.push(JSON.stringify(Array.isArray(req.body[f]) ? req.body[f] : []));
+        } else if (f === 'form_file') {
+          updates.push(`"${f}" = $${idx++}::jsonb`);
+          values.push(req.body[f] ? JSON.stringify(req.body[f]) : null);
         } else if (f === 'order') {
           updates.push(`"${f}" = $${idx++}`);
           values.push(req.body[f]);

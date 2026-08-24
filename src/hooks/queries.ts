@@ -6,6 +6,8 @@ import {
   getModulesByCategories,
   getUsers,
   getWelcomeVideo,
+  getDiasNovidade,
+  DIAS_NOVIDADE_PADRAO,
 } from '@/lib/storage';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -22,6 +24,7 @@ export const chaves = {
   historico: (userId?: string) => ['historico', userId ?? 'todos'] as const,
   modulos: (categoryIds: string[]) => ['modulos', [...categoryIds].sort().join(',')] as const,
   videoBoasVindas: (role: string) => ['video-boas-vindas', role] as const,
+  diasNovidade: ['dias-novidade'] as const,
 };
 
 const CINCO_MINUTOS = 5 * 60 * 1000;
@@ -68,6 +71,16 @@ export function useVideoBoasVindas(role: 'user' | 'cliente') {
     queryFn: () => getWelcomeVideo(role),
     staleTime: CINCO_MINUTOS,
   });
+}
+
+/** Prazo, em dias, que um conteúdo permanece marcado como "Novo". */
+export function useDiasNovidade() {
+  const q = useQuery({
+    queryKey: chaves.diasNovidade,
+    queryFn: getDiasNovidade,
+    staleTime: CINCO_MINUTOS,
+  });
+  return q.data ?? DIAS_NOVIDADE_PADRAO;
 }
 
 /** Invalida os dados de conteúdo após uma alteração administrativa. */

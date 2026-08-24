@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Folder, ArrowUp, ArrowDown, Pencil, Trash2, Plus, ClipboardCheck } from 'lucide-react';
 import type { Module } from '@/types';
+import { AJUDA_LIBERACAO_CONTEUDO } from '@/lib/utils';
 
 interface ModuleTreeProps {
   module: Module;
@@ -79,7 +80,7 @@ export function ModuleTree({
                 value={editingReleaseAt}
                 onChange={(e) => onReleaseAtChange?.(e.target.value)}
                 className="h-8 w-[190px] shrink-0"
-                title="Liberação programada"
+                title={AJUDA_LIBERACAO_CONTEUDO}
               />
               <Input
                 type="url"
@@ -94,6 +95,7 @@ export function ModuleTree({
                 <Button size="sm" onClick={() => onSaveEdit(module)}>Salvar</Button>
                 <Button size="sm" variant="outline" onClick={onCancelEdit}>Cancelar</Button>
               </div>
+              <p className="w-full text-xs text-muted-foreground">{AJUDA_LIBERACAO_CONTEUDO}</p>
             </div>
           ) : (
             <div className="flex items-center gap-2">

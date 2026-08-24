@@ -11,7 +11,7 @@ import { useEffect } from 'react';
 import { uploadSupportFile } from '@/lib/storage';
 import { api } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
-import { fromDateTimeLocalValue } from '@/lib/utils';
+import { fromDateTimeLocalValue, AJUDA_LIBERACAO_CONTEUDO } from '@/lib/utils';
 
 export default function AdminMaterialUpload() {
   const { toast } = useToast();
@@ -146,7 +146,7 @@ export default function AdminMaterialUpload() {
             <div className="grid gap-2">
               <Label>Liberação programada</Label>
               <Input type="datetime-local" value={releaseAt} onChange={(e) => setReleaseAt(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Deixe vazio para liberar imediatamente.</p>
+              <p className="text-xs text-muted-foreground">{AJUDA_LIBERACAO_CONTEUDO}</p>
             </div>
             <div className="grid gap-2">
               <Label>Arquivo *</Label>

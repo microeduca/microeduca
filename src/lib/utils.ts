@@ -116,3 +116,17 @@ export const fromDateTimeLocalValue = (value: string): string | null => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
+
+/**
+ * Textos de orientação da liberação programada. O documento da MICRO pede
+ * explicação clara da finalidade — antes o campo aparecia sem contexto, e o
+ * cliente se referia a ele como "Programação de vídeo".
+ */
+export const AJUDA_LIBERACAO_CONTEUDO =
+  'Programação de vídeo: o conteúdo fica oculto para os alunos até a data e hora escolhidas, ' +
+  'liberando sozinho depois. Serve para montar cronogramas de treinamento e abrir o material aos poucos. ' +
+  'Deixe em branco para liberar imediatamente.';
+
+export const AJUDA_LIBERACAO_USUARIO =
+  'Libera este conteúdo para ESTE usuário somente a partir da data escolhida. ' +
+  'Os demais usuários não são afetados. Deixe em branco para liberar imediatamente.';

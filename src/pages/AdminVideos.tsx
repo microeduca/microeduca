@@ -18,7 +18,7 @@ import { uploadSupportFile } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import PdfViewer from '@/components/PdfViewer';
 import VimeoUpload from '@/components/admin/VimeoUpload';
-import { aggregateModuleContent, formatDurationLong, fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
+import { AJUDA_LIBERACAO_CONTEUDO, aggregateModuleContent, formatDurationLong, fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
 import {
   DndContext,
   closestCenter,
@@ -1664,7 +1664,7 @@ export default function AdminVideos() {
                       value={newVideo.releaseAt}
                       onChange={(e) => setNewVideo({ ...newVideo, releaseAt: e.target.value })}
                     />
-                    <p className="text-xs text-muted-foreground">Deixe em branco para liberar imediatamente.</p>
+                    <p className="text-xs text-muted-foreground">{AJUDA_LIBERACAO_CONTEUDO}</p>
                   </div>
                   <div className="grid gap-2">
                     <Label>Thumbnail</Label>
@@ -1971,7 +1971,7 @@ export default function AdminVideos() {
                     value={toDateTimeLocalValue(editingVideo.release_at || editingVideo.releaseAt || null)}
                     onChange={(e) => setEditingVideo({ ...editingVideo, release_at: fromDateTimeLocalValue(e.target.value) })}
                   />
-                  <p className="text-xs text-muted-foreground">Deixe em branco para liberar imediatamente.</p>
+                  <p className="text-xs text-muted-foreground">{AJUDA_LIBERACAO_CONTEUDO}</p>
                 </div>
                   <div className="grid gap-2">
                     <Label>Módulo/Submódulo</Label>

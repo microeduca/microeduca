@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { getWelcomeVideo, setWelcomeVideo, uploadSupportFile } from '@/lib/storage';
+import { getWelcomeVideo, setWelcomeVideo, uploadSupportFile, getDiasNovidade, setDiasNovidade, DIAS_NOVIDADE_PADRAO } from '@/lib/storage';
 import { api } from '@/lib/api';
 
 type WelcomeConfig = { title?: string; url?: string };
@@ -16,6 +16,8 @@ export default function AdminSettings() {
   const [clienteCfg, setClienteCfg] = useState<WelcomeConfig>({ title: '', url: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [diasNovidade, setDiasNovidadeState] = useState<string>('7');
+  const [salvandoDias, setSalvandoDias] = useState(false);
   const [files, setFiles] = useState<Array<{ id: string; url: string; filename: string; mimeType: string }>>([]);
   const toEmbed = (raw?: string): string => {
     const val = String(raw || '').trim();
@@ -51,6 +53,8 @@ export default function AdminSettings() {
         setUserCfg({ title: u?.title || '', url: u?.url || '' });
         setClienteCfg({ title: c?.title || '', url: c?.url || '' });
         // opcional: podemos carregar uma lista salva de arquivos via settings
+        const dias = await getDiasNovidade().catch(() => DIAS_NOVIDADE_PADRAO);
+        setDiasNovidadeState(String(dias));
         const stored = await (await import('@/lib/api')).api.getSetting('support_files').catch(() => [] as any);
         if (Array.isArray(stored)) setFiles(stored as any);
       } finally {
@@ -114,6 +118,51 @@ export default function AdminSettings() {
           <h1 className="text-3xl font-poppins font-bold">Configurações</h1>
           <p className="text-muted-foreground">Vídeos de boas‑vindas e preferências gerais</p>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Marcação de conteúdo novo</CardTitle>
+            <CardDescription>
+              Por quantos dias, após a publicação, uma aula aparece com o selo “Novo”
+              para os usuários. O prazo fica visível ao passar o mouse sobre o selo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-end gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="dias-novidade">Dias</Label>
+              <Input
+                id="dias-novidade"
+                type="number"
+                min={1}
+                max={365}
+                value={diasNovidade}
+                onChange={(e) => setDiasNovidadeState(e.target.value)}
+                className="w-[120px]"
+              />
+            </div>
+            <Button
+              disabled={salvandoDias}
+              onClick={async () => {
+                const n = Number(diasNovidade);
+                if (!Number.isFinite(n) || n < 1 || n > 365) {
+                  toast({ title: 'Informe um número entre 1 e 365', variant: 'destructive' });
+                  return;
+                }
+                try {
+                  setSalvandoDias(true);
+                  await setDiasNovidade(n);
+                  toast({ title: `Conteúdos ficam marcados como novos por ${Math.floor(n)} dia(s)` });
+                } catch (e) {
+                  toast({ title: 'Não foi possível salvar', description: (e as Error)?.message, variant: 'destructive' });
+                } finally {
+                  setSalvandoDias(false);
+                }
+              }}
+            >
+              {salvandoDias ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>

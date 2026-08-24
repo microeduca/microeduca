@@ -17,7 +17,7 @@ import { getUsers, addUser, updateUser, deleteUser, getCategories, getModules, a
 import { User } from '@/types';
 import { getCurrentUser } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
+import { fromDateTimeLocalValue, toDateTimeLocalValue, AJUDA_LIBERACAO_USUARIO } from '@/lib/utils';
 import { SkeletonTabela } from '@/components/LoadingState';
 
 export default function AdminUsers() {
@@ -158,7 +158,7 @@ export default function AdminUsers() {
         value={agendamentos[chave] || ''}
         onChange={(e) => setAgendamentos((a) => ({ ...a, [chave]: e.target.value }))}
         className="h-7 w-[180px] shrink-0 text-xs"
-        title="Liberar para este usuário a partir de"
+        title={AJUDA_LIBERACAO_USUARIO}
         placeholder="Liberar a partir de"
       />
     );
@@ -825,6 +825,7 @@ export default function AdminUsers() {
                     </Button>
                   </div>
                   <div className="text-sm text-muted-foreground">Selecione as categorias que o usuário terá acesso</div>
+                  <p className="text-xs text-muted-foreground">{AJUDA_LIBERACAO_USUARIO}</p>
                   <ScrollArea className="h-[200px] w-full border rounded-md p-4">
                     <div className="space-y-3">
                       {categories

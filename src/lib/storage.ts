@@ -343,3 +343,19 @@ export const updateModule = async (id: string, updates: Partial<Omit<Module, 'id
 export const deleteModule = async (id: string): Promise<void> => {
   await api.deleteModule(id);
 };
+
+/**
+ * Quantos dias um conteúdo permanece marcado como "Novo" desde a publicação.
+ * O documento da MICRO pede que esse prazo seja definido e informado ao usuário;
+ * antes eram 7 dias fixos no código, sem nada explicando.
+ */
+export const DIAS_NOVIDADE_PADRAO = 7;
+
+export const getDiasNovidade = async (): Promise<number> => {
+  const bruto = await api.getSetting('dias_novidade').catch(() => null);
+  const n = Number((bruto as { dias?: unknown } | null)?.dias);
+  return Number.isFinite(n) && n > 0 && n <= 365 ? Math.floor(n) : DIAS_NOVIDADE_PADRAO;
+};
+
+export const setDiasNovidade = async (dias: number) =>
+  api.setSetting('dias_novidade', { dias: Math.max(1, Math.min(365, Math.floor(dias))) });

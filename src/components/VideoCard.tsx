@@ -15,10 +15,12 @@ interface VideoCardProps {
   isFavorite?: boolean;
   onToggleFavorite?: (videoId: string) => void;
   isNew?: boolean;
+  /** Prazo que define o selo "Novo"; exibido ao usuário para o critério ficar claro. */
+  diasNovidade?: number;
   onResume?: (videoId: string) => void;
 }
 
-export default function VideoCard({ video, progressPercentage = 0, showProgressBar = true, modulesByCategory, categories, onClick, layout = 'grid', isFavorite, onToggleFavorite, isNew, onResume }: VideoCardProps) {
+export default function VideoCard({ video, progressPercentage = 0, showProgressBar = true, modulesByCategory, categories, onClick, layout = 'grid', isFavorite, onToggleFavorite, isNew, diasNovidade, onResume }: VideoCardProps) {
   const categoryId = (video as any).categoryId || (video as any).category_id;
   const moduleId = (video as any).moduleId || (video as any).module_id;
 
@@ -56,7 +58,14 @@ export default function VideoCard({ video, progressPercentage = 0, showProgressB
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-lg">{video.title}</h3>
-                {isNew && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700">Novo</span>}
+                {isNew && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700"
+                    title={`Publicado nos últimos ${diasNovidade ?? 7} dias`}
+                  >
+                    Novo
+                  </span>
+                )}
               </div>
               <p className="text-sm text-muted-foreground line-clamp-2">{video.description}</p>
             </div>
@@ -132,7 +141,14 @@ export default function VideoCard({ video, progressPercentage = 0, showProgressB
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <CardTitle className="text-base line-clamp-1">{video.title}</CardTitle>
-          {isNew && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700">Novo</span>}
+          {isNew && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700"
+                    title={`Publicado nos últimos ${diasNovidade ?? 7} dias`}
+                  >
+                    Novo
+                  </span>
+                )}
         </div>
       </CardHeader>
       <CardContent>

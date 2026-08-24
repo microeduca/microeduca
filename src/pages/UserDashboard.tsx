@@ -18,9 +18,11 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import { useFavorites } from '@/hooks/useFavorites';
 import { formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 import { SkeletonCartoes, SkeletonEstatisticas } from '@/components/LoadingState';
+import { useDiasNovidade } from '@/hooks/queries';
 
 export default function UserDashboard() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('user');
+  const diasNovidade = useDiasNovidade();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -169,7 +171,8 @@ export default function UserDashboard() {
     totalWatchTime: viewHistory.reduce((acc, h) => acc + h.watchedDuration, 0),
   };
 
-  // Vídeos recentes (últimos assistidos)
+  // Últimos assistidos — não confundir com o selo "Novo", que é sobre a data
+  // de publicação. Eram dois sentidos de "recente" na mesma tela.
   const recentVideos = viewHistory
     .sort((a, b) => new Date(b.lastWatchedAt).getTime() - new Date(a.lastWatchedAt).getTime())
     .slice(0, 6)
@@ -464,7 +467,7 @@ export default function UserDashboard() {
             <TabsList>
               <TabsTrigger value="all">Todos os Vídeos</TabsTrigger>
               <TabsTrigger value="categories">Por Categoria</TabsTrigger>
-              <TabsTrigger value="recent">Recentes</TabsTrigger>
+              <TabsTrigger value="recent">Continuar assistindo</TabsTrigger>
             </TabsList>
             
             <div className="flex items-center gap-2">
@@ -513,7 +516,7 @@ export default function UserDashboard() {
                   return Math.max(0, Math.min(100, raw));
                 })() : 0;
                 const uploadedAt = new Date(video.uploadedAt || (video as any).created_at || 0);
-                const isNew = (Date.now() - uploadedAt.getTime()) < (7 * 24 * 60 * 60 * 1000);
+                const isNew = (Date.now() - uploadedAt.getTime()) < (diasNovidade * 24 * 60 * 60 * 1000);
 
                 return (
                   <VideoCard
@@ -527,6 +530,7 @@ export default function UserDashboard() {
                     isFavorite={isFavorite(video.id)}
                     onToggleFavorite={toggleFavorite}
                     isNew={isNew}
+                    diasNovidade={diasNovidade}
                     onResume={handleVideoClick}
                   />
                 );

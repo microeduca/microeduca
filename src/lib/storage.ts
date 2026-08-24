@@ -63,6 +63,7 @@ const mapUser = (row: any): User => ({
   assignedModules: row.assigned_modules || [],
   createdAt: row.created_at ? new Date(row.created_at) : new Date(),
   isActive: row.is_active,
+  userGroup: row.user_group ?? null,
 });
 
 // Comments
@@ -138,6 +139,7 @@ export const addUser = async (user: User, password?: string): Promise<void> => {
     assigned_categories: user.assignedCategories,
     assigned_modules: user.assignedModules || [],
     is_active: user.isActive !== false,
+    user_group: user.userGroup || null,
     password: password || undefined,
   });
 };
@@ -150,6 +152,7 @@ export const updateUser = async (updatedUser: User): Promise<void> => {
     assigned_categories: updatedUser.assignedCategories,
     assigned_modules: updatedUser.assignedModules || [],
     is_active: updatedUser.isActive !== false,
+    user_group: updatedUser.userGroup || null,
   });
 };
 

@@ -7,6 +7,8 @@ export interface User {
   assignedModules?: string[];
   createdAt: Date;
   isActive?: boolean;
+  /** Classificação do colaborador, independente do perfil de permissão. */
+  userGroup?: 'em_treinamento' | 'efetivo' | null;
   /** Liberação programada individual, por categoria ou módulo. */
   scheduledAccess?: Array<{ scope_type: 'category' | 'module'; scope_id: string; release_at: string | null }>;
 }
@@ -18,6 +20,14 @@ export interface SupportFile {
   mimeType: string;
   size?: number;
 }
+
+export type GrupoUsuario = 'em_treinamento' | 'efetivo';
+
+/** Rótulos exibidos ao usuário para cada grupo. */
+export const ROTULO_GRUPO: Record<GrupoUsuario, string> = {
+  em_treinamento: 'Em treinamento',
+  efetivo: 'Efetivo',
+};
 
 export interface Category {
   id: string;

@@ -14,7 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Plus, Users, UserCheck, Shield, Edit2, Trash2, MoreVertical, UserX, Mail, FolderOpen, FolderPlus, Network, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getUsers, addUser, updateUser, deleteUser, getCategories, getModules, addCategory, addModule } from '@/lib/storage';
-import { User } from '@/types';
+import { User, ROTULO_GRUPO } from '@/types';
 import { getCurrentUser } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { fromDateTimeLocalValue, toDateTimeLocalValue, AJUDA_LIBERACAO_USUARIO } from '@/lib/utils';
@@ -54,6 +54,7 @@ export default function AdminUsers() {
   const [buscaUsuario, setBuscaUsuario] = useState('');
   const [filtroPerfil, setFiltroPerfil] = useState<'todos' | 'admin' | 'user' | 'cliente'>('todos');
   const [filtroSituacao, setFiltroSituacao] = useState<'todos' | 'ativos' | 'inativos'>('todos');
+  const [filtroGrupo, setFiltroGrupo] = useState<'todos' | 'em_treinamento' | 'efetivo' | 'sem_grupo'>('todos');
   const [pagina, setPagina] = useState(1);
   const porPagina = 15;
   const [carregando, setCarregando] = useState(true);
@@ -63,6 +64,7 @@ export default function AdminUsers() {
     email: '',
     password: '',
     role: 'user' as 'admin' | 'user' | 'cliente',
+    userGroup: '' as '' | 'em_treinamento' | 'efetivo',
     assignedCategories: [] as string[],
     assignedModules: [] as string[],
   });
@@ -87,6 +89,7 @@ export default function AdminUsers() {
       name: newUser.name,
       email: newUser.email,
       role: newUser.role,
+      userGroup: newUser.userGroup || null,
       assignedCategories: newUser.assignedCategories,
       assignedModules: newUser.assignedModules,
       createdAt: new Date(),
@@ -101,6 +104,7 @@ export default function AdminUsers() {
       email: '',
       password: '',
       role: 'user',
+      userGroup: '',
       assignedCategories: [],
       assignedModules: [],
     });
@@ -194,7 +198,9 @@ export default function AdminUsers() {
     const casaPerfil = filtroPerfil === 'todos' || u.role === filtroPerfil;
     const casaSituacao = filtroSituacao === 'todos'
       || (filtroSituacao === 'ativos' ? u.isActive !== false : u.isActive === false);
-    return casaBusca && casaPerfil && casaSituacao;
+    const casaGrupo = filtroGrupo === 'todos'
+      || (filtroGrupo === 'sem_grupo' ? !u.userGroup : u.userGroup === filtroGrupo);
+    return casaBusca && casaPerfil && casaSituacao && casaGrupo;
   });
   const totalPaginas = Math.max(1, Math.ceil(usuariosFiltrados.length / porPagina));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -318,9 +324,18 @@ export default function AdminUsers() {
                   <SelectItem value="inativos">Somente inativos</SelectItem>
                 </SelectContent>
               </Select>
-              {(buscaUsuario || filtroPerfil !== 'todos' || filtroSituacao !== 'todos') && (
+              <Select value={filtroGrupo} onValueChange={(v: typeof filtroGrupo) => { setFiltroGrupo(v); setPagina(1); }}>
+                <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os grupos</SelectItem>
+                  <SelectItem value="em_treinamento">Em treinamento</SelectItem>
+                  <SelectItem value="efetivo">Efetivos</SelectItem>
+                  <SelectItem value="sem_grupo">Sem grupo</SelectItem>
+                </SelectContent>
+              </Select>
+              {(buscaUsuario || filtroPerfil !== 'todos' || filtroSituacao !== 'todos' || filtroGrupo !== 'todos') && (
                 <Button variant="ghost" size="sm"
-                        onClick={() => { setBuscaUsuario(''); setFiltroPerfil('todos'); setFiltroSituacao('todos'); setPagina(1); }}>
+                        onClick={() => { setBuscaUsuario(''); setFiltroPerfil('todos'); setFiltroSituacao('todos'); setFiltroGrupo('todos'); setPagina(1); }}>
                   Limpar
                 </Button>
               )}
@@ -335,6 +350,7 @@ export default function AdminUsers() {
                   <TableHead>Nome</TableHead>
                   <TableHead>E-mail</TableHead>
                   <TableHead>Perfil</TableHead>
+                  <TableHead>Grupo</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Acessos</TableHead>
                   <TableHead>Cadastro</TableHead>
@@ -374,6 +390,11 @@ export default function AdminUsers() {
                           Usuário
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      {user.userGroup
+                        ? <Badge variant="secondary">{ROTULO_GRUPO[user.userGroup]}</Badge>
+                        : <span className="text-xs text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell>
                       {user.isActive === false ? (
@@ -495,7 +516,7 @@ export default function AdminUsers() {
                 ))}
                 {usuariosFiltrados.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       {users.length === 0 ? 'Nenhum usuário cadastrado ainda' : 'Nenhum usuário corresponde aos filtros'}
                     </TableCell>
                   </TableRow>
@@ -574,6 +595,23 @@ export default function AdminUsers() {
                     <SelectItem value="cliente">Cliente</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="new-group">Grupo</Label>
+                <Select value={newUser.userGroup || 'sem_grupo'} onValueChange={(value) => setNewUser({ ...newUser, userGroup: value === 'sem_grupo' ? '' : (value as 'em_treinamento' | 'efetivo') })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sem grupo definido" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sem_grupo">Sem grupo</SelectItem>
+                    <SelectItem value="em_treinamento">Em treinamento</SelectItem>
+                    <SelectItem value="efetivo">Efetivo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Classifica o colaborador para direcionar conteúdo e avisos. É independente
+                  do perfil acima, que define o que a pessoa pode fazer no sistema.
+                </p>
               </div>
               <div className="grid gap-2">
                 <Label>Categorias de Acesso</Label>
@@ -784,6 +822,24 @@ export default function AdminUsers() {
                       <SelectItem value="cliente">Cliente</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-group">Grupo</Label>
+                  <Select
+                    value={editingUser.userGroup || 'sem_grupo'}
+                    onValueChange={(value) => setEditingUser({ ...editingUser, userGroup: value === 'sem_grupo' ? null : (value as 'em_treinamento' | 'efetivo') })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Sem grupo definido" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sem_grupo">Sem grupo</SelectItem>
+                      <SelectItem value="em_treinamento">Em treinamento</SelectItem>
+                      <SelectItem value="efetivo">Efetivo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Classifica o colaborador para direcionar conteúdo e avisos. É independente
+                    do perfil acima, que define o que a pessoa pode fazer no sistema.
+                  </p>
                 </div>
                 <div className="flex items-center space-x-2 rounded-md border p-3">
                   <Checkbox

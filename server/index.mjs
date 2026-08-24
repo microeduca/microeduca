@@ -79,7 +79,7 @@ const authMiddleware = async (req, res, next) => {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const { rows } = await pool.query(
-      'SELECT id, email, name, role, assigned_categories, assigned_modules, is_active FROM public.profiles WHERE id = $1 LIMIT 1',
+      'SELECT id, email, name, role, assigned_categories, assigned_modules, is_active, user_group FROM public.profiles WHERE id = $1 LIMIT 1',
       [payload.sub]
     );
     const user = rows[0];
@@ -93,6 +93,12 @@ const authMiddleware = async (req, res, next) => {
     return res.status(401).json({ error: 'Sessão expirada' });
   }
 };
+
+const GRUPOS_VALIDOS = new Set(['em_treinamento', 'efetivo']);
+
+/** Grupo inválido é erro de quem chamou: 400, não 500 vindo da constraint. */
+const grupoInvalido = (valor) =>
+  valor !== undefined && valor !== null && valor !== '' && !GRUPOS_VALIDOS.has(valor);
 
 const requireAdmin = (req, res, next) => {
   if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Acesso restrito a administradores' });
@@ -121,6 +127,7 @@ app.get('/api/me', async (req, res) => {
     assignedCategories: u.assigned_categories || [],
     assignedModules: u.assigned_modules || [],
     isActive: u.is_active,
+    userGroup: u.user_group || null,
   });
 });
 
@@ -137,6 +144,11 @@ async function ensureProfilesAssignedModules() {
   try {
     await pool.query("ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS assigned_modules uuid[] DEFAULT '{}' ");
   } catch {}
+  // Classificação do colaborador, separada do perfil de permissão: alguém pode
+  // ser 'user' e estar 'em_treinamento' ao mesmo tempo.
+  try { await pool.query('ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS user_group text'); } catch {}
+  try { await pool.query("ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_user_group_check"); } catch {}
+  try { await pool.query("ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_group_check CHECK (user_group IS NULL OR user_group IN ('em_treinamento','efetivo'))"); } catch {}
 }
 ensureProfilesAssignedModules().catch(() => {});
 
@@ -150,6 +162,10 @@ async function ensureContentEnhancementColumns() {
   try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS has_form boolean NOT NULL DEFAULT false'); } catch {}
   try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS form_url text'); } catch {}
   try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS form_file jsonb'); } catch {}
+  // Grupos de usuário (item g do 2º documento). Vazio significa "todos", para
+  // que o conteúdo já existente continue visível como sempre foi.
+  try { await pool.query("ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS target_groups text[] DEFAULT '{}'"); } catch {}
+  try { await pool.query("ALTER TABLE public.modules ADD COLUMN IF NOT EXISTS target_groups text[] DEFAULT '{}'"); } catch {}
   try { await pool.query('CREATE INDEX IF NOT EXISTS idx_videos_release_at ON public.videos(release_at)'); } catch {}
   try { await pool.query('CREATE INDEX IF NOT EXISTS idx_modules_release_at ON public.modules(release_at)'); } catch {}
   try { await pool.query('CREATE INDEX IF NOT EXISTS idx_categories_release_at ON public.categories(release_at)'); } catch {}
@@ -597,6 +613,7 @@ app.post('/api/login', async (req, res) => {
       assignedCategories: user.assigned_categories || [],
       assignedModules: user.assigned_modules || [],
       isActive: user.is_active,
+      userGroup: user.user_group || null,
       createdAt: user.created_at,
     });
   } catch (e) {
@@ -617,10 +634,10 @@ app.get('/api/categories', async (_req, res) => {
 app.post('/api/categories', requireAdmin, async (req, res) => {
   try {
     await ensureContentEnhancementColumns();
-    const { name, description, thumbnail, release_at } = req.body || {};
+    const { name, description, thumbnail, release_at, target_groups } = req.body || {};
     const { rows } = await pool.query(
-      'INSERT INTO public.categories (name, description, thumbnail, release_at) VALUES ($1,$2,$3,$4) RETURNING *',
-      [name, description, thumbnail, release_at || null]
+      'INSERT INTO public.categories (name, description, thumbnail, release_at, target_groups) VALUES ($1,$2,$3,$4,$5::text[]) RETURNING *',
+      [name, description, thumbnail, release_at || null, Array.isArray(target_groups) ? target_groups : []]
     );
     res.status(201).json(rows[0]);
   } catch (e) {
@@ -632,14 +649,15 @@ app.put('/api/categories/:id', requireAdmin, async (req, res) => {
   try {
     await ensureContentEnhancementColumns();
     const { id } = req.params;
-    const fields = ['name','description','thumbnail','release_at'];
+    const fields = ['name','description','thumbnail','release_at','target_groups'];
     const updates = [];
     const values = [];
     let idx = 1;
     for (const f of fields) {
       if (req.body[f] !== undefined) {
-        updates.push(`"${f}" = $${idx++}`);
-        values.push(req.body[f]);
+        // text[] precisa de cast explícito; sem ele o Postgres não infere o tipo.
+        updates.push(f === 'target_groups' ? `"${f}" = $${idx++}::text[]` : `"${f}" = $${idx++}`);
+        values.push(f === 'target_groups' ? (Array.isArray(req.body[f]) ? req.body[f] : []) : req.body[f]);
       }
     }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
@@ -691,10 +709,10 @@ app.post('/api/modules', requireAdmin, async (req, res) => {
     await ensureModulesSchema();
     const { category_id, parent_id, title, description, order, release_at, evaluation_url } = req.body || {};
     const { rows } = await pool.query(
-      `INSERT INTO public.modules (category_id, parent_id, title, description, "order", release_at, evaluation_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO public.modules (category_id, parent_id, title, description, "order", release_at, evaluation_url, target_groups)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::text[])
        RETURNING *`,
-      [category_id, parent_id || null, title, description || null, Number.isFinite(order) ? order : 0, release_at || null, evaluation_url || null]
+      [category_id, parent_id || null, title, description || null, Number.isFinite(order) ? order : 0, release_at || null, evaluation_url || null, Array.isArray(req.body?.target_groups) ? req.body.target_groups : []]
     );
     res.status(201).json(rows[0]);
   } catch (e) {
@@ -706,14 +724,14 @@ app.put('/api/modules/:id', requireAdmin, async (req, res) => {
   try {
     await ensureModulesSchema();
     const { id } = req.params;
-    const fields = ['category_id','parent_id','title','description','order','release_at','evaluation_url'];
+    const fields = ['category_id','parent_id','title','description','order','release_at','evaluation_url','target_groups'];
     const updates = [];
     const values = [];
     let idx = 1;
     for (const f of fields) {
       if (req.body[f] !== undefined) {
-        updates.push(`"${f}" = $${idx++}`);
-        values.push(req.body[f]);
+        updates.push(f === 'target_groups' ? `"${f}" = $${idx++}::text[]` : `"${f}" = $${idx++}`);
+        values.push(f === 'target_groups' ? (Array.isArray(req.body[f]) ? req.body[f] : []) : req.body[f]);
       }
     }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
@@ -791,6 +809,9 @@ const VIDEOS_VISIVEIS_SQL = `
         WHERE c.id = ANY(COALESCE(v.category_ids, ARRAY[v.category_id]))
           AND c.id = ANY($1::uuid[])
           AND (c.release_at IS NULL OR c.release_at <= now())
+          -- Categoria sem grupo definido vale para todos; com grupos, só para eles.
+          AND (COALESCE(array_length(c.target_groups,1),0) = 0
+               OR $4::text = ANY(c.target_groups))
           AND NOT EXISTS (SELECT 1 FROM agendamento_usuario a
                            WHERE a.scope_type = 'category' AND a.scope_id = c.id)
           AND (
@@ -808,6 +829,14 @@ const VIDEOS_VISIVEIS_SQL = `
         JOIN agendamento_usuario a
           ON a.scope_type = 'module' AND a.scope_id = ch.id
        WHERE ch.raiz_de = v.module_id
+     )
+     -- Nem restrito a um grupo do qual este usuário não faz parte.
+     AND NOT EXISTS (
+       SELECT 1 FROM cadeia ch
+        JOIN public.modules m3 ON m3.id = ch.id
+       WHERE ch.raiz_de = v.module_id
+         AND COALESCE(array_length(m3.target_groups,1),0) > 0
+         AND NOT ($4::text = ANY(m3.target_groups))
      )
    ORDER BY COALESCE(v."order", 0) ASC, v.uploaded_at ASC`;
 
@@ -834,6 +863,7 @@ app.get('/api/videos', async (req, res) => {
       req.user.assigned_categories || [],
       req.user.assigned_modules || [],
       req.user.id,
+      req.user.user_group || '',
     ]);
     return res.json(rows);
   } catch (e) {
@@ -1000,7 +1030,7 @@ app.post('/api/videos/fix-module-category-sync', requireAdmin, async (req, res) 
 
 // Profiles (Users)
 // Colunas explícitas: o SELECT * anterior devolvia password_hash de todo mundo.
-const PROFILE_COLUMNS = 'id, email, name, role, assigned_categories, assigned_modules, is_active, created_at, updated_at';
+const PROFILE_COLUMNS = 'id, email, name, role, assigned_categories, assigned_modules, is_active, user_group, created_at, updated_at';
 
 /**
  * Paginação opcional e retrocompatível: sem page/limit a resposta continua
@@ -1060,14 +1090,17 @@ app.get('/api/profiles', requireAdmin, async (req, res) => {
 app.post('/api/profiles', requireAdmin, async (req, res) => {
   try {
     await ensureProfilesAssignedModules();
-    const { email, name, role = 'user', assigned_categories = [], assigned_modules = [], is_active = true, password } = req.body || {};
+    const { email, name, role = 'user', assigned_categories = [], assigned_modules = [], is_active = true, password, user_group = null } = req.body || {};
+    if (grupoInvalido(user_group)) {
+      return res.status(400).json({ error: `Grupo inválido: ${user_group}. Use em_treinamento ou efetivo.` });
+    }
     let password_hash = null;
     if (password) {
       password_hash = await bcrypt.hash(password, 10);
     }
     const { rows } = await pool.query(
-      'INSERT INTO public.profiles (email, name, role, assigned_categories, assigned_modules, is_active, password_hash) VALUES ($1,$2,$3,$4::uuid[],$5::uuid[],$6,$7) RETURNING *',
-      [email, name, role, assigned_categories, assigned_modules, is_active, password_hash]
+      'INSERT INTO public.profiles (email, name, role, assigned_categories, assigned_modules, is_active, password_hash, user_group) VALUES ($1,$2,$3,$4::uuid[],$5::uuid[],$6,$7,$8) RETURNING ' + PROFILE_COLUMNS,
+      [email, name, role, assigned_categories, assigned_modules, is_active, password_hash, user_group || null]
     );
     res.status(201).json(rows[0]);
   } catch (e) {
@@ -1079,7 +1112,10 @@ app.put('/api/profiles/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await ensureProfilesAssignedModules();
-    const fields = ['email','name','role','assigned_categories','assigned_modules','is_active'];
+    if (grupoInvalido(req.body?.user_group)) {
+      return res.status(400).json({ error: `Grupo inválido: ${req.body.user_group}. Use em_treinamento ou efetivo.` });
+    }
+    const fields = ['email','name','role','assigned_categories','assigned_modules','is_active','user_group'];
     const updates = [];
     const values = [];
     let idx = 1;
@@ -1095,7 +1131,7 @@ app.put('/api/profiles/:id', requireAdmin, async (req, res) => {
     }
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
     values.push(id);
-    const sql = `UPDATE public.profiles SET ${updates.join(', ')}, updated_at = now() WHERE id = $${idx} RETURNING *`;
+    const sql = `UPDATE public.profiles SET ${updates.join(', ')}, updated_at = now() WHERE id = $${idx} RETURNING ${PROFILE_COLUMNS}`;
     const { rows } = await pool.query(sql, values);
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);

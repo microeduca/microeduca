@@ -12,20 +12,85 @@
 
 | Fase | O que entrega | Commit | Testes |
 |---|---|---|---|
-| A — publicar em produção | resolve (e) e (f) para os usuários reais | **pendente do cliente** | — |
-| B — prazo de "novo" e ajuda de liberação (c, d) | `485461f` | 12/12 |
-| C — registro de acessos ao portal (a) | `724e608` | 14/14 |
-| D — formulário por vídeo (a, b) | `8703515` | 16/16 |
-| E — grupos "Em treinamento" e "Efetivos" (g) | `f5ba210` | 18/18 |
-| F — quadro de avisos por grupo (g) | `10a0d29` | 17/17 |
-| G — chat assíncrono (g) | `002cfd3` | 15/15 |
-| H — home em pastas e novo layout (g) | este commit | 10/10 + navegador |
+| A | publicar em produção — resolve (e) e (f) para os usuários reais | **pendente** | — |
+| B | prazo de "novo" configurável e orientações de liberação (c, d) | `485461f` | 12/12 |
+| C | registro de acessos ao portal (a) | `724e608` | 14/14 |
+| D | formulário por vídeo (a, b) | `8703515` | 16/16 |
+| E | grupos "Em treinamento" e "Efetivos" (g) | `f5ba210` | 18/18 |
+| F | quadro de avisos por grupo (g) | `10a0d29` | 17/17 |
+| G | chat assíncrono entre usuário e administração (g) | `002cfd3` | 15/15 |
+| H | home em pastas e visibilidade no servidor (g) | `b7eeaab` | 10/10 |
+| — | regressão geral e segurança, ao final | — | 31/32 |
+
+O 32º caso foi um teste mal escrito, não um defeito: eu esperava 403 em
+`GET /announcements?all=true` para usuário comum, mas o correto é 200 com a
+lista já filtrada — o `all=true` é ignorado para quem não é admin, e o aviso
+destinado a outro grupo não vem junto. Conferido.
 
 A Fase A continua pendente e é a mais urgente: **enquanto o branch não subir,
 os colaboradores continuam enxergando treinamentos de setores que não são os
 deles em produção.** Ela depende de duas ações que só o dono da conta pode
 fazer — rotacionar as credenciais expostas e definir `DATABASE_URL` e
 `JWT_SECRET` no serviço de produção.
+
+---
+
+## Fase A — o que falta fazer, na ordem
+
+Tudo abaixo é no projeto **MicroEduca** (produção), não no `microeduca-dev`.
+Nenhum destes passos foi executado: exigem credenciais e decisões que são do
+dono da conta.
+
+### 1. Rotacionar as credenciais expostas
+
+O `.env` esteve num repositório público e continua no histórico do Git. Trocar
+o arquivo não basta — as chaves antigas seguem lá.
+
+- **Postgres de produção:** no Railway, serviço Postgres › *Settings* ›
+  rotacionar a senha. Se a variável do app estiver como
+  `DATABASE_URL=${{Postgres.DATABASE_URL}}`, a nova senha se propaga sozinha;
+  se estiver colada como texto, atualize à mão.
+- **Vimeo:** gerar um novo par client ID/secret em
+  developer.vimeo.com e revogar o antigo.
+
+### 2. Variáveis no serviço de produção
+
+O `.env` saiu do versionamento; sem estas duas o servidor não sobe:
+
+- `DATABASE_URL` — de preferência a referência `${{Postgres.DATABASE_URL}}`
+- `JWT_SECRET` — uma cadeia aleatória longa, diferente da do ambiente de teste
+
+### 3. Volume em `/data`
+
+Criar o volume no serviço de produção e montá-lo em `/data`. A migração dos
+arquivos de `bytea` para o volume roda sozinha no boot
+(`migrarArquivosParaVolume`, em `server/index.mjs`), já validada com os 35
+arquivos reais no ambiente de teste.
+
+Depois do primeiro boot, conferir `GET /api/files-storage/status`: deve
+responder `no_banco = 0`.
+
+### 4. Merge e publicação
+
+Merge de `melhorias-doc2` em `main`. A produção está conectada ao GitHub e
+publica sozinha ao receber o push.
+
+### 5. Avisar a MICRO antes
+
+**O deploy desloga todos os usuários uma vez**, porque as sessões antigas não
+têm token. Ninguém perde progresso — é só entrar de novo.
+
+### 6. Conferir depois de publicar
+
+- Repetir a consulta de visibilidade para **Vinicius Santos**: deve devolver
+  **3 pastas**, não 154.
+- Abrir um PDF e uma imagem, para confirmar que os arquivos migraram.
+- Entrar como um colaborador comum e conferir que a home abre em pastas.
+
+### Opcional, sem pressa
+
+Depois que os arquivos estiverem no volume, um `VACUUM FULL` na tabela `files`
+de produção recupera cerca de 84 MB — o banco era 88% blobs de arquivo.
 
 ---
 

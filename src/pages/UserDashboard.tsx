@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Play, Clock, CheckCircle, BookOpen, TrendingUp, Grid, List, Search, FileText } from 'lucide-react';
+import { Play, Clock, CheckCircle, BookOpen, TrendingUp, Grid, List, Search, FileText, MessageCircle } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { getCategories, getVideos, getViewHistory, getWelcomeVideo, getModules } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
@@ -18,12 +18,14 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 import { useFavorites } from '@/hooks/useFavorites';
 import { formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 import { SkeletonCartoes, SkeletonEstatisticas } from '@/components/LoadingState';
-import { useDiasNovidade } from '@/hooks/queries';
+import { useDiasNovidade, useNaoLidas } from '@/hooks/queries';
 import QuadroDeAvisos from '@/components/QuadroDeAvisos';
+import NavegadorDePastas from '@/components/NavegadorDePastas';
 
 export default function UserDashboard() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('user');
   const diasNovidade = useDiasNovidade();
+  const naoLidas = useNaoLidas();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -206,14 +208,42 @@ export default function UserDashboard() {
           </div>
         )}
         {!isLoading && (<>
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-poppins font-bold mb-2">
-            Bem-vindo(a) de volta, {user?.name}!
-          </h1>
-          <p className="text-muted-foreground">
-            Continue aprendendo e desenvolvendo suas habilidades
-          </p>
+        {/* Faixa de boas-vindas, com retomada e acesso à administração */}
+        <div className="rounded-lg bg-gradient-to-r from-primary to-primary/80 p-6 text-primary-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="font-poppins text-2xl font-bold sm:text-3xl">
+                Bem-vindo(a) de volta, {user?.name}!
+              </h1>
+              <p className="mt-1 text-sm opacity-90">
+                Continue aprendendo e desenvolvendo suas habilidades
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {inProgressVideos[0]?.video && (
+                <Button
+                  variant="secondary"
+                  onClick={() => handleVideoClick(inProgressVideos[0].video!.id)}
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  Retomar de onde parou
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                onClick={() => navigate('/mensagens')}
+                className={naoLidas > 0 ? 'ring-2 ring-white/70' : undefined}
+              >
+                <MessageCircle className="mr-2 h-4 w-4" />
+                Falar com a administração
+                {naoLidas > 0 && (
+                  <span className="ml-2 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                    {naoLidas}
+                  </span>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Vídeo de boas‑vindas (configurável no Admin) */}
@@ -237,7 +267,7 @@ export default function UserDashboard() {
 
         {/* Statistics Cards */}
         <div className="grid gap-4 md:grid-cols-4">
-          <Card>
+          <Card className="border-l-4 border-l-primary">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Total de Vídeos</CardTitle>
@@ -250,7 +280,7 @@ export default function UserDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-l-4 border-l-green-500">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Concluídos</CardTitle>
@@ -263,7 +293,7 @@ export default function UserDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-l-4 border-l-amber-500">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Em Progresso</CardTitle>
@@ -276,7 +306,7 @@ export default function UserDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-l-4 border-l-sky-500">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium">Tempo Total</CardTitle>
@@ -464,11 +494,11 @@ export default function UserDashboard() {
 
         {/* Main Content Tabs */}
         <ErrorBoundary>
-        <Tabs defaultValue="all" className="space-y-4">
+        <Tabs defaultValue="pastas" className="space-y-4">
           <div className="flex items-center justify-between">
             <TabsList>
+              <TabsTrigger value="pastas">Pastas</TabsTrigger>
               <TabsTrigger value="all">Todos os Vídeos</TabsTrigger>
-              <TabsTrigger value="categories">Por Categoria</TabsTrigger>
               <TabsTrigger value="recent">Continuar assistindo</TabsTrigger>
             </TabsList>
             
@@ -491,6 +521,16 @@ export default function UserDashboard() {
               </Button>
             </div>
           </div>
+
+          {/* Navegação por pastas: abre só com os nomes, os vídeos vêm ao entrar */}
+          <TabsContent value="pastas">
+            <NavegadorDePastas
+              categorias={visibleCategories as any}
+              videos={visibleVideos as any}
+              modulosPorCategoria={modulesByCategory as any}
+              historico={viewHistory as any}
+            />
+          </TabsContent>
 
           {/* All Videos Tab */}
           <TabsContent value="all" className="space-y-4">
@@ -538,100 +578,6 @@ export default function UserDashboard() {
                 );
               })}
             </div>
-          </TabsContent>
-
-          {/* Categories Tab */}
-          <TabsContent value="categories" className="space-y-6">
-            {visibleCategories.map(category => {
-              const categoryVideos = filteredVideos.filter(v => {
-                const ids: string[] = ((v as unknown as { category_ids?: string[]; category_id?: string }).category_ids) || [v.categoryId || (v as unknown as { category_id?: string }).category_id].filter(Boolean) as string[];
-                return ids.includes(category.id);
-              });
-              if (categoryVideos.length === 0) return null;
-              const mods = (modulesByCategory[category.id] || []) as Array<{ id: string; title: string; parentId?: string | null; order: number }>;
-              return (
-                <div key={category.id}>
-                  <div className="mb-4">
-                    <h2 className="text-xl font-poppins font-semibold">{category.name}</h2>
-                    <p className="text-sm text-muted-foreground">{category.description}</p>
-                  </div>
-                  {/* Função recursiva para renderizar módulos */}
-                  {(() => {
-                    const renderModuleRecursive = (
-                      module: { id: string; title: string; parentId?: string | null },
-                      level: number
-                    ) => {
-                      const moduleVideos = categoryVideos.filter(v => (v.moduleId || (v as any).module_id) === module.id);
-                      const childModules = mods
-                        .filter(m => m.parentId === module.id)
-                        .sort((a, b) => (a.order - b.order) || String(a.title).localeCompare(String(b.title)));
-                      
-                      const hasContent = moduleVideos.length > 0 || childModules.length > 0;
-                      if (!hasContent) return null;
-
-                      const headingClass = level === 0 ? 'text-lg font-semibold' : level === 1 ? 'text-base font-medium' : 'text-sm font-medium';
-                      const indentStyle = level > 0 ? { marginLeft: `${level * 1}rem` } : {};
-
-                      return (
-                        <div key={module.id} style={indentStyle} className="mb-6">
-                          <h3 className={`${headingClass} mb-2`}>{module.title}</h3>
-                          {moduleVideos.length > 0 && (
-                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-4">
-                              {moduleVideos.map(video => (
-                                <Card key={video.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleVideoClick(video.id)}>
-                                  <div className="aspect-video relative">
-                                    {video.thumbnail ? (
-                                      <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
-                                    ) : (
-                                      <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                                        <Play className="h-12 w-12 text-primary/50" />
-                                      </div>
-                                    )}
-                                  </div>
-                                  <CardHeader className="pb-3">
-                                    <CardTitle className="text-base line-clamp-1">{video.title}</CardTitle>
-                                  </CardHeader>
-                                </Card>
-                              ))}
-                            </div>
-                          )}
-                          {childModules.map(child => renderModuleRecursive(child, level + 1))}
-                        </div>
-                      );
-                    };
-
-                    return mods
-                      .filter(m => !m.parentId)
-                      .sort((a, b) => (a.order - b.order) || String(a.title).localeCompare(String(b.title)))
-                      .map(root => renderModuleRecursive(root, 0));
-                  })()}
-                  {/* Fallback: vídeos sem módulo */}
-                  {categoryVideos.filter(v => !(v.moduleId || (v as any).module_id)).length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">Outros</h3>
-                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {categoryVideos.filter(v => !(v.moduleId || (v as any).module_id)).map(video => (
-                          <Card key={video.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleVideoClick(video.id)}>
-                            <div className="aspect-video relative">
-                              {video.thumbnail ? (
-                                <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                                  <Play className="h-12 w-12 text-primary/50" />
-                                </div>
-                              )}
-                            </div>
-                            <CardHeader className="pb-3">
-                              <CardTitle className="text-base line-clamp-1">{video.title}</CardTitle>
-                            </CardHeader>
-                          </Card>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
           </TabsContent>
 
           {/* Recent Tab */}

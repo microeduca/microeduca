@@ -824,8 +824,26 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Categories
-app.get('/api/categories', async (_req, res) => {
+app.get('/api/categories', async (req, res) => {
   try {
+    if (req.user.role !== 'admin') {
+      // Mesma regra das pastas: o colaborador não precisa receber a lista de
+      // setores dos outros só para o navegador escondê-la depois.
+      await ensureUserContentAccess();
+      const { rows } = await pool.query(
+        `SELECT c.* FROM public.categories c
+          WHERE c.id = ANY($1::uuid[])
+            AND (c.release_at IS NULL OR c.release_at <= now())
+            AND (COALESCE(array_length(c.target_groups,1),0) = 0 OR $3::text = ANY(c.target_groups))
+            AND NOT EXISTS (
+              SELECT 1 FROM public.user_content_access a
+               WHERE a.user_id = $2 AND a.scope_type = 'category' AND a.scope_id = c.id
+                 AND a.release_at IS NOT NULL AND a.release_at > now())
+          ORDER BY c.name`,
+        [req.user.assigned_categories || [], req.user.id, req.user.user_group || ''],
+      );
+      return res.json(rows);
+    }
     const { rows } = await pool.query('SELECT * FROM public.categories ORDER BY name');
     res.json(rows);
   } catch (e) {
@@ -884,6 +902,56 @@ app.delete('/api/categories/:id', requireAdmin, async (req, res) => {
 });
 
 // Modules (hierárquico: category_id, parent_id)
+// Pastas visíveis a um não-admin, pelas mesmas regras dos vídeos. Antes a
+// listagem devolvia todos os módulos e cabia ao navegador esconder os alheios:
+// era assim que um colaborador do almoxarifado enxergava as ~45 subpastas do
+// setorial. Os ancestrais de uma pasta concedida entram na resposta mesmo sem
+// serem concedidos, senão a trilha até ela ficaria quebrada.
+const MODULOS_VISIVEIS_SQL = `
+  WITH RECURSIVE cadeia AS (
+    SELECT id, parent_id, category_id, release_at, target_groups, id AS raiz_de
+      FROM public.modules
+    UNION ALL
+    SELECT m.id, m.parent_id, m.category_id, m.release_at, m.target_groups, c.raiz_de
+      FROM public.modules m
+      JOIN cadeia c ON c.parent_id = m.id
+  ),
+  agendamento_usuario AS (
+    SELECT scope_type, scope_id
+      FROM public.user_content_access
+     WHERE user_id = $3 AND release_at IS NOT NULL AND release_at > now()
+  ),
+  situacao AS (
+    SELECT ch.raiz_de AS module_id,
+           bool_and(ch.release_at IS NULL OR ch.release_at <= now()) AS liberado,
+           bool_or(ch.id = ANY($2::uuid[]))                          AS concedido,
+           bool_or(COALESCE(array_length(ch.target_groups,1),0) > 0
+                   AND NOT ($4::text = ANY(ch.target_groups)))        AS fora_do_grupo,
+           bool_or(a.scope_id IS NOT NULL)                            AS agendado
+      FROM cadeia ch
+      LEFT JOIN agendamento_usuario a
+        ON a.scope_type = 'module' AND a.scope_id = ch.id
+     GROUP BY ch.raiz_de
+  )
+  SELECT m.* FROM public.modules m
+   JOIN situacao s ON s.module_id = m.id
+   JOIN public.categories c ON c.id = m.category_id
+   WHERE c.id = ANY($1::uuid[])
+     AND (c.release_at IS NULL OR c.release_at <= now())
+     AND (COALESCE(array_length(c.target_groups,1),0) = 0 OR $4::text = ANY(c.target_groups))
+     AND NOT EXISTS (SELECT 1 FROM agendamento_usuario a
+                      WHERE a.scope_type = 'category' AND a.scope_id = c.id)
+     AND s.liberado AND NOT s.fora_do_grupo AND NOT s.agendado
+     AND (
+       NOT EXISTS (SELECT 1 FROM public.modules m2
+                    WHERE m2.category_id = m.category_id AND m2.id = ANY($2::uuid[]))
+       OR s.concedido
+       OR EXISTS (SELECT 1 FROM cadeia ch
+                   WHERE ch.id = m.id AND ch.raiz_de = ANY($2::uuid[]))
+     )
+     AND ($5::uuid[] IS NULL OR m.category_id = ANY($5::uuid[]))
+   ORDER BY m."order", m.title`;
+
 app.get('/api/modules', async (req, res) => {
   try {
     await ensureModulesSchema();
@@ -892,6 +960,19 @@ app.get('/api/modules', async (req, res) => {
     const lista = categoryIds
       ? String(categoryIds).split(',').map((s) => s.trim()).filter(Boolean)
       : (categoryId ? [String(categoryId)] : []);
+
+    if (req.user.role !== 'admin') {
+      await ensureUserContentAccess();
+      const { rows } = await pool.query(MODULOS_VISIVEIS_SQL, [
+        req.user.assigned_categories || [],
+        req.user.assigned_modules || [],
+        req.user.id,
+        req.user.user_group || '',
+        lista.length > 0 ? lista : null,
+      ]);
+      return res.json(rows);
+    }
+
     const params = [];
     let sql = 'SELECT * FROM public.modules';
     if (lista.length > 0) {

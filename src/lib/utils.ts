@@ -35,14 +35,14 @@ export const formatDurationLong = (seconds: number): string => {
   const minutes = Math.floor((total % 3600) / 60);
   const remainingSeconds = total % 60;
 
-  if (hours > 0) {
-    const parts = [`${hours}h`];
-    if (minutes > 0) parts.push(`${minutes}min`);
-    if (remainingSeconds > 0) parts.push(`${remainingSeconds}s`);
-    return parts.join(' ');
-  }
-
-  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+  // Sempre por extenso: abaixo de uma hora a versão anterior caía no formato
+  // de relógio ("13:06"), e a mesma lista misturava "1h 50min 53s" com
+  // "13:06". Quem quer relógio usa formatDurationClock.
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}min`);
+  if (remainingSeconds > 0 || parts.length === 0) parts.push(`${remainingSeconds}s`);
+  return parts.join(' ');
 };
 
 export const formatDurationClock = (seconds: number): string => {

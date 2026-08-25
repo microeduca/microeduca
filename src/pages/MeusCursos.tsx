@@ -806,15 +806,16 @@ export default function MeusCursos() {
         )}
 
         {/* Info Alert */}
-        {userCategories.length > 0 && userCategories.length < categories.length && (
+        {userCategories.length > 0 && (
           <Card className="border-primary/20 bg-primary/5">
             <CardContent className="flex items-start gap-3 pt-6">
               <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
               <div className="space-y-1">
-                <p className="text-sm font-medium">Cursos Limitados</p>
+                <p className="text-sm font-medium">Precisa de outro treinamento?</p>
                 <p className="text-sm text-muted-foreground">
-                  Você tem acesso a {userCategories.length} de {categories.length} cursos disponíveis. 
-                  Para acessar mais cursos, entre em contato com o administrador.
+                  Você tem acesso a {userCategories.length}{' '}
+                  {userCategories.length === 1 ? 'curso' : 'cursos'}. Para liberar outros,
+                  fale com a administração.
                 </p>
               </div>
             </CardContent>

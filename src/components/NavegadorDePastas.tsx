@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ChevronRight, Folder, Home, Play, CheckCircle2, FileText } from 'lucide-react';
 import { aggregateModuleContent, formatDurationLong, isActualVideo } from '@/lib/utils';
@@ -184,6 +183,14 @@ export default function NavegadorDePastas({
 
       {/* Pastas do nível */}
       {pastas.length > 0 && (
+        <>
+        <div className="flex items-center gap-2 pt-1">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {categoriaAtual ? 'Subpastas' : 'Pastas'}
+          </h3>
+          <span className="text-xs text-muted-foreground/70">{pastas.length}</span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {pastas.map((p) => (
             <button key={p.id} onClick={p.alvo} className="text-left">
@@ -206,16 +213,19 @@ export default function NavegadorDePastas({
             </button>
           ))}
         </div>
+        </>
       )}
 
       {/* Aulas do nível */}
       {aulas.length > 0 && (
         <div className="space-y-2">
-          {pastas.length > 0 && (
-            <h3 className="pt-2 text-sm font-medium text-muted-foreground">
-              Aulas desta pasta ({aulas.length})
+          <div className="flex items-center gap-2 pt-1">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Aulas
             </h3>
-          )}
+            <span className="text-xs text-muted-foreground/70">{aulas.length}</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
           {aulas.map((v) => {
             const p = progressoDe(v.id, v.duration);
             return (
@@ -244,7 +254,17 @@ export default function NavegadorDePastas({
                     </div>
                     {p && !p.concluido && <Progress value={p.percentual} className="mt-1.5 h-1" />}
                   </div>
-                  {p?.concluido && <Badge variant="secondary" className="shrink-0">Concluído</Badge>}
+                  {p && (
+                    <span
+                      className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                        p.concluido
+                          ? 'border-green-600/40 text-green-700'
+                          : 'border-amber-600/40 text-amber-700'
+                      }`}
+                    >
+                      {p.concluido ? 'Concluído' : `${p.percentual}%`}
+                    </span>
+                  )}
                 </CardContent>
               </Card>
             );

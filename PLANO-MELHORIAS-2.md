@@ -131,11 +131,27 @@ que têm pastas visíveis: nenhuma pasta órfã.
 
 ### Layout
 
-Cartões de indicador com borda colorida à esquerda, faixa de boas-vindas com
-"Retomar de onde parou" e acesso direto ao chat, e listas agrupadas com
-contadores — o modelo do sistema de Almoxarifado que o cliente enviou como
-referência. As cores saem das variáveis de marca que já estavam no
-`tailwind.config.ts`.
+A referência enviada é a captura do sistema de Almoxarifado da Micro
+(`word/media/image9.png` do documento). Traço a traço, o que foi reproduzido:
+
+| No modelo | No portal |
+|---|---|
+| faixa marrom cheia, marca em branco à esquerda | cabeçalho `bg-primary`, "MICROEDUCA · PORTAL DE TREINAMENTO" |
+| navegação em segunda linha, versalete espaçado, sublinhado na aba atual | mesma barra, com `aria-current` na página aberta |
+| cartões de indicador: número grande, rótulo em versalete, borda colorida à esquerda | os quatro indicadores da home |
+| seções com título em versalete e contador ao lado | "PASTAS 6", "AULAS 16" no navegador |
+| etiqueta de situação em versalete, contornada | "CONCLUÍDO" / "45%" nas aulas |
+| data e informação secundária alinhadas à direita | duração e situação à direita de cada linha |
+
+As cores saem das variáveis de marca que já estavam no `tailwind.config.ts`;
+o marrom do cabeçalho é o mesmo `rgb(139, 76, 75)` do logotipo da Micro.
+
+### Critério de "vídeos recentes" às claras
+
+O item (c) pede o período informado claramente, com o número de dias. Estava
+só no `title` do selo — aparecia ao passar o mouse. Agora é uma linha visível
+na tela: *"Aulas publicadas nos últimos 7 dias aparecem com o selo Novo"*, com
+o número vindo da configuração, não fixo no código.
 
 ### Duração por extenso
 

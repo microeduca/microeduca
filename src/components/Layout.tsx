@@ -1,8 +1,8 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { getCurrentUser, logout } from '@/lib/auth';
-import { LogOut, User, BookOpen, Settings, Menu } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { LogOut, User, Menu } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const user = getCurrentUser();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { toast } = useToast();
   const [isPwdOpen, setIsPwdOpen] = useState(false);
   const [currentPwd, setCurrentPwd] = useState('');
@@ -122,46 +123,75 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      <header className="bg-background border-b border-border sticky top-0 z-50 shadow-sm">
+      {/* Cabeçalho no padrão do modelo enviado pela MICRO: faixa marrom com a
+          marca à esquerda e a navegação numa segunda linha, em versalete, com
+          sublinhado na página atual. */}
+      <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-sm">
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <button
-                onClick={() => navigate('/')}
-                className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
-              >
-                <BookOpen className="h-8 w-8 text-primary" />
-                <span className="font-poppins font-bold text-xl bg-gradient-primary bg-clip-text text-transparent">
-                  MicroEduca
-                </span>
-              </button>
-              
-              {user && (
-                <nav className="hidden md:flex items-center space-x-6">
-                  {navegacao.map((item) => (
+          <div className="flex h-14 items-center justify-between gap-3">
+            <button
+              onClick={() => navigate('/')}
+              className="flex min-w-0 items-baseline gap-2 transition-opacity hover:opacity-80"
+            >
+              <span className="font-poppins text-xl font-bold tracking-wide">MICROEDUCA</span>
+              <span className="hidden truncate text-[11px] uppercase tracking-[0.18em] opacity-70 sm:inline">
+                Portal de Treinamento
+              </span>
+            </button>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              {user ? (
+                <>
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="hidden h-4 w-4 opacity-70 sm:block" />
                     <button
-                      key={item.destino}
-                      onClick={() => navigate(item.destino)}
-                      className="text-muted-foreground hover:text-foreground transition-colors font-inter inline-flex items-center gap-1.5"
+                      type="button"
+                      onClick={() => setIsPwdOpen(true)}
+                      className="max-w-[9rem] truncate font-inter font-medium underline underline-offset-2 hover:opacity-80"
+                      title="Alterar senha"
                     >
-                      {item.rotulo}
-                      {!!item.contador && (
-                        <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
-                          {item.contador}
-                        </span>
-                      )}
+                      {user.name}
                     </button>
-                  ))}
-                </nav>
+                    {user.role === 'admin' && (
+                      <span className="rounded-full bg-primary-foreground/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={logout}
+                    className="border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+                  >
+                    <LogOut className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Sair</span>
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/login')}
+                  className="border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+                >
+                  Entrar
+                </Button>
               )}
-            </div>
-            
-            <div className="flex items-center space-x-2 sm:space-x-4">
+
               {user && (
                 <Sheet open={menuAberto} onOpenChange={setMenuAberto}>
                   <SheetTrigger asChild>
-                    <Button variant="ghost" size="icon" className="md:hidden" aria-label="Abrir menu">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground md:hidden"
+                      aria-label="Abrir menu"
+                    >
                       <Menu className="h-5 w-5" />
+                      {naoLidas > 0 && (
+                        <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary-foreground" />
+                      )}
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="left" className="w-[260px]">
@@ -173,7 +203,7 @@ export default function Layout({ children }: LayoutProps) {
                         <button
                           key={item.destino}
                           onClick={() => { setMenuAberto(false); navigate(item.destino); }}
-                          className="flex items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
+                          className="flex items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
                         >
                           {item.rotulo}
                           {!!item.contador && (
@@ -187,44 +217,37 @@ export default function Layout({ children }: LayoutProps) {
                   </SheetContent>
                 </Sheet>
               )}
-              {user ? (
-                <>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <button
-                      type="button"
-                      onClick={() => setIsPwdOpen(true)}
-                      className="text-foreground font-medium font-inter underline underline-offset-2 hover:text-primary"
-                      title="Alterar senha"
-                    >
-                      {user.name}
-                    </button>
-                    {user.role === 'admin' && (
-                      <span className="px-2 py-0.5 bg-gradient-primary text-primary-foreground text-xs rounded-full font-semibold">
-                        Admin
-                      </span>
-                    )}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={logout}
-                    className="flex items-center space-x-1"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Sair</span>
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  onClick={() => navigate('/login')}
-                  className="bg-gradient-primary text-primary-foreground hover:shadow-glow transition-all duration-base"
-                >
-                  Entrar
-                </Button>
-              )}
             </div>
           </div>
+
+          {user && (
+            <nav className="hidden items-center gap-6 overflow-x-auto md:flex">
+              {navegacao.map((item) => {
+                const atual =
+                  pathname === item.destino ||
+                  (item.destino !== '/admin' && pathname.startsWith(`${item.destino}/`));
+                return (
+                  <button
+                    key={item.destino}
+                    onClick={() => navigate(item.destino)}
+                    aria-current={atual ? 'page' : undefined}
+                    className={`-mb-px inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
+                      atual
+                        ? 'border-primary-foreground'
+                        : 'border-transparent opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    {item.rotulo}
+                    {!!item.contador && (
+                      <span className="rounded-full bg-primary-foreground/25 px-1.5 text-[10px] font-semibold tracking-normal">
+                        {item.contador}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
         </div>
       </header>
       

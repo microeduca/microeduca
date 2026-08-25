@@ -268,56 +268,48 @@ export default function UserDashboard() {
         {/* Statistics Cards */}
         <div className="grid gap-4 md:grid-cols-4">
           <Card className="border-l-4 border-l-primary">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">Total de Vídeos</CardTitle>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="text-3xl font-bold leading-none">{stats.totalVideos}</div>
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalVideos}</div>
-              <p className="text-xs text-muted-foreground">disponíveis para você</p>
+              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Total de Vídeos</p>
+              <p className="text-xs text-muted-foreground/80">disponíveis para você</p>
             </CardContent>
           </Card>
 
           <Card className="border-l-4 border-l-green-500">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">Concluídos</CardTitle>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="text-3xl font-bold leading-none">{stats.watchedVideos}</div>
                 <CheckCircle className="h-4 w-4 text-green-500" />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.watchedVideos}</div>
-              <p className="text-xs text-muted-foreground">vídeos completos</p>
+              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Concluídos</p>
+              <p className="text-xs text-muted-foreground/80">vídeos completos</p>
             </CardContent>
           </Card>
 
           <Card className="border-l-4 border-l-amber-500">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">Em Progresso</CardTitle>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="text-3xl font-bold leading-none">{stats.inProgress}</div>
                 <TrendingUp className="h-4 w-4 text-primary" />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.inProgress}</div>
-              <p className="text-xs text-muted-foreground">continue assistindo</p>
+              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Em Progresso</p>
+              <p className="text-xs text-muted-foreground/80">continue assistindo</p>
             </CardContent>
           </Card>
 
           <Card className="border-l-4 border-l-sky-500">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">Tempo Total</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="text-3xl font-bold leading-none">
+                  {Math.floor(stats.totalWatchTime / 3600)}h
+                </div>
+                <Clock className="h-4 w-4 text-sky-600" />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {Math.floor(stats.totalWatchTime / 3600)}h
-              </div>
-              <p className="text-xs text-muted-foreground">de aprendizado</p>
+              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Tempo Total</p>
+              <p className="text-xs text-muted-foreground/80">de aprendizado</p>
             </CardContent>
           </Card>
         </div>
@@ -521,6 +513,14 @@ export default function UserDashboard() {
               </Button>
             </div>
           </div>
+
+          {/* O documento pede o critério de "vídeos recentes" às claras, com o
+              número de dias — não escondido num tooltip do selo. */}
+          <p className="text-xs text-muted-foreground">
+            Aulas publicadas nos últimos <strong>{diasNovidade}</strong>{' '}
+            {diasNovidade === 1 ? 'dia' : 'dias'} aparecem com o selo <em>Novo</em>.
+            {' '}Em <em>Continuar assistindo</em> ficam as que você começou e não terminou.
+          </p>
 
           {/* Navegação por pastas: abre só com os nomes, os vídeos vêm ao entrar */}
           <TabsContent value="pastas">

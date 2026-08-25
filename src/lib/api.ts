@@ -100,6 +100,13 @@ export const api = {
   updateAnnouncement: (id: string, payload: unknown) => request(`/announcements/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteAnnouncement: (id: string) => request(`/announcements/${id}`, { method: 'DELETE' }),
 
+  // Mensagens
+  getMessages: (userId?: string) => request(`/messages${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`, { method: 'GET' }),
+  getMessageThreads: () => request('/messages/threads', { method: 'GET' }),
+  getUnreadCount: () => request('/messages/unread', { method: 'GET' }),
+  sendMessage: (body: string, userId?: string) =>
+    request('/messages', { method: 'POST', body: JSON.stringify({ body, userId }) }),
+
   // Settings
   getSetting: (key: string) => request(`/settings/${encodeURIComponent(key)}`, { method: 'GET' }),
   setSetting: (key: string, value: any) => request(`/settings/${encodeURIComponent(key)}`, { method: 'POST', body: JSON.stringify(value) }),

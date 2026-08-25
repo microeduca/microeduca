@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
+import { useNaoLidas } from '@/hooks/queries';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 interface LayoutProps {
@@ -101,6 +102,7 @@ export default function Layout({ children }: LayoutProps) {
 
   // Mesma lista alimenta o menu do desktop e o do celular; antes a navegação
   // era hidden md:flex sem alternativa, então no telefone não havia menu algum.
+  const naoLidas = useNaoLidas();
   const navegacao = user?.role === 'admin'
     ? [
         { rotulo: 'Dashboard', destino: '/admin' },
@@ -108,12 +110,14 @@ export default function Layout({ children }: LayoutProps) {
         { rotulo: 'Categorias & Módulos', destino: '/admin/taxonomia' },
         { rotulo: 'Usuários', destino: '/admin/users' },
         { rotulo: 'Avisos', destino: '/admin/avisos' },
+        { rotulo: 'Mensagens', destino: '/admin/mensagens', contador: naoLidas },
         { rotulo: 'Relatórios', destino: '/admin/relatorios' },
       ]
     : [
         { rotulo: 'Meus Cursos', destino: '/meus-cursos' },
         { rotulo: 'Todos os Vídeos', destino: '/dashboard' },
         { rotulo: 'Histórico', destino: '/history' },
+        { rotulo: 'Mensagens', destino: '/mensagens', contador: naoLidas },
       ];
 
   return (
@@ -138,9 +142,14 @@ export default function Layout({ children }: LayoutProps) {
                     <button
                       key={item.destino}
                       onClick={() => navigate(item.destino)}
-                      className="text-muted-foreground hover:text-foreground transition-colors font-inter"
+                      className="text-muted-foreground hover:text-foreground transition-colors font-inter inline-flex items-center gap-1.5"
                     >
                       {item.rotulo}
+                      {!!item.contador && (
+                        <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                          {item.contador}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </nav>
@@ -164,9 +173,14 @@ export default function Layout({ children }: LayoutProps) {
                         <button
                           key={item.destino}
                           onClick={() => { setMenuAberto(false); navigate(item.destino); }}
-                          className="rounded-md px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
+                          className="flex items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
                         >
                           {item.rotulo}
+                          {!!item.contador && (
+                            <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                              {item.contador}
+                            </span>
+                          )}
                         </button>
                       ))}
                     </nav>

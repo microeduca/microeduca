@@ -19,6 +19,8 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminSettings from "./pages/AdminSettings";
 import AdminReports from "./pages/AdminReports";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
+import AdminMessages from "./pages/AdminMessages";
+import Mensagens from "./pages/Mensagens";
 import AdminUserProfile from "./pages/AdminUserProfile";
 import AdminVimeoUpload from "./pages/AdminVimeoUpload";
 import AdminMaterialUpload from "./pages/AdminMaterialUpload";
@@ -61,6 +63,7 @@ const App = () => (
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/relatorios" element={<AdminReports />} />
           <Route path="/admin/avisos" element={<AdminAnnouncements />} />
+          <Route path="/admin/mensagens" element={<AdminMessages />} />
           <Route path="/admin/vimeo-upload" element={<AdminVimeoUpload />} />
           <Route path="/admin/material-upload" element={<AdminMaterialUpload />} />
           <Route path="/admin/vimeo-callback" element={<AdminVimeoUpload />} />
@@ -69,6 +72,7 @@ const App = () => (
           <Route path="/meus-cursos" element={<MeusCursos />} />
           <Route path="/video/:videoId" element={<VideoPlayerWrapper />} />
           <Route path="/history" element={<History />} />
+          <Route path="/mensagens" element={<Mensagens />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

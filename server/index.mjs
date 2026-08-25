@@ -312,6 +312,105 @@ app.delete('/api/announcements/:id', requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Chat entre um usuário e a administração (item g do 2º documento). A conversa
+// é sempre usuário <-> admin, então user_id identifica a thread e sender_id diz
+// quem escreveu — qualquer admin pode responder, e a conversa não se perde se
+// o administrador que respondeu sair da empresa.
+async function ensureMessages() {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS public.messages (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+      sender_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+      from_admin boolean NOT NULL DEFAULT false,
+      body text NOT NULL,
+      read_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`);
+  } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_messages_thread ON public.messages(user_id, created_at)'); } catch {}
+}
+ensureMessages().catch(() => {});
+
+/** Threads com a última mensagem e quantas aguardam resposta. Só admin. */
+app.get('/api/messages/threads', requireAdmin, async (_req, res) => {
+  try {
+    await ensureMessages();
+    const { rows } = await pool.query(`
+      SELECT p.id AS user_id, p.name, p.email, p.user_group,
+             count(*)                                                  AS total,
+             count(*) FILTER (WHERE NOT m.from_admin AND m.read_at IS NULL) AS nao_lidas,
+             max(m.created_at)                                         AS ultima_em,
+             (SELECT body FROM public.messages m2
+               WHERE m2.user_id = p.id ORDER BY m2.created_at DESC LIMIT 1) AS ultima_mensagem
+        FROM public.messages m
+        JOIN public.profiles p ON p.id = m.user_id
+       GROUP BY p.id, p.name, p.email, p.user_group
+       ORDER BY nao_lidas DESC, ultima_em DESC`);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/** Mensagens de uma conversa. Usuário comum só acessa a própria. */
+app.get('/api/messages', async (req, res) => {
+  try {
+    await ensureMessages();
+    const alvo = req.user.role === 'admin' ? (req.query.userId || req.user.id) : req.user.id;
+    const { rows } = await pool.query(
+      `SELECT m.id, m.user_id, m.sender_id, m.from_admin, m.body, m.read_at, m.created_at,
+              p.name AS sender_name
+         FROM public.messages m
+         LEFT JOIN public.profiles p ON p.id = m.sender_id
+        WHERE m.user_id = $1
+        ORDER BY m.created_at ASC
+        LIMIT 300`, [alvo]);
+    // Abrir a conversa marca como lidas as mensagens do outro lado.
+    await pool.query(
+      `UPDATE public.messages SET read_at = now()
+        WHERE user_id = $1 AND read_at IS NULL AND from_admin = $2`,
+      [alvo, req.user.role !== 'admin']
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/messages', async (req, res) => {
+  try {
+    await ensureMessages();
+    const texto = String(req.body?.body || '').trim();
+    if (!texto) return res.status(400).json({ error: 'Escreva uma mensagem' });
+    if (texto.length > 4000) return res.status(400).json({ error: 'Mensagem muito longa (máximo 4000 caracteres)' });
+
+    const ehAdmin = req.user.role === 'admin';
+    // O admin precisa dizer com quem fala; o usuário só pode falar na própria thread.
+    const alvo = ehAdmin ? req.body?.userId : req.user.id;
+    if (!alvo) return res.status(400).json({ error: 'Informe o usuário da conversa' });
+    if (ehAdmin) {
+      const { rows: existe } = await pool.query('SELECT 1 FROM public.profiles WHERE id = $1', [alvo]);
+      if (!existe[0]) return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO public.messages (user_id, sender_id, from_admin, body)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [alvo, req.user.id, ehAdmin, texto]);
+    res.status(201).json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/** Quantas mensagens novas o usuário tem, para o indicador no menu. */
+app.get('/api/messages/unread', async (req, res) => {
+  try {
+    await ensureMessages();
+    const ehAdmin = req.user.role === 'admin';
+    const { rows } = await pool.query(
+      ehAdmin
+        ? 'SELECT count(*)::int AS n FROM public.messages WHERE NOT from_admin AND read_at IS NULL'
+        : 'SELECT count(*)::int AS n FROM public.messages WHERE user_id = $1 AND from_admin AND read_at IS NULL',
+      ehAdmin ? [] : [req.user.id]);
+    res.json({ nao_lidas: rows[0]?.n || 0 });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Registro de acesso ao portal. O relatório antes usava a última visualização
 // de conteúdo como "último acesso", então quem entrava e não assistia nada
 // ficava invisível — é o item (a) do Dashboard no segundo documento.

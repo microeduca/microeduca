@@ -10,10 +10,11 @@ para ler inteiro.
 3. [Assistindo a uma aula](#3-assistindo-a-uma-aula)
 4. [Avaliações](#4-avaliações)
 5. [Materiais para leitura e download](#5-materiais-para-leitura-e-download)
-6. [Todos os Vídeos](#6-todos-os-vídeos)
+6. [Pastas e vídeos](#6-pastas-e-vídeos)
 7. [Histórico](#7-histórico)
-8. [Sua conta](#8-sua-conta)
-9. [Perguntas frequentes](#9-perguntas-frequentes)
+8. [Avisos e mensagens](#8-avisos-e-mensagens)
+9. [Sua conta](#9-sua-conta)
+10. [Perguntas frequentes](#10-perguntas-frequentes)
 
 ---
 
@@ -140,9 +141,24 @@ Formatos: PDF, imagens, Word, Excel e PowerPoint.
 
 ---
 
-## 6. Todos os Vídeos
+## 6. Pastas e vídeos
 
-Mostra tudo que está liberado para você, em grade ou lista.
+A tela abre na aba **Pastas**, mostrando só os nomes — como as pastas do
+computador. Cada uma diz quantos conteúdos tem e quanto tempo de vídeo, por
+exemplo *"16 conteúdos · 1h 50min 53s"*, somando também o que está dentro das
+subpastas.
+
+Clique para entrar. A linha no topo — *Início › SETORIAL › ALMOXARIFADO* —
+mostra onde você está; clique em qualquer parte dela para voltar. O botão
+voltar do navegador também funciona, e o endereço de uma pasta pode ser
+guardado nos favoritos.
+
+Você só vê as pastas que têm conteúdo liberado para você. Pasta de outro setor
+não aparece, nem vazia.
+
+As outras duas abas continuam disponíveis:
+
+**Todos os Vídeos** mostra tudo que está liberado para você, em grade ou lista.
 
 - **Buscar vídeos** — por título ou descrição, com o termo destacado
 - **Filtros** — por categoria, por módulo, e por situação: *Todos*,
@@ -151,6 +167,8 @@ Mostra tudo que está liberado para você, em grade ou lista.
 - **Favoritos** — marque as aulas que quiser reencontrar rápido
 
 Os filtros que você escolher ficam guardados para a próxima visita.
+
+**Continuar assistindo** reúne as aulas que você começou e ainda não terminou.
 
 ---
 
@@ -167,7 +185,24 @@ Há busca por título e filtros por categoria e por situação.
 
 ---
 
-## 8. Sua conta
+## 8. Avisos e mensagens
+
+**Avisos.** Recados da administração aparecem no topo da página inicial, em
+destaque. Alguns são para todo mundo, outros só para quem está em treinamento
+ou já é efetivo. Somem sozinhos quando o prazo termina.
+
+**Mensagens.** Para tirar uma dúvida, use **Mensagens**, no menu — ou o botão
+*Falar com a administração*, na faixa da página inicial. É uma conversa
+particular entre você e a administração; ninguém mais lê.
+
+- Escreva e tecle **Enter** para enviar. **Shift+Enter** quebra a linha.
+- Não é chat ao vivo: a resposta chega quando alguém da administração ler.
+- Quando houver resposta nova, aparece um número ao lado de *Mensagens* no
+  menu. Ele zera assim que você abre a conversa.
+
+---
+
+## 9. Sua conta
 
 **Trocar a senha:** clique no seu nome, no canto superior direito. Informe a
 senha atual, a nova e confirme. Mínimo de 6 caracteres.
@@ -176,7 +211,7 @@ senha atual, a nova e confirme. Mínimo de 6 caracteres.
 
 ---
 
-## 9. Perguntas frequentes
+## 10. Perguntas frequentes
 
 **Um curso que eu via sumiu.**
 Pode ter sido programado para liberar em outra data, ou seu acesso foi

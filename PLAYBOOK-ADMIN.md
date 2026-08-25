@@ -13,8 +13,9 @@ dia a dia.
 5. [Liberação programada](#5-liberação-programada)
 6. [Gerenciar usuários e acessos](#6-gerenciar-usuários-e-acessos)
 7. [Relatórios](#7-relatórios)
-8. [Configurações](#8-configurações)
-9. [Perguntas frequentes](#9-perguntas-frequentes)
+8. [Avisos e mensagens](#8-avisos-e-mensagens)
+9. [Configurações](#9-configurações)
+10. [Perguntas frequentes](#10-perguntas-frequentes)
 
 ---
 
@@ -100,6 +101,13 @@ assistindo, é material de apoio.
 ---
 
 ## 3. Organizar a estrutura
+
+> **Como o colaborador enxerga isso.** A página inicial dele abre mostrando só
+> os nomes das pastas, com a contagem de conteúdos e a carga horária somada das
+> subpastas; os vídeos aparecem quando ele entra. Pasta sem nenhum conteúdo
+> liberado para aquela pessoa não aparece — nem o nome. Se você criar uma pasta
+> e ela não surgir para ninguém, o motivo costuma ser esse: ainda não há vídeo
+> liberado dentro dela.
 
 **Menu Vídeos** tem duas visões, alternadas pelos botões no canto:
 
@@ -264,7 +272,38 @@ O CSV abre direto no Excel em português (separador `;`).
 
 ---
 
-## 8. Configurações
+## 8. Avisos e mensagens
+
+### Quadro de avisos — `/admin/avisos`
+
+Recados que aparecem no topo da página inicial do colaborador.
+
+- **Título e texto** — o texto respeita as quebras de linha que você digitar.
+- **Para quem** — todos, só *Em treinamento* ou só *Efetivos*. Sem marcar
+  nenhum grupo, vale para todos.
+- **Vigência** — início e fim. O aviso aparece e some sozinho; não é preciso
+  voltar para apagar.
+
+Um aviso fora da vigência continua na sua lista de gestão, marcado como
+encerrado, mas não aparece para ninguém.
+
+### Mensagens — `/admin/mensagens`
+
+Caixa de entrada com uma conversa por colaborador. A lista mostra a última
+mensagem de cada um e quantas estão sem ler; use a busca para achar alguém
+pelo nome.
+
+- Abrir a conversa marca as mensagens daquela pessoa como lidas.
+- **Enter** envia, **Shift+Enter** quebra a linha.
+- O contador ao lado de *Mensagens*, no menu, soma tudo que está sem ler.
+- Não é chat ao vivo — a tela se atualiza sozinha a cada dez segundos.
+
+Cada conversa é entre um colaborador e a administração. Um colaborador nunca
+alcança a conversa de outro.
+
+---
+
+## 9. Configurações
 
 **Dashboard → Configurações**
 
@@ -276,7 +315,7 @@ O CSV abre direto no Excel em português (separador `;`).
 
 ---
 
-## 9. Perguntas frequentes
+## 10. Perguntas frequentes
 
 **Publiquei uma aula e o aluno não vê.**
 Confira, nesta ordem: (1) a categoria está atribuída a ele? (2) você marcou

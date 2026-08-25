@@ -107,6 +107,7 @@ export default function Layout({ children }: LayoutProps) {
         { rotulo: 'Vídeos', destino: '/admin/videos' },
         { rotulo: 'Categorias & Módulos', destino: '/admin/taxonomia' },
         { rotulo: 'Usuários', destino: '/admin/users' },
+        { rotulo: 'Avisos', destino: '/admin/avisos' },
         { rotulo: 'Relatórios', destino: '/admin/relatorios' },
       ]
     : [

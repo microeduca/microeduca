@@ -94,6 +94,12 @@ export const api = {
     return request(`/reports/${nome}${qs ? `?${qs}` : ''}`, { method: 'GET' });
   },
 
+  // Avisos
+  getAnnouncements: (todos = false) => request(`/announcements${todos ? '?all=true' : ''}`, { method: 'GET' }),
+  addAnnouncement: (payload: unknown) => request('/announcements', { method: 'POST', body: JSON.stringify(payload) }),
+  updateAnnouncement: (id: string, payload: unknown) => request(`/announcements/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteAnnouncement: (id: string) => request(`/announcements/${id}`, { method: 'DELETE' }),
+
   // Settings
   getSetting: (key: string) => request(`/settings/${encodeURIComponent(key)}`, { method: 'GET' }),
   setSetting: (key: string, value: any) => request(`/settings/${encodeURIComponent(key)}`, { method: 'POST', body: JSON.stringify(value) }),

@@ -10,6 +10,7 @@ import {
   DIAS_NOVIDADE_PADRAO,
 } from '@/lib/storage';
 import { getCurrentUser } from '@/lib/auth';
+import { api } from '@/lib/api';
 
 /**
  * Camada de cache do portal. Antes cada tela disparava suas próprias buscas
@@ -25,6 +26,7 @@ export const chaves = {
   modulos: (categoryIds: string[]) => ['modulos', [...categoryIds].sort().join(',')] as const,
   videoBoasVindas: (role: string) => ['video-boas-vindas', role] as const,
   diasNovidade: ['dias-novidade'] as const,
+  avisos: (todos: boolean) => ['avisos', todos ? 'todos' : 'vigentes'] as const,
 };
 
 const CINCO_MINUTOS = 5 * 60 * 1000;
@@ -81,6 +83,15 @@ export function useDiasNovidade() {
     staleTime: CINCO_MINUTOS,
   });
   return q.data ?? DIAS_NOVIDADE_PADRAO;
+}
+
+/** Avisos: os vigentes para o usuário, ou todos quando admin está gerenciando. */
+export function useAvisos(todos = false) {
+  return useQuery({
+    queryKey: chaves.avisos(todos),
+    queryFn: () => api.getAnnouncements(todos),
+    staleTime: 60 * 1000,
+  });
 }
 
 /** Invalida os dados de conteúdo após uma alteração administrativa. */

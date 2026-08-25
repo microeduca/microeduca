@@ -209,6 +209,109 @@ async function ensureModulesSchema() {
   try { await pool.query('ALTER TABLE public.modules ADD COLUMN IF NOT EXISTS evaluation_url text'); } catch {}
 }
 
+// Quadro de avisos (item g do 2º documento). O admin publica comunicados
+// direcionados a um grupo — algo destinado aos efetivos não deve aparecer
+// para quem ainda está em treinamento.
+async function ensureAnnouncements() {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS public.announcements (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      title text NOT NULL,
+      body text NOT NULL,
+      target_groups text[] NOT NULL DEFAULT '{}',
+      starts_at timestamptz,
+      ends_at timestamptz,
+      created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )`);
+  } catch {}
+  try { await pool.query('CREATE INDEX IF NOT EXISTS idx_announcements_janela ON public.announcements(starts_at, ends_at)'); } catch {}
+}
+ensureAnnouncements().catch(() => {});
+
+/** Avisos vigentes para quem está pedindo: respeita janela de datas e grupo. */
+app.get('/api/announcements', async (req, res) => {
+  try {
+    await ensureAnnouncements();
+    const admin = req.user.role === 'admin';
+    if (admin && req.query.all === 'true') {
+      const { rows } = await pool.query(
+        'SELECT * FROM public.announcements ORDER BY created_at DESC');
+      return res.json(rows);
+    }
+    const { rows } = await pool.query(`
+      SELECT id, title, body, target_groups, starts_at, ends_at, created_at
+        FROM public.announcements
+       WHERE (starts_at IS NULL OR starts_at <= now())
+         AND (ends_at   IS NULL OR ends_at   >= now())
+         AND (COALESCE(array_length(target_groups,1),0) = 0
+              OR $1::text = ANY(target_groups))
+       ORDER BY created_at DESC
+       LIMIT 20`, [req.user.user_group || '']);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+function validarAviso(body) {
+  if (!body?.title || !String(body.title).trim()) return 'Informe o título do aviso';
+  if (!body?.body || !String(body.body).trim()) return 'Informe o texto do aviso';
+  for (const g of (Array.isArray(body.target_groups) ? body.target_groups : [])) {
+    if (!GRUPOS_VALIDOS.has(g)) return `Grupo inválido: ${g}`;
+  }
+  const d = (v) => v === null || v === undefined || v === '' || !Number.isNaN(new Date(v).getTime());
+  if (!d(body.starts_at) || !d(body.ends_at)) return 'Data de exibição inválida';
+  if (body.starts_at && body.ends_at && new Date(body.ends_at) < new Date(body.starts_at)) {
+    return 'A data final não pode ser anterior à inicial';
+  }
+  return null;
+}
+
+app.post('/api/announcements', requireAdmin, async (req, res) => {
+  try {
+    await ensureAnnouncements();
+    const erro = validarAviso(req.body);
+    if (erro) return res.status(400).json({ error: erro });
+    const { title, body, target_groups = [], starts_at = null, ends_at = null } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO public.announcements (title, body, target_groups, starts_at, ends_at, created_by)
+       VALUES ($1,$2,$3::text[],$4,$5,$6) RETURNING *`,
+      [String(title).trim(), String(body).trim(), Array.isArray(target_groups) ? target_groups : [],
+       starts_at || null, ends_at || null, req.user.id]);
+    res.status(201).json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/announcements/:id', requireAdmin, async (req, res) => {
+  try {
+    await ensureAnnouncements();
+    const erro = validarAviso({ ...req.body, title: req.body.title ?? 'x', body: req.body.body ?? 'x' });
+    if (erro) return res.status(400).json({ error: erro });
+    const campos = ['title','body','target_groups','starts_at','ends_at'];
+    const updates = []; const values = []; let idx = 1;
+    for (const f of campos) {
+      if (req.body[f] !== undefined) {
+        updates.push(f === 'target_groups' ? `"${f}" = $${idx++}::text[]` : `"${f}" = $${idx++}`);
+        values.push(f === 'target_groups' ? (Array.isArray(req.body[f]) ? req.body[f] : []) : (req.body[f] || null));
+      }
+    }
+    if (updates.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
+    values.push(req.params.id);
+    const { rows } = await pool.query(
+      `UPDATE public.announcements SET ${updates.join(', ')}, updated_at = now() WHERE id = $${idx} RETURNING *`, values);
+    if (!rows[0]) return res.status(404).json({ error: 'Aviso não encontrado' });
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/announcements/:id', requireAdmin, async (req, res) => {
+  try {
+    await ensureAnnouncements();
+    await pool.query('DELETE FROM public.announcements WHERE id = $1', [req.params.id]);
+    res.status(204).end();
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Registro de acesso ao portal. O relatório antes usava a última visualização
 // de conteúdo como "último acesso", então quem entrava e não assistia nada
 // ficava invisível — é o item (a) do Dashboard no segundo documento.

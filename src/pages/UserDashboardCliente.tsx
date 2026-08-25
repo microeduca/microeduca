@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { useFavorites } from '@/hooks/useFavorites';
 import { formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 import { SkeletonCartoes, SkeletonEstatisticas } from '@/components/LoadingState';
+import QuadroDeAvisos from '@/components/QuadroDeAvisos';
 
 export default function UserDashboardCliente() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('cliente');
@@ -95,6 +96,7 @@ export default function UserDashboardCliente() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 space-y-6">
+        <QuadroDeAvisos />
         {isLoading && (
           <div className="space-y-6">
             <SkeletonEstatisticas />

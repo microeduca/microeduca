@@ -19,6 +19,7 @@ import { useFavorites } from '@/hooks/useFavorites';
 import { formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
 import { SkeletonCartoes, SkeletonEstatisticas } from '@/components/LoadingState';
 import { useDiasNovidade } from '@/hooks/queries';
+import QuadroDeAvisos from '@/components/QuadroDeAvisos';
 
 export default function UserDashboard() {
   const { user, categories, videos, viewHistory, welcomeVideo, modulesByCategory, isLoading } = useDashboardData('user');
@@ -197,6 +198,7 @@ export default function UserDashboard() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 space-y-6">
+        <QuadroDeAvisos />
         {isLoading && (
           <div className="space-y-6">
             <SkeletonEstatisticas />

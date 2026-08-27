@@ -119,7 +119,7 @@ export default function AdminReports() {
               <Input type="date" value={periodo.ate} className="h-9 w-[160px]"
                      onChange={(e) => setPeriodo((p) => ({ ...p, ate: e.target.value }))} />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {ATALHOS.map((a) => (
                 <Button key={a.rotulo} variant="outline" size="sm" onClick={() => aplicarAtalho(a.dias)}>
                   {a.rotulo}
@@ -158,7 +158,7 @@ export default function AdminReports() {
         )}
 
         <Tabs defaultValue="usuarios" className="space-y-4">
-          <TabsList>
+          <TabsList className="flex w-full justify-start overflow-x-auto">
             <TabsTrigger value="usuarios">Por usuário</TabsTrigger>
             <TabsTrigger value="conteudos">Por conteúdo</TabsTrigger>
             <TabsTrigger value="pastas">Por pasta</TabsTrigger>
@@ -180,6 +180,7 @@ export default function AdminReports() {
               </CardHeader>
               <CardContent>
                 {usuarios.isLoading ? <SkeletonTabela colunas={6} /> : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -218,6 +219,7 @@ export default function AdminReports() {
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -237,6 +239,7 @@ export default function AdminReports() {
               </CardHeader>
               <CardContent>
                 {conteudos.isLoading ? <SkeletonTabela colunas={5} /> : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -271,6 +274,7 @@ export default function AdminReports() {
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -289,6 +293,7 @@ export default function AdminReports() {
               </CardHeader>
               <CardContent>
                 {categorias.isLoading ? <SkeletonTabela colunas={5} /> : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -316,6 +321,7 @@ export default function AdminReports() {
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -377,6 +383,7 @@ export default function AdminReports() {
               </CardHeader>
               <CardContent>
                 {acessos.isLoading ? <SkeletonTabela colunas={5} /> : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -415,6 +422,7 @@ export default function AdminReports() {
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -432,6 +440,7 @@ export default function AdminReports() {
               </CardHeader>
               <CardContent>
                 {registroAcessos.isLoading ? <SkeletonTabela colunas={3} /> : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -458,6 +467,7 @@ export default function AdminReports() {
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>

@@ -23,11 +23,11 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 1 30% 20%;
 
-    --primary: 1 30% 42%;         /* Marrom Bordô */
+    --primary: 9 20% 41%;         /* Marrom da marca Micro — rgb(126, 90, 84), medido no logotipo */
     --primary-foreground: 180 9% 94%;
 
     --secondary: 30 31% 78%;      /* Nude */
-    --secondary-foreground: 1 30% 20%;
+    --secondary-foreground: 9 22% 20%;
 
     --muted: 30 31% 88%;          /* Nude mais claro */
     --muted-foreground: 1 30% 35%;
@@ -45,7 +45,7 @@ All colors MUST be HSL.
     --radius: 0.5rem;
     
     /* Custom design tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(1 30% 42%), hsl(14 30% 60%));
+    --gradient-primary: linear-gradient(135deg, hsl(9 20% 41%), hsl(14 30% 60%));
     --gradient-secondary: linear-gradient(135deg, hsl(14 30% 60%), hsl(30 31% 78%));
     --gradient-subtle: linear-gradient(180deg, hsl(180 9% 94%), hsl(30 31% 78% / 0.1));
     

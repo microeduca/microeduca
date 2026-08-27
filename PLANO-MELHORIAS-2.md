@@ -199,3 +199,45 @@ como exibi-lo, e levava 401. Agora `HEAD` entra na mesma isenção.
 A mensagem da tela também foi reescrita: dizia só o nome da variável, sem
 explicar que o *access token* é diferente do Client ID e do Client Secret —
 que é exatamente a confusão que aconteceu.
+
+
+---
+
+## Identidade visual da Micro
+
+O documento pede o padrão de identidade visual da Micro, e faltavam três coisas.
+
+**Símbolo.** Extraído do próprio logotipo enviado no documento
+(`word/media/image10.png`), isolando as duas formas que compõem a marca e
+descartando o resto. Duas versões em `public/`: `micro-simbolo.png` (marrom,
+para fundo claro — usada no login) e `micro-simbolo-branco.png` (para a faixa
+do cabeçalho).
+
+**Fonte.** `Inter` e `Poppins` estavam declaradas no `tailwind.config.ts` desde
+sempre, mas **nenhuma era carregada**: não havia link para o Google Fonts e
+tudo caía na fonte do sistema. Agora são carregadas de verdade, mais
+`Quicksand`, que é a mais próxima do logotipo entre as do Google Fonts —
+geométrica, terminais arredondados, o mesmo M de vértice alto. Não afirmo que
+seja a fonte licenciada da marca; é a aproximação disponível.
+
+**Cor.** O marrom foi medido no logotipo: `rgb(126, 90, 84)`. O tema usava
+`hsl(1 30% 42%)` = `rgb(139, 76, 75)`, mais avermelhado. Trocado para
+`hsl(9 20% 41%)`, que é exatamente a cor da marca — e a mesma da faixa no
+sistema de Almoxarifado usado como referência (`rgb(129, 90, 84)`).
+
+## Estouro horizontal no telefone
+
+Com o painel do navegador finalmente aceitando 531px, deu para testar o que
+antes eu só conseguia afirmar por leitura de código. Sete defeitos reais, todos
+anteriores a esta rodada:
+
+| Tela | Causa |
+|---|---|
+| `/admin` | item de grade não encolhe sozinho (`min-width: auto`); um cartão com nomes longos esticava a página para 1069px |
+| `/admin` | filtro de "Últimas visualizações" com `min-w-[220px]` numa linha que não quebra |
+| `/admin/videos` | linha de botões sem quebra; títulos de vídeo sem limite de largura |
+| `/admin/relatorios` | régua de abas mais larga que a tela; tabelas sem contêiner de rolagem |
+| `/dashboard` | busca com largura fixa de 16rem |
+| 10 telas | linhas `flex gap-2` de botões sem `flex-wrap` |
+
+Verificado depois: as dez telas cabem em 531px sem rolagem horizontal.

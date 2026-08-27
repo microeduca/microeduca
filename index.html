@@ -10,6 +10,15 @@
     <meta property="og:type" content="website" />
     <link rel="icon" href="/public/favicon.ico" sizes="any" />
     <meta name="twitter:card" content="summary_large_image" />
+    <!-- As famílias já estavam declaradas no tailwind.config.ts, mas nenhuma era
+         carregada: tudo caía na fonte do sistema. Quicksand é a mais próxima do
+         logotipo da Micro entre as do Google Fonts. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="root"></div>

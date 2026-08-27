@@ -16,6 +16,8 @@ export default {
       fontFamily: {
         'inter': ['Inter', 'sans-serif'],
         'poppins': ['Poppins', 'sans-serif'],
+        // Marca: a mais próxima do logotipo da Micro no Google Fonts.
+        'marca': ['Quicksand', 'Poppins', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

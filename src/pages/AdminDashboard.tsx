@@ -115,7 +115,7 @@ export default function AdminDashboard() {
               Gerencie vídeos, usuários e acompanhe o engajamento da plataforma
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button onClick={() => navigate('/admin/relatorios')} variant="outline" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Relatórios
@@ -194,7 +194,7 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-3 [&>*]:min-w-0">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Usuários mais ativos</CardTitle>
@@ -257,10 +257,10 @@ export default function AdminDashboard() {
         {/* Recent Views */}
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-base">Últimas visualizações</CardTitle>
-              <div className="flex items-center gap-2">
-                <div className="min-w-[220px]">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="min-w-0 flex-1 sm:min-w-[220px]">
                   <Select value={selectedUserId} onValueChange={(v) => { setSelectedUserId(v); setPage(1); }}>
                     <SelectTrigger className="h-8">
                       <SelectValue placeholder="Filtrar por usuário" />
@@ -355,7 +355,7 @@ export default function AdminDashboard() {
             {sortedHistory.length > 0 && (
               <div className="flex items-center justify-between mt-3 text-sm">
                 <span className="text-muted-foreground">Página {currentPage} de {totalPages}</span>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
                   <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Próxima</Button>
                 </div>

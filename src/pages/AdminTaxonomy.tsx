@@ -357,7 +357,7 @@ export default function AdminTaxonomy() {
                 <div className="text-muted-foreground">Selecione uma categoria à esquerda.</div>
               ) : (
                 <>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Input placeholder="Novo módulo raiz" value={newModuleTitle} onChange={(e) => setNewModuleTitle(e.target.value)} />
                     <Button onClick={handleAddRoot} disabled={!newModuleTitle.trim()}><Plus className="h-4 w-4 mr-1" />Adicionar</Button>
                   </div>

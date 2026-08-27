@@ -151,7 +151,7 @@ export default function AdminCategories() {
               Organize os vídeos em categorias para facilitar a navegação
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => navigate('/admin/modulos')} className="gap-2">
               <FolderTree className="h-4 w-4" />
               Módulos

@@ -131,11 +131,19 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex h-14 items-center justify-between gap-3">
             <button
               onClick={() => navigate('/')}
-              className="flex min-w-0 items-baseline gap-2 transition-opacity hover:opacity-80"
+              className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-80"
             >
-              <span className="font-poppins text-xl font-bold tracking-wide">MICROEDUCA</span>
-              <span className="hidden truncate text-[11px] uppercase tracking-[0.18em] opacity-70 sm:inline">
-                Portal de Treinamento
+              <img
+                src="/micro-simbolo-branco.png"
+                alt=""
+                aria-hidden
+                className="h-7 w-auto shrink-0"
+              />
+              <span className="flex min-w-0 items-baseline gap-2">
+                <span className="font-marca text-xl font-bold tracking-wide">MICROEDUCA</span>
+                <span className="hidden truncate font-marca text-[11px] font-medium uppercase tracking-[0.18em] opacity-75 sm:inline">
+                  Portal de Treinamento
+                </span>
               </span>
             </button>
 
@@ -231,7 +239,7 @@ export default function Layout({ children }: LayoutProps) {
                     key={item.destino}
                     onClick={() => navigate(item.destino)}
                     aria-current={atual ? 'page' : undefined}
-                    className={`-mb-px inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
+                    className={`-mb-px inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 py-2.5 font-marca text-xs font-bold uppercase tracking-[0.12em] transition-colors ${
                       atual
                         ? 'border-primary-foreground'
                         : 'border-transparent opacity-70 hover:opacity-100'

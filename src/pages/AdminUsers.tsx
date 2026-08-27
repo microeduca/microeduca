@@ -528,7 +528,7 @@ export default function AdminUsers() {
                 <span className="text-muted-foreground">
                   Página {paginaAtual} de {totalPaginas}
                 </span>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" disabled={paginaAtual <= 1}
                           onClick={() => setPagina((p) => Math.max(1, p - 1))}>Anterior</Button>
                   <Button variant="outline" size="sm" disabled={paginaAtual >= totalPaginas}

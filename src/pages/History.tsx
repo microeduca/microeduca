@@ -449,7 +449,7 @@ export default function History() {
                 Página {paginar(filteredAndSortedHistory).atual} de {paginar(filteredAndSortedHistory).total}
                 {' · '}{filteredAndSortedHistory.length} registro(s)
               </span>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm"
                         disabled={paginar(filteredAndSortedHistory).atual <= 1}
                         onClick={() => setPagina((p) => Math.max(1, p - 1))}>Anterior</Button>

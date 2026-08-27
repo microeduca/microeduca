@@ -275,7 +275,7 @@ export default function AdminVideos() {
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <button className="text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
+              <button className="max-w-full break-words text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
             )}
           </div>
           <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
@@ -380,7 +380,7 @@ export default function AdminVideos() {
               className="w-full border rounded px-2 py-1"
             />
           ) : (
-            <button className="text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
+            <button className="max-w-full break-words text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
           )}
         </TableCell>
         <TableCell className="hidden sm:table-cell">
@@ -517,7 +517,7 @@ export default function AdminVideos() {
               className="w-full border rounded px-2 py-1"
             />
           ) : (
-            <button className="text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
+            <button className="max-w-full break-words text-left hover:underline" onClick={() => { setEditingTitleId(video.id); setTempTitle(video.title || ''); }}>{video.title}</button>
           )}
         </div>
         <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
@@ -1090,7 +1090,7 @@ export default function AdminVideos() {
               Adicione e gerencie os vídeos de treinamento da plataforma
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Button 
               onClick={handleFixModuleCategorySync}
               variant="outline"

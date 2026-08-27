@@ -494,14 +494,14 @@ export default function UserDashboard() {
               <TabsTrigger value="recent">Continuar assistindo</TabsTrigger>
             </TabsList>
             
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            <div className="flex flex-1 items-center gap-2 sm:flex-none">
+              <div className="relative min-w-0 flex-1 sm:flex-none">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar vídeos..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 w-64"
+                  className="pl-9 w-full sm:w-64"
                 />
               </div>
               <Button

@@ -155,7 +155,7 @@ export default function AdminMaterialUpload() {
                 <div className="text-sm text-muted-foreground">{fileInfo.filename}</div>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button onClick={onSave} disabled={!fileInfo?.url || !title || !categoryId}>Salvar</Button>
               <Button variant="outline" onClick={() => navigate('/admin/videos')}>Cancelar</Button>
             </div>

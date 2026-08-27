@@ -765,7 +765,7 @@ export default function VideoPlayer() {
                       <div className="text-sm">
                         Próximo vídeo em {autoNextCountdown}s: <span className="font-medium">{autoNextTarget.title}</span>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <Button size="sm" variant="outline" onClick={cancelAutoNext}>Cancelar</Button>
                         <Button size="sm" onClick={goToAutoNext}>Ir agora</Button>
                       </div>

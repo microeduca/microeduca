@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { login } from '@/lib/auth';
 import { toast } from '@/hooks/use-toast';
-import { BookOpen } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -46,10 +45,10 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <BookOpen className="h-12 w-12 text-primary" />
+          <div className="mb-4 flex justify-center">
+            <img src="/micro-simbolo.png" alt="Micro — Centro Diagnóstico" className="h-14 w-auto" />
           </div>
-          <CardTitle className="text-2xl font-poppins">Portal de Treinamento – MicroEduca</CardTitle>
+          <CardTitle className="font-marca text-2xl">Portal de Treinamento – MicroEduca</CardTitle>
           <p className="text-sm font-medium text-muted-foreground">Versão 2A</p>
           <CardDescription>
             Área exclusiva para Equipe e Cliente Micro.

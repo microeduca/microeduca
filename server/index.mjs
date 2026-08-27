@@ -69,7 +69,8 @@ const PUBLIC_PATHS = new Set(['/health', '/login', '/vimeo-webhook']);
 // endereço é um UUID não adivinhável — mesma proteção de antes. Enviar e
 // excluir continuam restritos a administrador.
 const ehLeituraDeArquivo = (req) =>
-  req.method === 'GET' && /^\/files\/[0-9a-fA-F-]{36}$/.test(req.path);
+  (req.method === 'GET' || req.method === 'HEAD') &&
+  /^\/files\/[0-9a-fA-F-]{36}$/.test(req.path);
 
 const authMiddleware = async (req, res, next) => {
   if (PUBLIC_PATHS.has(req.path) || ehLeituraDeArquivo(req)) return next();

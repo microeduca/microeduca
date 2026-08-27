@@ -18,6 +18,7 @@ import { uploadSupportFile } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
 import PdfViewer from '@/components/PdfViewer';
 import VimeoUpload from '@/components/admin/VimeoUpload';
+import { api } from '@/lib/api';
 import { AJUDA_LIBERACAO_CONTEUDO, aggregateModuleContent, formatDurationLong, fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
 import {
   DndContext,
@@ -461,7 +462,7 @@ export default function AdminVideos() {
                   const vId: string | undefined = (video as AdminVideoRow).vimeo_id || (video as AdminVideoRow).vimeoId;
                   if (alsoVimeo && vId) {
                     try {
-                      await fetch(`${location.origin}/api/vimeo/${encodeURIComponent(vId)}`, { method: 'DELETE' });
+                      await api.vimeoDelete(vId);
                     } catch (e) {
                       console.error('Falha ao apagar no Vimeo', e);
                     }
@@ -749,9 +750,7 @@ export default function AdminVideos() {
         const vimeoId: string | undefined = (v as unknown as { vimeo_id?: string; vimeoId?: string }).vimeo_id || (v as unknown as { vimeo_id?: string; vimeoId?: string }).vimeoId || fromEmbed || fromUrl;
         if (!vimeoId) continue;
         try {
-          const resp = await fetch(`/api/vimeo-thumbnail/${encodeURIComponent(String(vimeoId))}`);
-          if (!resp.ok) continue;
-          const data = await resp.json() as { duration?: number; thumbnail?: string | null; embedUrl?: string | null };
+          const data = await api.getVimeoDetails(String(vimeoId)) as { duration?: number; thumbnail?: string | null; embedUrl?: string | null };
           const next: Partial<AdminVideoRow> & { vimeo_embed_url?: string } = {};
           if ((data?.duration ?? 0) > 0) next.duration = Math.floor(data.duration);
           if (data?.thumbnail && !v.thumbnail) next.thumbnail = String(data.thumbnail);
@@ -1065,18 +1064,7 @@ export default function AdminVideos() {
     }
     
     try {
-      const response = await fetch('/api/videos/fix-module-category-sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error('Erro ao executar correção');
-      }
-      
-      const data = await response.json();
+      const data = await api.fixModuleCategorySync();
       await loadData();
       
       toast({

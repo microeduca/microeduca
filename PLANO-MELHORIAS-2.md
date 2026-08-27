@@ -170,3 +170,32 @@ teste hoje tem a cópia da produção.
 Conferência no navegador em cada fase: os três defeitos mais chatos desta
 rodada (diálogo sem rolagem, edição de módulo inalcançável, ausência de menu no
 telefone) só apareceram navegando.
+
+
+---
+
+## Correção — envio de vídeos ao Vimeo
+
+Regressão minha, da Fase 1 do documento anterior: ao exigir token em todas as
+rotas da API, cinco chamadas ficaram para trás porque não passavam pela camada
+`src/lib/api.ts` e sim por `fetch` cru, sem o cabeçalho `Authorization`.
+
+| Chamada | Onde | Resultado |
+|---|---|---|
+| `GET /vimeo-token/status` | tela de upload | 401 — a tela concluía "token não configurado" **sempre** |
+| `POST /vimeo-upload` | tela de upload | 401 |
+| `GET /vimeo-thumbnail/:id` | tela de upload e `AdminVideos` | 401 |
+| `DELETE /vimeo/:id` | `AdminVideos` | 401 |
+| `POST /videos/fix-module-category-sync` | `AdminVideos` | 401 |
+
+O efeito visível era o pior possível para diagnosticar: a tela acusava falta da
+variável mesmo quando ela existia, porque nunca chegava a perguntar ao servidor.
+As cinco passaram a usar `api.*`, que injeta o token.
+
+No mesmo caminho, a isenção de autenticação da leitura de arquivo cobria só
+`GET`. O player usa `HEAD` para descobrir o tipo do arquivo antes de decidir
+como exibi-lo, e levava 401. Agora `HEAD` entra na mesma isenção.
+
+A mensagem da tela também foi reescrita: dizia só o nome da variável, sem
+explicar que o *access token* é diferente do Client ID e do Client Secret —
+que é exatamente a confusão que aconteceu.

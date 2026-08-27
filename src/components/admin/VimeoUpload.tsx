@@ -46,8 +46,7 @@ export default function VimeoUpload() {
     let canceled = false;
     (async () => {
       try {
-        const res = await fetch(`${getBackendUrl()}/vimeo-token/status`);
-        const data = await res.json();
+        const data = await api.getVimeoTokenStatus();
         if (!canceled) setHasServerToken(!!data?.hasToken);
       } catch {
         if (!canceled) setHasServerToken(false);
@@ -112,16 +111,10 @@ export default function VimeoUpload() {
     // fluxo OAuth desativado (usamos token do servidor)
 
     try {
-      const response = await fetch(`${getBackendUrl()}/vimeo-auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'exchangeToken',
-          code: _code,
-          state: _state
-        })
+      const response = await api.vimeoAuth({
+        action: 'exchangeToken',
+        code: _code,
+        state: _state,
       });
 
       if (!response.ok) {
@@ -177,14 +170,9 @@ export default function VimeoUpload() {
 
     try {
       // Step 1: Create video on Vimeo and get upload URL
-      const response = await fetch(`${getBackendUrl()}/vimeo-upload`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-file-size': file.size.toString()
-        },
-        body: JSON.stringify({
-          // sem accessToken: backend usa token permanente do servidor
+      // sem accessToken: o servidor usa o token permanente dele
+      const { uploadLink, videoId, embedUrl } = await api.vimeoCreateUpload(
+        {
           title,
           description,
           privacy: {
@@ -192,16 +180,11 @@ export default function VimeoUpload() {
             embed: 'public',
             download: false,
             add: false,
-            comments: 'nobody'
-          }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create video on Vimeo');
-      }
-
-      const { uploadLink, videoId, embedUrl } = await response.json();
+            comments: 'nobody',
+          },
+        },
+        file.size,
+      );
       
       // Step 2: Upload the actual video file
       await uploadToVimeo(file, uploadLink, (percentage) => {
@@ -212,12 +195,9 @@ export default function VimeoUpload() {
       let thumbnailUrl = '';
       let durationSec = 0;
       try {
-        const thumbResp = await fetch(`${getBackendUrl()}/vimeo-thumbnail/${videoId}`);
-        if (thumbResp.ok) {
-          const { thumbnail, duration } = await thumbResp.json();
-          if (thumbnail) thumbnailUrl = thumbnail;
-          if (typeof duration === 'number') durationSec = duration;
-        }
+        const { thumbnail, duration } = await api.getVimeoDetails(String(videoId));
+        if (thumbnail) thumbnailUrl = thumbnail;
+        if (typeof duration === 'number') durationSec = duration;
       } catch (e) {
         console.warn('Falha ao obter thumbnail/duração do Vimeo');
       }
@@ -282,8 +262,27 @@ export default function VimeoUpload() {
         <CardContent className="space-y-4">
           {/* Server Token Status */}
           {hasServerToken === false && (
-            <div className="p-4 border rounded-lg text-sm text-yellow-800 bg-yellow-50">
-              Token do Vimeo não configurado no servidor. Adicione a variável VIMEO_ACCESS_TOKEN no Railway.
+            <div className="space-y-2 rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
+              <p className="font-medium">O envio ao Vimeo ainda não está habilitado neste servidor.</p>
+              <p>
+                Falta a variável <code className="rounded bg-yellow-100 px-1">VIMEO_ACCESS_TOKEN</code>{' '}
+                no Railway, no serviço do portal. Ela é o <em>access token</em> gerado em{' '}
+                <a
+                  href="https://developer.vimeo.com/apps"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  developer.vimeo.com/apps
+                </a>{' '}
+                com as permissões <strong>Upload</strong>, <strong>Edit</strong>,{' '}
+                <strong>Delete</strong> e <strong>Private</strong> — não é o Client ID nem o
+                Client Secret, que servem para outra coisa.
+              </p>
+              <p className="text-yellow-800">
+                Depois de adicionar a variável, o Railway reinicia o serviço sozinho; recarregue
+                esta página.
+              </p>
             </div>
           )}
 

@@ -18,6 +18,7 @@ import type { Category, Module } from '@/types';
 import { uploadToVimeo, getBackendUrl } from '@/lib/vimeo';
 import { getCurrentUser } from '@/lib/auth';
 import { api } from '@/lib/api';
+import FichaDaAula, { type Ficha } from '@/components/admin/FichaDaAula';
 
 export default function VimeoUpload() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export default function VimeoUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [ficha, setFicha] = useState<Ficha>({ mentorName: '', mentorBio: '', mentorPhoto: null });
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [moduleId, setModuleId] = useState<string>('');
   const [categories, setCategories] = useState<Category[]>([]);
@@ -218,6 +220,9 @@ export default function VimeoUpload() {
         uploaded_by: currentUser?.name || 'admin',
         vimeo_id: videoId,
         vimeo_embed_url: embedUrl,
+        mentor_name: ficha.mentorName || null,
+        mentor_bio: ficha.mentorBio || null,
+        mentor_photo: ficha.mentorPhoto || null,
       });
       
       setUploadedVideoId(videoId);
@@ -232,6 +237,7 @@ export default function VimeoUpload() {
       setFile(null);
       setTitle('');
       setDescription('');
+      setFicha({ mentorName: '', mentorBio: '', mentorPhoto: null });
       setCategoryIds([]);
       setModuleId('');
       setModules([]);
@@ -318,18 +324,14 @@ export default function VimeoUpload() {
                 />
               </div>
 
-              <div>
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Digite a descrição do vídeo"
-                  disabled={isUploading}
-                  className="mt-1"
-                  rows={3}
-                />
-              </div>
+              <FichaDaAula
+                idPrefixo="vimeo"
+                valor={{ ...ficha, description }}
+                aoMudar={({ description: d, ...resto }) => {
+                  if (d !== undefined) setDescription(d || '');
+                  if (Object.keys(resto).length) setFicha((atual) => ({ ...atual, ...resto }));
+                }}
+              />
 
               {/* Removido select de categoria principal; multisseleção abaixo substitui */}
 

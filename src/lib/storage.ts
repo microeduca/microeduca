@@ -32,6 +32,9 @@ const mapVideo = (row: any): Video => ({
   hasForm: !!(row.has_form ?? row.hasForm),
   formUrl: row.form_url ?? row.formUrl ?? null,
   formFile: row.form_file ?? row.formFile ?? null,
+  mentorName: row.mentor_name ?? row.mentorName ?? null,
+  mentorBio: row.mentor_bio ?? row.mentorBio ?? null,
+  mentorPhoto: row.mentor_photo ?? row.mentorPhoto ?? null,
 });
 
 const toDbVideo = (v: Video) => ({
@@ -52,6 +55,9 @@ const toDbVideo = (v: Video) => ({
   has_form: !!v.hasForm,
   form_url: v.hasForm ? (v.formUrl || null) : null,
   form_file: v.hasForm ? (v.formFile || null) : null,
+  mentor_name: v.mentorName || null,
+  mentor_bio: v.mentorBio || null,
+  mentor_photo: v.mentorPhoto || null,
 });
 
 const mapUser = (row: any): User => ({

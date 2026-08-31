@@ -163,6 +163,11 @@ async function ensureContentEnhancementColumns() {
   try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS has_form boolean NOT NULL DEFAULT false'); } catch {}
   try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS form_url text'); } catch {}
   try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS form_file jsonb'); } catch {}
+  // Ficha da aula: quem ensina e sobre o que é. A descrição solta virou dois
+  // subtópicos, "Sobre o mentor" e "Sobre a aula", como o cliente pediu.
+  try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS mentor_name text'); } catch {}
+  try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS mentor_bio text'); } catch {}
+  try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS mentor_photo jsonb'); } catch {}
   // Grupos de usuário (item g do 2º documento). Vazio significa "todos", para
   // que o conteúdo já existente continue visível como sempre foi.
   try { await pool.query("ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS target_groups text[] DEFAULT '{}'"); } catch {}
@@ -1155,6 +1160,22 @@ app.get('/api/videos', async (req, res) => {
   }
 });
 
+// Mentores já usados em alguma aula. Não há cadastro separado: o admin escolhe
+// um nome já existente e a biografia e a foto vêm junto, o que evita redigitar
+// o mesmo texto a cada vídeo sem exigir mais uma tela de cadastro.
+app.get('/api/mentors', requireAdmin, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT DISTINCT ON (mentor_name) mentor_name AS name, mentor_bio AS bio, mentor_photo AS photo
+        FROM public.videos
+       WHERE mentor_name IS NOT NULL AND btrim(mentor_name) <> ''
+       ORDER BY mentor_name, updated_at DESC NULLS LAST`);
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/videos', requireAdmin, async (req, res) => {
   try {
     const {
@@ -1175,6 +1196,9 @@ app.post('/api/videos', requireAdmin, async (req, res) => {
       has_form,
       form_url,
       form_file,
+      mentor_name,
+      mentor_bio,
+      mentor_photo,
     } = req.body || {};
 
     const erroFormulario = validarFormulario(req.body);
@@ -1186,10 +1210,11 @@ app.post('/api/videos', requireAdmin, async (req, res) => {
 
     const order = req.body.order !== undefined ? req.body.order : null;
     const { rows } = await pool.query(
-      `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, module_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url, "order", release_at, support_files, content_type, has_form, form_url, form_file)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now(), $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17::jsonb)
+      `INSERT INTO public.videos (title, description, video_url, thumbnail, category_id, module_id, duration, uploaded_by, uploaded_at, vimeo_id, vimeo_embed_url, "order", release_at, support_files, content_type, has_form, form_url, form_file, mentor_name, mentor_bio, mentor_photo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now(), $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17::jsonb, $18, $19, $20::jsonb)
        RETURNING *`,
-      [title, description, video_url, thumbnail, category_id, module_id || null, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url, order, release_at || null, JSON.stringify(Array.isArray(support_files) ? support_files : []), content_type || 'video', !!has_form, has_form ? (form_url || null) : null, has_form && form_file ? JSON.stringify(form_file) : null]
+      [title, description, video_url, thumbnail, category_id, module_id || null, duration || 0, uploaded_by || 'admin', vimeo_id, vimeo_embed_url, order, release_at || null, JSON.stringify(Array.isArray(support_files) ? support_files : []), content_type || 'video', !!has_form, has_form ? (form_url || null) : null, has_form && form_file ? JSON.stringify(form_file) : null,
+       mentor_name || null, mentor_bio || null, mentor_photo ? JSON.stringify(mentor_photo) : null]
     );
     const inserted = rows[0];
     if (Array.isArray(category_ids) && category_ids.length > 0) {
@@ -1209,7 +1234,7 @@ app.put('/api/videos/:id', requireAdmin, async (req, res) => {
     try { await pool.query('ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS category_ids uuid[]'); } catch {}
     await ensureContentEnhancementColumns();
 
-    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','module_id','duration','vimeo_id','vimeo_embed_url','order','release_at','support_files','content_type','has_form','form_url','form_file'];
+    const fields = ['title','description','video_url','thumbnail','category_id','category_ids','module_id','duration','vimeo_id','vimeo_embed_url','order','release_at','support_files','content_type','has_form','form_url','form_file','mentor_name','mentor_bio','mentor_photo'];
     if (req.body?.has_form !== undefined) {
       const erro = validarFormulario(req.body);
       if (erro) return res.status(400).json({ error: erro });
@@ -1231,7 +1256,7 @@ app.put('/api/videos/:id', requireAdmin, async (req, res) => {
         } else if (f === 'support_files') {
           updates.push(`"${f}" = $${idx++}::jsonb`);
           values.push(JSON.stringify(Array.isArray(req.body[f]) ? req.body[f] : []));
-        } else if (f === 'form_file') {
+        } else if (f === 'form_file' || f === 'mentor_photo') {
           updates.push(`"${f}" = $${idx++}::jsonb`);
           values.push(req.body[f] ? JSON.stringify(req.body[f]) : null);
         } else if (f === 'order') {

@@ -108,6 +108,16 @@ uma aula: ao voltar, ela retoma de onde parou.
 
 ---
 
+## 3.1 Sobre a aula e sobre quem ensina
+
+Abaixo do vídeo há duas abas:
+
+- **Sobre** — quem é o mentor daquela aula, com foto e um resumo da experiência
+  dele, e em seguida o que a aula ensina.
+- **Materiais** — apostilas, PDFs e outros arquivos daquela aula.
+
+---
+
 ## 4. Avaliações
 
 Alguns módulos têm avaliação. Quando for o caso, aparece o botão

@@ -78,6 +78,7 @@ export const api = {
   vimeoCreateUpload: (payload: any, fileSize: number) => request('/vimeo-upload', { method: 'POST', headers: { 'x-file-size': String(fileSize) }, body: JSON.stringify(payload) }),
   vimeoDelete: (videoId: string) => request(`/vimeo/${encodeURIComponent(videoId)}`, { method: 'DELETE' }),
   fixModuleCategorySync: () => request('/videos/fix-module-category-sync', { method: 'POST' }),
+  getMentors: () => request('/mentors', { method: 'GET' }),
   getVimeoTokenStatus: () => request('/vimeo-token/status', { method: 'GET' }),
   getVimeoDetails: (videoId: string) => request(`/vimeo-thumbnail/${encodeURIComponent(videoId)}`, { method: 'GET' }),
 

@@ -57,6 +57,9 @@ export async function addVideo(video: {
   has_form?: boolean;
   form_url?: string | null;
   form_file?: { id: string; url: string; filename: string; mimeType: string } | null;
+  mentor_name?: string | null;
+  mentor_bio?: string | null;
+  mentor_photo?: { id: string; url: string; filename: string; mimeType: string } | null;
 }) {
 	return await api.addVideo(video);
 }
@@ -79,6 +82,9 @@ export async function updateVideo(id: string, updates: Partial<{
   has_form?: boolean;
   form_url?: string | null;
   form_file?: { id: string; url: string; filename: string; mimeType: string } | null;
+  mentor_name?: string | null;
+  mentor_bio?: string | null;
+  mentor_photo?: { id: string; url: string; filename: string; mimeType: string } | null;
 }>) {
 	return await api.updateVideo(id, updates);
 }

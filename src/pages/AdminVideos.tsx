@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import PdfViewer from '@/components/PdfViewer';
 import VimeoUpload from '@/components/admin/VimeoUpload';
 import { api } from '@/lib/api';
+import FichaDaAula from '@/components/admin/FichaDaAula';
 import { AJUDA_LIBERACAO_CONTEUDO, aggregateModuleContent, formatDurationLong, fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/utils';
 import {
   DndContext,
@@ -74,6 +75,13 @@ interface AdminVideoRow {
   has_form?: boolean;
   form_url?: string | null;
   form_file?: { id: string; url: string; filename: string; mimeType: string } | null;
+  formFile?: { id: string; url: string; filename: string; mimeType: string } | null;
+  mentor_name?: string | null;
+  mentorName?: string | null;
+  mentor_bio?: string | null;
+  mentorBio?: string | null;
+  mentor_photo?: { id: string; url: string; filename: string; mimeType: string } | null;
+  mentorPhoto?: { id: string; url: string; filename: string; mimeType: string } | null;
   contentType?: string;
 }
 
@@ -132,6 +140,9 @@ export default function AdminVideos() {
     hasForm: false,
     formUrl: '',
     formFile: null as { id: string; url: string; filename: string; mimeType: string } | null,
+    mentorName: '',
+    mentorBio: '',
+    mentorPhoto: null as { id: string; url: string; filename: string; mimeType: string } | null,
   });
   const [newCatSearch, setNewCatSearch] = useState('');
   const [newModuleSearch, setNewModuleSearch] = useState('');
@@ -830,6 +841,9 @@ export default function AdminVideos() {
         form_url: newVideo.hasForm ? (newVideo.formUrl || null) : null,
         form_file: newVideo.hasForm ? newVideo.formFile : null,
         content_type: newVideo.videoUrl.includes('/api/files/') ? 'file' : 'video',
+        mentor_name: newVideo.mentorName || null,
+        mentor_bio: newVideo.mentorBio || null,
+        mentor_photo: newVideo.mentorPhoto || null,
       });
 
       await loadData();
@@ -848,6 +862,9 @@ export default function AdminVideos() {
         hasForm: false,
         formUrl: '',
         formFile: null,
+        mentorName: '',
+        mentorBio: '',
+        mentorPhoto: null,
       });
 
       toast({
@@ -922,6 +939,9 @@ export default function AdminVideos() {
         form_url: editingVideo.has_form ? (editingVideo.form_url || null) : null,
         form_file: editingVideo.has_form ? (editingVideo.form_file || null) : null,
         content_type: editingVideo.content_type || editingVideo.contentType || ((editingVideo.video_url || editingVideo.videoUrl || '').includes('/api/files/') ? 'file' : 'video'),
+        mentor_name: editingVideo.mentorName ?? editingVideo.mentor_name ?? null,
+        mentor_bio: editingVideo.mentorBio ?? editingVideo.mentor_bio ?? null,
+        mentor_photo: editingVideo.mentorPhoto ?? editingVideo.mentor_photo ?? null,
       });
       
       await loadData();
@@ -1372,16 +1392,11 @@ export default function AdminVideos() {
                       placeholder="Ex: Introdução ao Sistema"
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="description">Descrição</Label>
-                    <Textarea
-                      id="description"
-                      value={newVideo.description}
-                      onChange={(e) => setNewVideo({ ...newVideo, description: e.target.value })}
-                      placeholder="Descreva o conteúdo do vídeo..."
-                      rows={3}
-                    />
-                  </div>
+                  <FichaDaAula
+                    idPrefixo="novo"
+                    valor={newVideo}
+                    aoMudar={(mudanca) => setNewVideo({ ...newVideo, ...mudanca } as typeof newVideo)}
+                  />
                   <div className="grid gap-2">
                     <Label htmlFor="category">Categorias (múltiplas) *</Label>
                     <DropdownMenu>
@@ -1872,15 +1887,18 @@ export default function AdminVideos() {
                     onChange={(e) => setEditingVideo({ ...editingVideo, title: e.target.value })}
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-description">Descrição</Label>
-                  <Textarea
-                    id="edit-description"
-                    value={editingVideo.description}
-                    onChange={(e) => setEditingVideo({ ...editingVideo, description: e.target.value })}
-                    rows={3}
-                  />
-                </div>
+                {/* A listagem vem crua do servidor, em snake_case; a ficha trabalha
+                    em camelCase e é assim que handleUpdateVideo lê de volta. */}
+                <FichaDaAula
+                  idPrefixo="editar"
+                  valor={{
+                    mentorName: editingVideo.mentorName ?? editingVideo.mentor_name ?? '',
+                    mentorBio: editingVideo.mentorBio ?? editingVideo.mentor_bio ?? '',
+                    mentorPhoto: editingVideo.mentorPhoto ?? editingVideo.mentor_photo ?? null,
+                    description: editingVideo.description,
+                  }}
+                  aoMudar={(mudanca) => setEditingVideo({ ...editingVideo, ...mudanca })}
+                />
                 <div className="grid gap-2">
                   <Label>Categoria Principal</Label>
                   <Select

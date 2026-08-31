@@ -45,6 +45,7 @@ import VimeoPlayer from '@/components/VimeoPlayer';
 import PdfViewer from '@/components/PdfViewer';
 import CourseBreadcrumb, { type TrilhaItem } from '@/components/CourseBreadcrumb';
 import { formatDurationClock, formatDurationLong, isActualVideo, isReleased, isSupportMaterial } from '@/lib/utils';
+import SobreAAula from '@/components/SobreAAula';
 
 function extractVimeoId(url?: string | null): string | undefined {
   if (!url) return undefined;
@@ -789,12 +790,7 @@ export default function VideoPlayer() {
                         />
                       </div>
                     ) : (
-                      <>
-                        <CardTitle className="text-2xl">{video.title}</CardTitle>
-                        <CardDescription className="mt-2">
-                          {video.description}
-                        </CardDescription>
-                      </>
+                      <CardTitle className="text-2xl">{video.title}</CardTitle>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -949,33 +945,15 @@ export default function VideoPlayer() {
               );
             })()}
 
-            {Array.isArray(video.supportFiles || (video as any).support_files) && (video.supportFiles || (video as any).support_files).length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <FileText className="h-5 w-5" />
-                    Materiais de apoio
-                  </CardTitle>
-                  <CardDescription>Arquivos vinculados a esta aula</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {(video.supportFiles || (video as any).support_files).map((file: any) => (
-                      <a
-                        key={file.id}
-                        href={file.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center justify-between rounded-md border px-3 py-2 text-sm hover:bg-muted"
-                      >
-                        <span className="truncate">{file.filename}</span>
-                        <Badge variant="outline">{file.mimeType || 'arquivo'}</Badge>
-                      </a>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Ficha da aula: "Sobre o mentor" e "Sobre a aula" como subtópicos,
+                com os materiais numa aba ao lado — formato pedido pelo cliente. */}
+            <SobreAAula
+              mentorName={video.mentorName || (video as any).mentor_name}
+              mentorBio={video.mentorBio || (video as any).mentor_bio}
+              mentorPhoto={video.mentorPhoto || (video as any).mentor_photo}
+              descricao={video.description}
+              materiais={(video.supportFiles || (video as any).support_files || []) as any}
+            />
 
             {/* Comments Section */}
             <Card>

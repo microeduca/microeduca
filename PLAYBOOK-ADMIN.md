@@ -140,6 +140,23 @@ reordenam. Use a busca quando a lista for longa.
 
 ---
 
+## 3.1 Ficha da aula: mentor e descrição
+
+Ao cadastrar ou editar um vídeo — inclusive no envio ao Vimeo — a antiga
+"Descrição" virou dois blocos:
+
+**Sobre o mentor.** Nome, foto e um parágrafo sobre quem está dando a aula.
+O nome tem sugestão automática: escolhendo alguém que já deu outra aula, a
+biografia e a foto vêm junto, sem redigitar.
+
+**Sobre a aula.** O que o colaborador vai aprender ali.
+
+Os dois aparecem para o aluno logo abaixo do vídeo, na aba *Sobre*; os arquivos
+vinculados ficam na aba *Materiais*, ao lado. Se você não preencher o mentor, o
+bloco simplesmente não aparece — aulas antigas seguem mostrando só a descrição.
+
+---
+
 ## 4. Avaliações por módulo
 
 Permite anexar um formulário (Google Forms, Microsoft Forms, ou qualquer URL)

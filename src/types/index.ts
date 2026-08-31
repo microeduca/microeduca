@@ -59,6 +59,10 @@ export interface Video {
   hasForm?: boolean;
   formUrl?: string | null;
   formFile?: SupportFile | null;
+  /** Ficha da aula: quem ensina. */
+  mentorName?: string | null;
+  mentorBio?: string | null;
+  mentorPhoto?: SupportFile | null;
 }
 
 export interface Comment {

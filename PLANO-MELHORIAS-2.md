@@ -241,3 +241,28 @@ anteriores a esta rodada:
 | 10 telas | linhas `flex gap-2` de botões sem `flex-wrap` |
 
 Verificado depois: as dez telas cabem em 531px sem rolagem horizontal.
+
+
+---
+
+## Ficha da aula: "Sobre o mentor" e "Sobre a aula"
+
+Pedido do cliente na última rodada, com uma captura de referência: abaixo do
+vídeo, a descrição deixa de ser um texto corrido e vira dois subtópicos.
+
+**Banco.** `videos` ganhou `mentor_name`, `mentor_bio` e `mentor_photo`
+(jsonb, no mesmo formato dos outros arquivos). A `description` continua sendo o
+"Sobre a aula", então nenhuma aula existente perdeu texto.
+
+**Admin.** Um componente só, `FichaDaAula`, nos três lugares que cadastram
+vídeo — os dois diálogos de `AdminVideos` e o envio ao Vimeo. Triplicar o
+formulário garantiria que os três divergissem com o tempo.
+
+`GET /api/mentors` devolve quem já foi cadastrado em alguma aula; escolhendo um
+nome da lista, a biografia e a foto vêm junto. Não criei cadastro separado de
+mentores: seria mais uma tela para manter, e a sugestão automática resolve o
+retrabalho que motivaria esse cadastro.
+
+**Aluno.** `SobreAAula` monta as abas *Sobre* e *Materiais* abaixo do player,
+no formato da referência. Os materiais saíram do cartão solto que existia antes
+e viraram a segunda aba. Sem mentor preenchido, o bloco não aparece.
